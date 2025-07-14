@@ -1,9 +1,14 @@
 
-# | Model             | Type   | Accuracy  | Complexity | Use Case                           |
-# | ----------------- | ------ | --------- | ---------- | ---------------------------------- |
-# | SGP (Gummel-Poon) | Legacy | Moderate  | Low        | Basic BJT simulation (SPICE)       |
-# | VBIC              | Modern | High      | Moderate   | RF BJT modeling, scaled BJTs       |
-# | HICUM             | Modern | Very High | High       | Advanced SiGe HBTs, high-freq BJTs |
+
+# | Model Name          | Era         | Complexity     | Accuracy       | Frequency Range   | Use Case / Domain                                  | Notes                                                                        |
+# | ------------------- | ----------- | -------------- | -------------- | ----------------- | -------------------------------------------------- | ---------------------------------------------------------------------------- |
+# | **Ebers-Moll**      | 1954        | Simple         | Basic          | DC to Low         | Educational, basic analysis                        | Good for DC and switching behavior, but ignores many second-order effects    |
+# | **Gummel-Poon**     | \~1970s     | Moderate       | Good           | Low to Mid        | General-purpose analog, discrete BJTs              | Adds Early effect, base-width modulation, recombination                      |
+# | **VBIC**            | \~1990s     | Complex        | High           | Mid to High       | IC design, moderate-frequency RF, precision analog | Industry standard for analog/RF BJT modeling; more physical than G-P         |
+# | **HICUM (L0/L2)**   | 2000s+      | Very High      | Very High      | High to Very High | High-speed SiGe HBTs, RF, telecom ICs              | Very accurate, used for GHz+ ICs, advanced modeling (thermal, transit, etc.) |
+# | **Mextram**         | NXP/Philips | High           | High           | High              | Power BJTs, analog ICs                             | Used in power bipolar and high-voltage applications                          |
+# | **SPICE Level 1/2** | Legacy      | Simple         | Low            | DC                | Quick sims, educational                            | Basic nonlinear models for fast SPICE simulations                            |
+
 
 
 #!/usr/bin/env python
