@@ -246,7 +246,7 @@ class BSIM3v3_Model:
         Includes:
         - Ideal threshold voltage
         - Non-uniform vertical doping effect (ΔVth(1))
-        - Non-uniform lateral doping effect (ΔVth(2))
+        - Non-uniform lateral doping effect (ΔVth(2)) 
         - Short-channel effects (ΔVth(3))
         - Narrow width effects (ΔVth(4))
         - DIBL effects (ΔVth(5))
