@@ -48,7 +48,7 @@ class Processing:
         df.to_csv(file, index=False, header=None, mode='w')                                 # Write the processed DataFrame back to the same CSV file
         return listcols                                                                     # Return the list of Decimal values
 
-    def norm_results(self,results):
+    def norm_results(self, results):
         """
         Normalizes simulation results as a single nested array of time and values.
 
@@ -87,22 +87,27 @@ class Processing:
             ...
         ]
         """
-        resultsvect     = []
-        longest_length = max(len(results[c]['Time']) for c in range(len(results)))
-        for i in range(len(results)):
-            timevector          = results[i]['Time']
-            difference_lengths  = longest_length - len(timevector)
-            NaNarray            = dp.np.empty((difference_lengths))
-            NaNarray[:]         = dp.nan
-            valuesvector        = results[i]['Values']
-            outputresults       = []
-            timevector = dp.np.append(NaNarray,timevector)
-            outputresults.append(timevector)
-            for j in range(len(valuesvector)):
-                valuesvector[j] = dp.np.append(NaNarray,valuesvector[j])
-                outputresults.append(valuesvector[j])
-            resultsvect.append(outputresults)
-        return resultsvect
+        resultsvect     = []                                                                # Initialize empty list to store normalized results
+        longest_length  = max(len(results[c]['Time']) for c in range(len(results)))         # Find length of longest time vector
+        
+        for i in range(len(results)):                                                       # Iterate through each simulation result
+            timevector          = results[i]['Time']                                        # Extract time vector for current simulation
+            difference_lengths  = longest_length - len(timevector)                          # Calculate padding needed for current time vector
+            NaNarray            = dp.np.empty((difference_lengths))                         # Create empty array for NaN padding
+            NaNarray[:]         = dp.nan                                                    # Fill padding array with NaN values
+            valuesvector        = results[i]['Values']                                      # Extract values vectors for current simulation
+            outputresults       = []                                                        # Initialize list for normalized results
+            
+            timevector          = dp.np.append(NaNarray, timevector)                        # Pad time vector with leading NaNs
+            outputresults.append(timevector)                                                # Add padded time vector to output
+            
+            for j in range(len(valuesvector)):                                              # Iterate through each value vector
+                valuesvector[j] = dp.np.append(NaNarray, valuesvector[j])                   # Pad value vector with leading NaNs
+                outputresults.append(valuesvector[j])                                       # Add padded value vector to output
+                
+            resultsvect.append(outputresults)                                               # Add normalized simulation to final results
+            
+        return resultsvect                                                                  # Return list of normalized simulation results
 
     def norm_results_csv(self,results):
         """
