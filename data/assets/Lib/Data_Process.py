@@ -525,30 +525,39 @@ class Processing:
 
         return dp.np.array(core_loss), dp.np.array(pri_copper_loss), dp.np.array(sec_copper_loss), dp.np.array(choke_core_loss), dp.np.array(choke_copper_loss)
 
-    def dissipations(self, nestedresults_l, res_list, RMS_currents, thread, FFT_current): # trafo_inputs, choke_inputs):
+    def dissipations(self, nestedresults_l, res_list, RMS_currents, thread, FFT_current):
         """
-        Calculate dissipations including magnetic losses and resistive losses.
-
-        Parameters  :
-            nestedresults_l (numpy.ndarray) : Nested results array.
-            res_list (numpy.ndarray)        : Resistances list.
-            RMS_currents (numpy.ndarray)    : RMS currents array.
-            thread (int)                    : Thread index.
-            FFT_current (numpy.ndarray)     : FFT currents array.
-            trafo_inputs (list)             : List of transformer inputs.
-            choke_inputs (list)             : List of choke inputs.
-
+        Calculate total dissipations including:
+        - Direct resistive losses (I²R)
+        - Transformer core losses
+        - Transformer winding losses (primary and secondary)
+        - Choke losses (core and copper)
+        
+        Parameters:
+            nestedresults_l (numpy.ndarray) : Time-domain simulation results array
+            res_list (numpy.ndarray)        : List of resistances for I²R calculation
+            RMS_currents (numpy.ndarray)    : RMS current values for all components
+            thread (int)                    : Thread index for parallel processing
+            FFT_current (numpy.ndarray)     : FFT current spectrum for harmonic analysis
+            
         Returns:
-            numpy.ndarray: Dissipation matrix including magnetic losses and resistive losses.
+            numpy.ndarray: Combined dissipation matrix containing all loss components
 
         """
-        dissip                                                       = self.rms_avg('AVG',nestedresults_l[sum(dp.Y_list[0:3]):sum(dp.Y_list[0:4]),  : ], nestedresults_l[0])
-        # core_loss , pri_copper_loss , sec_copper_loss , Choke_loss   = self.magnetic_loss(nestedresults_l,FFT_current,thread, trafo_inputs , choke_inputs)
-        core_loss, pri_copper_loss, sec_copper_loss, choke_core_loss, choke_copper_loss = self.analytical_magnetic_loss(nestedresults_l, FFT_current, thread)
-        res_dissip                                                   = (dp.np.square(RMS_currents[thread,0:dp.current_idx]))*res_list
-        # Dissipation_matrix                                           = dp.np.concatenate((dissip, pri_copper_loss , sec_copper_loss , core_loss ,Choke_loss,res_dissip))
-        Dissipation_matrix                                           = dp.np.concatenate((dissip, core_loss, pri_copper_loss, sec_copper_loss, choke_core_loss, choke_copper_loss, res_dissip))
-        # print(dp.np.shape(dissip), dp.np.shape(core_loss), dp.np.shape(pri_copper_loss), dp.np.shape(sec_copper_loss), dp.np.shape(choke_core_loss), dp.np.shape(choke_copper_loss), dp.np.shape(res_dissip))
+        
+        dissip              = self.rms_avg('AVG',nestedresults_l[sum(dp.Y_list[0:3]):sum(dp.Y_list[0:4]), :],nestedresults_l[0])                                # Calculate direct resistive dissipations 
+        core_loss, pri_copper_loss, sec_copper_loss, choke_core_loss, choke_copper_loss = self.analytical_magnetic_loss(nestedresults_l, FFT_current, thread)   # Calculate magnetic losses (core and windings) using analytical methods
+        res_dissip          = (dp.np.square(RMS_currents[thread, 0:dp.current_idx])) * res_list                                                                 # Calculate I²R resistive losses
+        Dissipation_matrix  = dp.np.concatenate((                                                                                                               # Combine all loss components into single dissipation matrix
+            dissip,                                                                                                                                             # Direct resistive dissipations
+            core_loss,                                                                                                                                          # Transformer core losses
+            pri_copper_loss,                                                                                                                                    # Primary winding losses
+            sec_copper_loss,                                                                                                                                    # Secondary winding losses  
+            choke_core_loss,                                                                                                                                    # Choke core losses
+            choke_copper_loss,                                                                                                                                  # Choke winding losses
+            res_dissip                                                                                                                                          # I²R resistive losses
+        ))
+        
         return Dissipation_matrix
 
     def therm_stats(self,MAT_list,thread,P_aux):
@@ -563,18 +572,15 @@ class Processing:
             numpy.ndarray: Thermal matrix including total dissipation, efficiency, and input power.
 
         """
-        P_rail      =   dp.np.sum(MAT_list[8][thread , dp.Rail_idx:dp.Common_idx+1])                            # get total loss of each rail
-        P_common    =   dp.np.sum(MAT_list[8][thread , dp.Common_idx+1:])                                       # get total losses of common parts
-        Pout        =   dp.np.mean(MAT_list[9][thread, dp.Pout_idx])                                            # get output power
-        # Calculate eff for each factorial value in the list using list comprehension
-        Eff         =   dp.np.array([(((Pout / ( Pout + P_rail + (factorial * P_common))*100.0) if ( Pout + P_rail + (factorial * P_common)) != 0 else 0.0)) for factorial in list(range(1, dp.phase + 1))])
-        Eff_Aux     =   dp.np.array([(((Pout / ( Pout + (P_rail + (factorial * P_common))+P_aux)*100.0) if ( Pout + P_rail + (factorial * P_common)) != 0 else 0.0)) for factorial in list(range(1, dp.phase + 1))])
-        # Calc Total dissipation
-        Ptot        =   dp.np.array([(P_rail*factorial + P_common*factorial**2) for factorial in list(range(1, dp.phase + 1))])
-        # Input Power
-        Pin         =   dp.np.array([((P_rail + Pout)*factorial + P_common*factorial**2) for factorial in list(range(1, dp.phase + 1))])
-        Th_mat      =   dp.np.concatenate((Ptot , Eff , Eff_Aux , Pin))
-        if MAT_list[11].shape == (1, 1):
+        P_rail      =   dp.np.sum(MAT_list[8][thread , dp.Rail_idx:dp.Common_idx+1])                                                                                                                                    # get total loss of each rail
+        P_common    =   dp.np.sum(MAT_list[8][thread , dp.Common_idx+1:])                                                                                                                                               # get total losses of common parts
+        Pout        =   dp.np.mean(MAT_list[9][thread, dp.Pout_idx])                                                                                                                                                    # get output power
+        Eff         =   dp.np.array([(((Pout / ( Pout + P_rail + (factorial * P_common))*100.0) if ( Pout + P_rail + (factorial * P_common)) != 0 else 0.0)) for factorial in list(range(1, dp.phase + 1))])            # Calculate eff for each factorial value in the list using list comprehension
+        Eff_Aux     =   dp.np.array([(((Pout / ( Pout + (P_rail + (factorial * P_common))+P_aux)*100.0) if ( Pout + P_rail + (factorial * P_common)) != 0 else 0.0)) for factorial in list(range(1, dp.phase + 1))])    # Calculate eff for each factorial value in the list using list comprehension
+        Ptot        =   dp.np.array([(P_rail*factorial + P_common*factorial**2) for factorial in list(range(1, dp.phase + 1))])                                                                                         # Calc Total dissipation
+        Pin         =   dp.np.array([((P_rail + Pout)*factorial + P_common*factorial**2) for factorial in list(range(1, dp.phase + 1))])                                                                                # Input Power
+        Th_mat      =   dp.np.concatenate((Ptot , Eff , Eff_Aux , Pin))                                                                                                                                                 # Combine all thermal statistics into single matrix
+        if MAT_list[11].shape == (1, 1):                                                                                                                                                                                # Handle edge case for empty matrices
             return dp.np.empty((1,))
         else:
             return Th_mat
@@ -610,9 +616,9 @@ class Processing:
             None
 
         """
-        df                  = dp.pd.read_csv(filename, header=None)                                    # Read the CSV file into a DataFrame.
-        df.drop(df.columns[idx_start:idx_end], axis=1, inplace=True)                              # Drop the columns specified by dissip_start and dissip_end from the DataFrame
-        df.to_csv(filename, index=False, header=None)
+        df                  = dp.pd.read_csv(filename, header=None)              # Read the CSV file into a DataFrame.
+        df.drop(df.columns[idx_start:idx_end], axis=1, inplace=True)             # Drop the columns specified by dissip_start and dissip_end from the DataFrame
+        df.to_csv(filename, index=False, header=None)                            # Write the modified DataFrame back to the CSV file without index and header
 
     def LuT_2D(self, x, y, z):
         """
