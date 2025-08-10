@@ -421,47 +421,47 @@ class Processing:
             tuple: Tuple containing core losses, primary copper losses, secondary copper losses, and choke losses.
 
         """
-        core_loss   , pri_copper_loss , sec_copper_loss ,choke_core_loss    ,choke_copper_loss , Choke_loss= [],[],[],[],[],[]
-        for i in range(len(trafo_inputs)):
-            #! core losses :
-            LuT3D         = self.LuT_3D(trafo_inputs[i][0] ,trafo_inputs[i][1],trafo_inputs[i][2],trafo_inputs[i][3])
-            flux_link     = nestedresults[trafo_inputs[i][4]]
-            point_flux    = dp.np.round((dp.np.max(flux_link)-dp.np.min(flux_link))/2 , decimals=12 )
-            point_in_volt = dp.np.max(nestedresults[trafo_inputs[i][5]],axis=0)
-            interp        = LuT3D([trafo_inputs[i][6],point_flux ,point_in_volt])
-            core_loss.append(interp[0] * trafo_inputs[i][7] )
+        core_loss   , pri_copper_loss , sec_copper_loss ,choke_core_loss    ,choke_copper_loss , Choke_loss= [],[],[],[],[],[]                                                                              # Initialize empty lists for losses
+        for i in range(len(trafo_inputs)):                                                                                                                                                                  #? Go over each trafo you have in the system.
+            #! core losses :                            
+            LuT3D         = self.LuT_3D(trafo_inputs[i][0] ,trafo_inputs[i][1],trafo_inputs[i][2],trafo_inputs[i][3])                                                                                       # Create the 3DLut.
+            flux_link     = nestedresults[trafo_inputs[i][4]]                                                                                                                                               # flux linkage .
+            point_flux    = dp.np.round((dp.np.max(flux_link)-dp.np.min(flux_link))/2 , decimals=12 )                                                                                                       # Peak value of flux linkage.
+            point_in_volt = dp.np.max(nestedresults[trafo_inputs[i][5]],axis=0)                                                                                                                             # get the voltage.
+            interp        = LuT3D([trafo_inputs[i][6],point_flux ,point_in_volt])                                                                                                                           # interpolated value.
+            core_loss.append(interp[0] * trafo_inputs[i][7] )                                                                                                                                               # Gain (Factor)   
             #! primary losses :
-            LuT2D         = self.LuT_2D(trafo_inputs[i][8],trafo_inputs[i][9],trafo_inputs[i][10])
-            rvec_pri      = []
-            for j in range(len(dp.harmonics)):
-                interpolated_rpri = LuT2D([(dp.np.array(dp.harmonics)*dp.F_Fund)[j],(trafo_inputs[i][11]*len(dp.harmonics))[j]])
-                rvec_pri.append(interpolated_rpri[0])
+            LuT2D         = self.LuT_2D(trafo_inputs[i][8],trafo_inputs[i][9],trafo_inputs[i][10])                                                                                                          # Create the 2DLut.
+            rvec_pri      = []                                                                                                                                                                              # Initialize empty list for primary resistance vector
+            for j in range(len(dp.harmonics)):                                                                                                                                                              # Go over each harmonic.
+                interpolated_rpri = LuT2D([(dp.np.array(dp.harmonics)*dp.F_Fund)[j],(trafo_inputs[i][11]*len(dp.harmonics))[j]])                                                                            #    Interpolate the resistance value for the primary winding.                     
+                rvec_pri.append(interpolated_rpri[0])                                                                                                                                                       # Append the interpolated resistance value to the primary resistance vector 
 
-            pri_copper_loss.append(dp.np.sum(dp.np.array(rvec_pri) * (1/2) * dp.np.square( FFT_current[l*len(dp.harmonics):l*len(dp.harmonics)+len(dp.harmonics),trafo_inputs[i][16]-1] )))
+            pri_copper_loss.append(dp.np.sum(dp.np.array(rvec_pri) * (1/2) * dp.np.square( FFT_current[l*len(dp.harmonics):l*len(dp.harmonics)+len(dp.harmonics),trafo_inputs[i][16]-1] )))                 # Calculate primary copper losses and append to the list
             #! secondary losses :
-            LuT2D         = self.LuT_2D(trafo_inputs[i][12],trafo_inputs[i][13],trafo_inputs[i][14])
-            rvec_sec      = []
-            for j in range(len(dp.harmonics)):
-                interpolated_rsec = LuT2D([(dp.np.array(dp.harmonics)*dp.F_Fund)[j],(trafo_inputs[i][15]*len(dp.harmonics))[j]])
-                rvec_sec.append(interpolated_rsec[0])
-            sec_copper_loss.append(dp.np.sum(dp.np.array(rvec_sec) * (1/2) * dp.np.square( FFT_current[l*len(dp.harmonics):l*len(dp.harmonics)+len(dp.harmonics),trafo_inputs[i][17]-1] )))
-        for i in range(len(choke_inputs)):                                                                                 #? Go over each trafo you have in the system.
+            LuT2D         = self.LuT_2D(trafo_inputs[i][12],trafo_inputs[i][13],trafo_inputs[i][14])                                                                                                        # Create the 2DLut for secondary winding.
+            rvec_sec      = []                                                                                                                                                                              # Initialize empty list for secondary resistance vector         
+            for j in range(len(dp.harmonics)):                                                                                                                                                              # Go over each harmonic.
+                interpolated_rsec = LuT2D([(dp.np.array(dp.harmonics)*dp.F_Fund)[j],(trafo_inputs[i][15]*len(dp.harmonics))[j]])                                                                            #    Interpolate the resistance value for the secondary winding.
+                rvec_sec.append(interpolated_rsec[0])                                                                                                                                                       # Append the interpolated resistance value to the secondary resistance vector
+            sec_copper_loss.append(dp.np.sum(dp.np.array(rvec_sec) * (1/2) * dp.np.square( FFT_current[l*len(dp.harmonics):l*len(dp.harmonics)+len(dp.harmonics),trafo_inputs[i][17]-1] )))                 # Calculate secondary copper losses and append to the list
+        for i in range(len(choke_inputs)):                                                                                                                                                                  #? Go over each trafo you have in the system.
             #! choke core losses :
-            LuT3D         = self.LuT_3D(choke_inputs[i][0] ,choke_inputs[i][1],choke_inputs[i][2],choke_inputs[i][3])      # Create the 3DLut.
-            flux_link     = nestedresults[choke_inputs[i][4]]                                                          # flux linkage .
-            point_flux    = (dp.np.max(flux_link)-dp.np.min(flux_link))/2                                                  # Peak value of flux linkage.
-            point_in_volt = dp.np.max(nestedresults[choke_inputs[i][5]])                                                # get the voltage.
-            interp        = LuT3D([choke_inputs[i][6],point_flux ,point_in_volt])                                          # interplated value.
-            choke_core_loss.append(interp[0] * choke_inputs[i][7] )                                                        # append choke_inputs[i][7]*Gain (Factor)
+            LuT3D         = self.LuT_3D(choke_inputs[i][0] ,choke_inputs[i][1],choke_inputs[i][2],choke_inputs[i][3])                                                                                       # Create the 3DLut.
+            flux_link     = nestedresults[choke_inputs[i][4]]                                                                                                                                               # flux linkage .
+            point_flux    = (dp.np.max(flux_link)-dp.np.min(flux_link))/2                                                                                                                                   # Peak value of flux linkage.
+            point_in_volt = dp.np.max(nestedresults[choke_inputs[i][5]])                                                                                                                                    # get the voltage.
+            interp        = LuT3D([choke_inputs[i][6],point_flux ,point_in_volt])                                                                                                                           # interpolated value.
+            choke_core_loss.append(interp[0] * choke_inputs[i][7] )                                                                                                                                         # append choke_inputs[i][7]*Gain (Factor)
             #! choke copper losses :
-            LuT2D         = self.LuT_2D(choke_inputs[i][8],choke_inputs[i][9],choke_inputs[i][10])
-            rvec          = []
-            for j in range(len(choke_inputs[i][13])):
-                interpolated_rpri = LuT2D([(dp.np.array(choke_inputs[i][13])*dp.F_Fund)[j],(choke_inputs[i][11]*len(choke_inputs[i][13]))[j]])
-                rvec.append(interpolated_rpri[0])
-            choke_copper_loss.append(dp.np.sum( dp.np.array(rvec)   * dp.np.square(FFT_current[l*len(dp.harmonics):l*len(dp.harmonics)+len(dp.harmonics),choke_inputs[i][12]-1][choke_inputs[i][13]])) )
-            Choke_loss =  [dp.np.sum(choke_core_loss + choke_copper_loss)]
-        return dp.np.array(core_loss) , dp.np.array(pri_copper_loss) , dp.np.array(sec_copper_loss) , dp.np.array(Choke_loss)
+            LuT2D         = self.LuT_2D(choke_inputs[i][8],choke_inputs[i][9],choke_inputs[i][10])                                                                                                          # Create the 2DLut for choke winding.
+            rvec          = []                                                                                                                                                                              # Initialize empty list for choke resistance vector
+            for j in range(len(choke_inputs[i][13])):                                                                                                                                                       # Go over each harmonic.
+                interpolated_rpri = LuT2D([(dp.np.array(choke_inputs[i][13])*dp.F_Fund)[j],(choke_inputs[i][11]*len(choke_inputs[i][13]))[j]])                                                              # Interpolate the resistance value for the choke winding.
+                rvec.append(interpolated_rpri[0])                                                                                                                                                           # Append the interpolated resistance value to the choke resistance vector
+            choke_copper_loss.append(dp.np.sum( dp.np.array(rvec)   * dp.np.square(FFT_current[l*len(dp.harmonics):l*len(dp.harmonics)+len(dp.harmonics),choke_inputs[i][12]-1][choke_inputs[i][13]])) )    # Calculate choke copper losses and append to the list
+            Choke_loss =  [dp.np.sum(choke_core_loss + choke_copper_loss)]                                                                                                                                  # Calculate total choke losses and append to the list
+        return dp.np.array(core_loss) , dp.np.array(pri_copper_loss) , dp.np.array(sec_copper_loss) , dp.np.array(Choke_loss)                                                                               # Return all losses as numpy arrays
 
     def analytical_magnetic_loss(self, nestedresults, FFT_current, l):
         """
@@ -633,7 +633,13 @@ class Processing:
             RegularGridInterpolator: Interpolation function for the LuT.
 
         """
-        interp_func     = dp.RegularGridInterpolator((x, y), z, method='linear', bounds_error=False, fill_value=None)
+        interp_func = dp.RegularGridInterpolator(   # Create 2D interpolation function with linear method
+            (x, y),                                 # Grid coordinates (x, y)
+            z,                                      # Function values at grid points
+            method='linear',                        # Linear interpolation between points
+            bounds_error=False,                     # Return NaN for points outside grid
+            fill_value=None                         # Don't fill out-of-bounds values
+        )
         return interp_func
 
     def LuT_3D(self, x, y, z, data):
@@ -650,7 +656,14 @@ class Processing:
             RegularGridInterpolator: Interpolation function for the LuT.
 
         """
-        interp_func     = dp.RegularGridInterpolator((x,y,z), data, method='linear', bounds_error=False, fill_value=None)
+        interp_func = dp.RegularGridInterpolator(       # Create 3D interpolation function with linear method
+            points=(x, y, z),                           # Grid coordinates (x, y, z)
+            values=data,                                # Function values at grid points
+            method='linear',                            # Linear interpolation between points
+            bounds_error=False,                         # Return NaN rather than error for points outside grid
+            fill_value=None                             # No extrapolation - return NaN for out-of-bounds
+        )
+        
         return interp_func
 
     def resample(self, time, signal):
@@ -665,9 +678,20 @@ class Processing:
             tuple: Tuple containing the resampled time values and the corresponding resampled signal values.
 
         """
-        new_t       = dp.np.linspace(time.min(), time.max(), len(signal))
-        new_signal  = dp.np.interp(new_t,time,signal)
-        return new_t,new_signal
+        
+        new_t = dp.np.linspace(     # Create new uniformly spaced time grid with same number of points
+            start=time.min(),       # Preserve original start time
+            stop=time.max(),        # Preserve original end time
+            num=len(signal)         # Maintain same number of points
+        )
+        
+        new_signal = dp.np.interp(  # Perform linear interpolation to new time points
+            x=new_t,                # New time points
+            xp=time,                # Original time points
+            fp=signal               # Original signal values
+        )
+        
+        return new_t, new_signal
 
     def IIR_Filter(self, Time, Signal, Cutoff, Order=2, BType='low', FType='butter'):
         """_summary_
@@ -683,14 +707,13 @@ class Processing:
         Returns:
             _type_: _description_
         """
-        dt                  =   Time[1] - Time[0]
-        Fs                  =   1.0/dt
-        Fn                  =   min(Fs/2-1, Cutoff)
+        dt                  =   Time[1] - Time[0]                                                           # Calculate time step from the time vector
+        Fs                  =   1.0/dt                                                                      # Sampling frequency
+        Fn                  =   min(Fs/2-1, Cutoff)                                                         # Nyquist frequency, ensuring it does not exceed the cutoff frequency
+        b,a                 =   dp.scipy.signal.iirfilter(Order, Wn=Fn, fs=Fs, btype=BType, ftype=FType)    # Design the IIR filter using specified parameters
+        Signal_Filtered     =   dp.scipy.signal.filtfilt(b, a, Signal)                                      # Apply the filter to the signal using zero-phase filtering
 
-        b,a                 =   dp.scipy.signal.iirfilter(Order, Wn=Fn, fs=Fs, btype=BType, ftype=FType)
-        Signal_Filtered     =   dp.scipy.signal.filtfilt(b, a, Signal)
-
-        return Signal_Filtered
+        return Signal_Filtered          
 
     def pyFFT(self, signal, fs):
         """
@@ -704,24 +727,44 @@ class Processing:
             tuple: Tuple containing amplitude, phase, and frequency arrays.
 
         """
-        N               = len(signal)                                                   #
-        f               = dp.fftfreq(N,1/fs)                                            #
-        f               = f[f >= 0]                                                     #
-        useful          = dp.np.arange(0, len(f)/2, dtype=int)                          # Select useful indices and corresponding frequency values
-        fft             = dp.fft(x=signal,workers=dp.multiprocessing.cpu_count())       # Compute FFT
-        amplitude       = dp.np.abs(fft)                                                # Calculate magnitude of FFT result
-        amplitude[0]    = (1/N) * amplitude[0]                                          # Scale the magnitude values
-        amplitude[1:N]  = (2/N) * amplitude[1:N]                                        # Scale the magnitude values
-        amplitude       = amplitude[useful]                                             # Select useful indices and corresponding magnitude values
-        pahse           = dp.np.angle(fft[useful],deg=True)                             # Calculate phase angles of the FFT result
-        frequency       = f[useful]                                                     #
-        return amplitude, pahse, frequency
+        N               = len(signal)                                               # Number of samples
+        f               = dp.fftfreq(N, 1/fs)                                       # Compute frequency bins (two-sided)
+        f               = f[f >= 0]                                                 # Keep only non-negative frequencies (single-sided)
+        useful          = dp.np.arange(0, len(f), dtype=int)                        # Select indices for single-sided spectrum
+        fft             = dp.fft(x=signal,workers=dp.multiprocessing.cpu_count())   # Compute FFT of the signal using all available CPU cores
+        amplitude       = dp.np.abs(fft)                                            # Compute amplitude spectrum
+        amplitude[0]    = (1/N) * amplitude[0]                                      # DC component (zero frequency)
+        amplitude[1:N]  = (2/N) * amplitude[1:N]                                    # Scale non-DC components by 2/N for single-sided spectrum
+        amplitude       = amplitude[useful]                                         # Select only the useful frequencies (non-negative)
+        phase           = dp.np.angle(fft[useful], deg=True)                        # Compute phase spectrum in degrees, selecting only the useful frequencies
+        frequency       = f[useful]                                                 # Select only the useful frequencies (non-negative)
+        return amplitude, phase, frequency                                          # Return amplitude, phase, and frequency arrays  
 
-    def safe_get(self,my_list, index):
-        try:
-            return my_list[index]
-        except IndexError:
-            return None
+    def safe_get(self, my_list: list, index: int) -> Any:
+        """
+        Safely retrieves an item from a list by index, returning None if the index is out of bounds
+        instead of raising an IndexError.
+
+        Parameters:
+            my_list (list): The list from which to retrieve an item
+            index (int): The index position to access (can be positive or negative)
+
+        Returns: The item at the specified index if it exists, otherwise None
+
+        Examples:
+            safe_get([1, 2, 3], 1)
+            2
+            safe_get([1, 2, 3], 5)      # Out of bounds
+            None
+            safe_get([1, 2, 3], -1)     # Negative index works
+            3
+            safe_get([], 0)             # Empty list
+            None
+        """
+        try:                                    #   Attempt to access the list at the specified index
+            return my_list[index]               #   Returns the item at the specified index
+        except (IndexError, TypeError):         #   Handle both IndexError (if index is out of bounds) and TypeError (if my_list is not a list or index is not an int)
+            return None                         #   Return None if the index is invalid or the list is not a valid list type
 
     def FFT_mat(self, T_vec, nestedresults):
         """
@@ -735,23 +778,19 @@ class Processing:
             numpy.ndarray: Transposed FFT matrix.
 
         """
-        fft_mat     =   dp.np.zeros((len(nestedresults),len(dp.harmonics)))
-
-        for x in range(len(nestedresults)):
-            if dp.mdlVars['Common']['ToFile']['Ts'] == 0:                               # var sampling
-                time_vec,signal_vec  = self.resample(T_vec, nestedresults[x])
-            else :                                                                      # fixed sampling
-                time_vec,signal_vec  = T_vec, nestedresults[x]
-
-            # time_vec             = T_vec
-            # signal_vec           = nestedresults[x]
-            dt                   = time_vec[-1]-time_vec[0]
-            fs                   = 1/((dp.np.round(dt,decimals=6)))
-            Magnitude , _ ,_     = self.pyFFT(signal_vec , dp.F_Fund)
-            idx                  = [int(c) for c in (((dp.np.array(dp.harmonics,dtype=int)*dp.F_Fund).tolist())/fs).tolist()]
-            Mag_array            = [self.safe_get(Magnitude, index) for index in idx if self.safe_get(Magnitude, index) is not None]
-            fft_mat[x, :]        = dp.np.pad(Mag_array, (0, len(dp.harmonics) - len(Mag_array)), 'constant')
-        return dp.np.transpose(fft_mat)
+        fft_mat     =   dp.np.zeros((len(nestedresults),len(dp.harmonics)))                                                             # Initialize an empty matrix to store FFT results
+        for x in range(len(nestedresults)):                                                                                             # Loop through each set of nested results
+            if dp.mdlVars['Common']['ToFile']['Ts'] == 0:                                                                               # If Ts is 0, resample the results to match the time vector
+                time_vec,signal_vec  = self.resample(T_vec, nestedresults[x])                                                           # Resample the signal to match the time vector
+            else :                                                                                                                      # If Ts is not 0, use the original time vector and signal
+                time_vec,signal_vec  = T_vec, nestedresults[x]                                                                          # Use the original time vector and signal
+            dt                   = time_vec[-1]-time_vec[0]                                                                             # Calculate the time step from the time vector
+            fs                   = 1/((dp.np.round(dt,decimals=6)))                                                                     # Calculate the sampling frequency from the time step
+            Magnitude , _ ,_     = self.pyFFT(signal_vec , dp.F_Fund)                                                                   # Compute the FFT of the signal using the defined sampling frequency
+            idx                  = [int(c) for c in (((dp.np.array(dp.harmonics,dtype=int)*dp.F_Fund).tolist())/fs).tolist()]           # Calculate indices for the harmonics based on the sampling frequency
+            Mag_array            = [self.safe_get(Magnitude, index) for index in idx if self.safe_get(Magnitude, index) is not None]    # Safely get the magnitude values for the specified indices, avoiding IndexError
+            fft_mat[x, :]        = dp.np.pad(Mag_array, (0, len(dp.harmonics) - len(Mag_array)), 'constant')                            # Pad the magnitude array to match the length of harmonics, filling with zeros if necessary
+        return dp.np.transpose(fft_mat)                                                                                                 # Transpose the FFT matrix to have harmonics as rows and results as columns
 
     def remove_duplicates(self, nested_array):
         """
@@ -783,29 +822,43 @@ class Processing:
         Returns        :        Missing  :               List
                                                          List of missing data.
         """
-        file_list           =   []
-        Iters               =   []
-        if dp.JSON['hierarchical']:
-            iteration_range     =   list(range(1,sum(threads_vector[0:itr+1])+1))
-        else:
-            iteration_range     =   list(range(1,Threads*(itr+1)+1))
-        for filename in dp.os.scandir(path):
-            file_list.append(str(filename.path.replace("\\","/")))
+        file_list           =   []                                                  # Initialize an empty list to store file paths
+        Iters               =   []                                                  # Initialize an empty list to store iteration numbers              
+        if dp.JSON['hierarchical']:                                                 # If hierarchical simulations are enabled
+            iteration_range     =   list(range(1,sum(threads_vector[0:itr+1])+1))   # Create a range of iterations based on the sum of threads up to the current iteration
+        else:                                                                       # If hierarchical simulations are not enabled
+            iteration_range     =   list(range(1,Threads*(itr+1)+1))                # Create a range of iterations based on the total number of threads and the current iteration
+        for filename in dp.os.scandir(path):                                        # Iterate through files in the specified directory
+            file_list.append(str(filename.path.replace("\\","/")))                  # Append file paths to the list, replacing backslashes with forward slashes
 
-        for i in range(len(file_list)):
-            x               =   file_list[i].split("s_")[-1]
-            x               =   x.split(".")[0]
-            x               =   x.split("_")[-1]
-            Iters.append(int(x))
-            Iters.sort()
+        for i in range(len(file_list)):                                             # Iterate through the file list
+            x               =   file_list[i].split("s_")[-1]                        # Extract the part of the filename after 's_'
+            x               =   x.split(".")[0]                                     # Remove the file extension to get the iteration number
+            x               =   x.split("_")[-1]                                    # Extract the last part of the string after the last underscore
+            Iters.append(int(x))                                                    # Convert the extracted string to an integer and append it to the Iters list
+            Iters.sort()                                                            # Sort the list of iteration numbers in ascending order
 
-        Set                 =   set(Iters)
-        Missing             =   [x for x in iteration_range if x not in Set]
+        Set                 =   set(Iters)                                          # Convert the list of iteration numbers to a set for faster lookup
+        Missing             =   [x for x in iteration_range if x not in Set]        # Create a list of missing iterations by checking which numbers in the iteration range are not in the set of existing iterations
 
         return Missing
 
     def last_filled_X(self):
+        """
+        Determines the length of the last non-empty X input list from a set of stored JSON parameters.
+        Searches through X1 to X10 lists in reverse order and returns the length of the first
+        non-empty list found (where non-empty means not just [0]).
 
+        Returns:
+            int: Length of the last non-empty X list, or 0 if all lists are empty ([0])
+
+        Example:
+            If JSON contains:
+                X1: "[1, 2, 3]"
+                X2: "[0]"
+                X3: "[4, 5]"
+            last_filled_X() will return 2 (length of X3)
+        """
         lists = [dp.JSON[f'X{i}']for i in range(1,11)]  # Construct the list of X input lists from the json file.
         for lst in reversed(lists):                     # Iterate through the list of lists from last to first
             lst     = dp.ast.literal_eval(lst)          # Evaluate expression of the list coming from json.
@@ -1043,13 +1096,11 @@ class Processing:
             print(derating_factor)
             # Output: 0.8
         """
-        m   =   (Y2 - Y1)/(X2 - X1)
-        b   =   Y1 - m*X1
-
-        Y   =   m*X + b
-
-        Y   =   min(Y,Ymax)
-        Y   =   max(Y,Ymin)
+        m   =   (Y2 - Y1)/(X2 - X1)         # Calculate the slope of the line
+        b   =   Y1 - m*X1                   # Calculate the y-intercept of the line
+        Y   =   m*X + b                     # Calculate the derating factor Y using the linear equation
+        Y   =   min(Y,Ymax)                 # Ensure Y does not exceed the maximum value
+        Y   =   max(Y,Ymin)                 # Ensure Y does not fall below the minimum value
 
         return Y
 
@@ -1068,21 +1119,21 @@ class Processing:
             Pave_core(W) : Average core losses
         """
 
-        def ki(k,a,b):
-            f = lambda theta, a: (abs(dp.np.cos(theta)))**SP[1]
-            integral, error = quad(f, 0, 2* dp.np.pi, args=(SP[1]))
-            ki = SP[0]/((2*dp.np.pi)**(SP[1]-1) * 2**(SP[2]-SP[1]) * integral)
-            return ki
+        def ki(k,a,b):                                                                                                                  # Function to calculate the Steinmetz coefficient
+            f                   = lambda theta, a: (abs(dp.np.cos(theta)))**SP[1]                                                       # Define the function to integrate
+            integral, error     = quad(f, 0, 2* dp.np.pi, args=(SP[1]))                                                                 # Perform numerical integration over one period
+            ki                  = SP[0]/((2*dp.np.pi)**(SP[1]-1) * 2**(SP[2]-SP[1]) * integral)                                         # Calculate the Steinmetz coefficient
+            return ki                                                                                                                   # Return the Steinmetz coefficient
 
-        match Wf:
-            case 'trap':
-                 Pave_density = ki(SP[0], SP[1], SP[2]) * f_s**SP[1] * Bp**SP[2] * 2**(SP[1]+SP[2]) * d**(1-SP[1])                        # Average core losses density (W/m3)
-                 Pave_core = Pave_density * Vc                                                                                              # Average core losses (W)
-            case 'tri':
-                Pave_density = ki(SP[0], SP[1], SP[2]) * f_s**SP[1] * Bp**SP[2] * 2**SP[2] * (d**(1-SP[1]) + (1-d)**(1-SP[1]))            # Average core losses density (W/m3)
-                Pave_core = Pave_density * Vc                                                                                               # Average core losses (W)
+        match Wf:                                                                                                                       # Match the waveform type
+            case 'trap':                                                                                                                # Trapezoidal waveform 
+                 Pave_density   = ki(SP[0], SP[1], SP[2]) * f_s**SP[1] * Bp**SP[2] * 2**(SP[1]+SP[2]) * d**(1-SP[1])                    # Average core losses density (W/m3)
+                 Pave_core      = Pave_density * Vc                                                                                     # Average core losses (W)
+            case 'tri':                                                                                                                 # Triangular waveform    
+                Pave_density    = ki(SP[0], SP[1], SP[2]) * f_s**SP[1] * Bp**SP[2] * 2**SP[2] * (d**(1-SP[1]) + (1-d)**(1-SP[1]))       # Average core losses density (W/m3)
+                Pave_core       = Pave_density * Vc                                                                                     # Average core losses (W)
 
-        return Pave_core
+        return Pave_core                                                                                                                # Return the average core losses (W)
 
     def rac_lac_values(self, method, L_primary,frequencies, Z_real_csv):
         """
@@ -1095,80 +1146,71 @@ class Processing:
         Returns:
             res_optimize : Dictionary of calculated Rac, Lac, Rac_calculated, Z_real_residual, Z_real_calculated and percentage_difference
         """
-        R_dc = Z_real_csv[frequencies == 0][0] #/ 1000                                                                                      # Extract R_dc
-        valid_index = frequencies != 0                                                                                                      # Remove the frequency = 0 row
-        frequencies = dp.np.array(frequencies[valid_index])
-        Z_real_csv = dp.np.array(Z_real_csv[valid_index]) #/1000
-        num_frequency = len(frequencies)
-        #initial guess
-        R_ac = dp.np.ones(len(frequencies))*1e-3                                                                                            # initialize Rac with small positive value (1 mΩ)
-        L_ac = dp.np.full(len(frequencies), L_primary/len(frequencies))                                                                     # initialize Lac value by dividing Lm equally
-        initial = dp.np.concatenate([R_ac,L_ac])
-        omega = 2 * dp.np.pi * frequencies
-        Z_real_residual_csv = Z_real_csv - R_dc                                                                                             # Real residual resistance
-        match method:
-            case 'min':                                                                                                                     # minimize method
-                #cost function
-                def cost_minimize(params, omega, Z_real_residual_csv):                                                                      # cost function of minimize method
-                    R_ac = params[:len(frequencies)]
-                    L_ac = params[len(frequencies):]
-                    X_lac = omega * L_ac
-                    num = R_ac * X_lac**2
-                    den = R_ac**2 + X_lac**2
-                    Z_real_residual = num/den
-                    error = Z_real_residual_csv - Z_real_residual
-                    return sum(error**2)
-                #constarints
-                def R_ac_constraint(params):                                                                                                 # Rac constraint for minimize method
-                    R_ac = params[:len(frequencies)]
-                    return [R_ac[4] - R_ac[3],                                                                                               # R5 > R4
-                            R_ac[3] - R_ac[2],                                                                                               # R4 > R3
-                            R_ac[2] - R_ac[1],                                                                                               # R3 > R2
-                            R_ac[1] - R_ac[0]]                                                                                               # R2 > R1
+        R_dc                = Z_real_csv[frequencies == 0][0] #/ 1000                                                                               # Extract R_dc
+        valid_index         = frequencies != 0                                                                                                      # Remove the frequency = 0 row
+        frequencies         = dp.np.array(frequencies[valid_index])                                                                                 # Remove the frequency = 0 row
+        Z_real_csv          = dp.np.array(Z_real_csv[valid_index]) #/1000                                                                           # Remove the frequency = 0 row and convert to kΩ
+        num_frequency       = len(frequencies)                                                                                                      # Number of frequencies
+        R_ac                = dp.np.ones(len(frequencies))*1e-3                                                                                     # initialize Rac with small positive value (1 mΩ)
+        L_ac                = dp.np.full(len(frequencies), L_primary/len(frequencies))                                                              # initialize Lac value by dividing Lm equally
+        initial             = dp.np.concatenate([R_ac,L_ac])                                                                                        # Concatenate Rac and Lac into a single array
+        omega               = 2 * dp.np.pi * frequencies                                                                                            # Calculate angular frequency from frequencies
+        Z_real_residual_csv = Z_real_csv - R_dc                                                                                                     # Real residual resistance
+        match method:                                                                                                                               # Match the optimization method
+            case 'min':                                                                                                                             # minimize method
+                def cost_minimize(params, omega, Z_real_residual_csv):                                                                              # cost function of minimize method
+                    R_ac            = params[:len(frequencies)]                                                                                     # Extract Rac from params
+                    L_ac            = params[len(frequencies):]                                                                                     # Extract Lac from params
+                    X_lac           = omega * L_ac                                                                                                  # Calculate reactance from Lac   
+                    num             = R_ac * X_lac**2                                                                                               # Calculate numerator for Z_real_residual
+                    den             = R_ac**2 + X_lac**2                                                                                            # Calculate denominator for Z_real_residual                    
+                    Z_real_residual = num/den                                                                                                       # Calculate Z_real_residual
+                    error           = Z_real_residual_csv - Z_real_residual                                                                         # Calculate error between measured and calculated Z_real_residual
+                    return sum(error**2)                                                                                                            # Return the sum of squared errors for optimization
+                def R_ac_constraint(params):                                                                                                        # Rac constraint for minimize method
+                    R_ac            = params[:len(frequencies)]                                                                                     # Extract Rac from params
+                    return [R_ac[4] - R_ac[3],                                                                                                      # R5 > R4
+                            R_ac[3] - R_ac[2],                                                                                                      # R4 > R3
+                            R_ac[2] - R_ac[1],                                                                                                      # R3 > R2
+                            R_ac[1] - R_ac[0]]                                                                                                      # R2 > R1
 
-                def L_ac_constraint(params):                                                                                                 # Lac constraint for minimize method
-                    L_ac = params[len(frequencies):]
-                    return L_primary - sum(L_ac)                                                                                             # sum(Lac) < Lm
+                def L_ac_constraint(params):                                                                                                        # Lac constraint for minimize method
+                    L_ac            = params[len(frequencies):]                                                                                     # Extract Lac from params   
+                    return L_primary - sum(L_ac)                                                                                                    # sum(Lac) < Lm
 
-                constraints = [{'type':'ineq', 'fun': R_ac_constraint}, {'type':'ineq', 'fun': L_ac_constraint}]
-                #bounds
-                bounds = [(1e-6, 100e-3)]* len(frequencies) + [((L_primary/len(frequencies)), 1e-3)]* len(frequencies)                       # bounds for minimize method
+                constraints = [{'type':'ineq', 'fun': R_ac_constraint}, {'type':'ineq', 'fun': L_ac_constraint}]                                    # Define constraints for minimize method
+                bounds      = [(1e-6, 100e-3)]* len(frequencies) + [((L_primary/len(frequencies)), 1e-3)]* len(frequencies)                         # bounds for minimize method
+                res         = minimize(cost_minimize, initial, args=(omega, Z_real_residual_csv), bounds=bounds, constraints=constraints)           # Perform optimization using minimize method
 
-                res = minimize(cost_minimize, initial, args=(omega, Z_real_residual_csv), bounds=bounds, constraints=constraints)
+            case 'ls':                                                                                                                              # cost function for least_squares method
+                def cost_leastsquares(params, omega, Z_real_residual_csv):                                                                          # cost function of least_squares method
+                    R_ac            = params[:len(frequencies)]                                                                                     # Extract Rac from params
+                    L_ac            = params[len(frequencies):]                                                                                     # Extract Lac from params
+                    X_lac           = omega * L_ac                                                                                                  # Calculate reactance from Lac
+                    num             = R_ac * X_lac**2                                                                                               # Calculate numerator for Z_real_residual
+                    den             = R_ac**2 + X_lac**2                                                                                            # Calculate denominator for Z_real_residual
+                    Z_real_residual = num/den                                                                                                       # Calculate Z_real_residual
+                    error           = Z_real_residual_csv - Z_real_residual                                                                         # Calculate error between measured and calculated Z_real_residual
+                    return error        
+                lb          = [1e-6]* len(frequencies) + [L_primary/len(frequencies)]* len(frequencies)                                             # lower bound for least_squares
+                ub          = [100e-3]* len(frequencies) + [1e-3]* len(frequencies)                                                                 # upper bound for least_squares
+                res         = least_squares(cost_leastsquares, initial, args= (omega, Z_real_residual_csv), bounds=(lb,ub))                         # Perform optimization using least_squares method
 
-            case 'ls':                                                                                                                       # cost function for least_squares method
-                #cost function
-                def cost_leastsquares(params, omega, Z_real_residual_csv):
-                    R_ac = params[:len(frequencies)]
-                    L_ac = params[len(frequencies):]
-                    X_lac = omega * L_ac
-                    num = R_ac * X_lac**2
-                    den = R_ac**2 + X_lac**2
-                    Z_real_residual = num/den
-                    error = Z_real_residual_csv - Z_real_residual
-                    return error
-                #bounds
-                lb = [1e-6]* len(frequencies) + [L_primary/len(frequencies)]* len(frequencies)                                               # lower bound for least_squares
-                ub = [100e-3]* len(frequencies) + [1e-3]* len(frequencies)                                                                   # upper bound for least_squares
-
-                res = least_squares(cost_leastsquares, initial, args= (omega, Z_real_residual_csv), bounds=(lb,ub))
-
-        fitted_param            = res.x
-        R_fit                   = fitted_param[:len(frequencies)]
-        L_fit                   = fitted_param[len(frequencies):]
-        Xl_fit                  = omega * L_fit
-        Z_real_residual         = ((R_fit * Xl_fit**2)/(R_fit**2 + Xl_fit**2))
-        Z_real_calculated       = Z_real_residual + R_dc
-        percentage_difference   = ((Z_real_calculated - Z_real_csv)/Z_real_csv) * 100
+        fitted_param            = res.x                                                                                                             # Extract fitted parameters from optimization result
+        R_fit                   = fitted_param[:len(frequencies)]                                                                                   # Extract Rac from fitted parameters
+        L_fit                   = fitted_param[len(frequencies):]                                                                                   # Extract Lac from fitted parameters
+        Xl_fit                  = omega * L_fit                                                                                                     # Calculate reactance from Lac
+        Z_real_residual         = ((R_fit * Xl_fit**2)/(R_fit**2 + Xl_fit**2))                                                                      # Calculate Z_real_residual from Rac and Lac
+        Z_real_calculated       = Z_real_residual + R_dc                                                                                            # Calculate Z_real_calculated by adding R_dc to Z_real_residual
+        percentage_difference   = ((Z_real_calculated - Z_real_csv)/Z_real_csv) * 100                                                               # Calculate percentage difference between calculated and measured Z_real
         res_optimize = {
-        'Rac'                   : R_fit,
-        'Lac'                   : L_fit,
-        'Rac_calculated'        : R_fit + R_dc,
-        'Z_real_residual'       : Z_real_residual,
-        'Z_real_calculated'     : Z_real_calculated,
-        'Percentage_difference' : percentage_difference
+        'Rac'                   : R_fit,                                                                                                            # Return Rac values
+        'Lac'                   : L_fit,                                                                                                            # Return Lac values
+        'Rac_calculated'        : R_fit + R_dc,                                                                                                     # Return Rac_calculated values
+        'Z_real_residual'       : Z_real_residual,                                                                                                  # Return Z_real_residual values
+        'Z_real_calculated'     : Z_real_calculated,                                                                                                # Return Z_real_calculated values
+        'Percentage_difference' : percentage_difference                                                                                             # Return percentage difference between calculated and measured Z_real
         }
-
-        return res_optimize
+        return res_optimize                                                                                                                         # Return the optimization results as a dictionary containing Rac, Lac, Rac_calculated, Z_real_residual, Z_real_calculated, and percentage_difference
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------
