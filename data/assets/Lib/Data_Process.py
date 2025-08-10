@@ -35,16 +35,18 @@ class Processing:
             A 2D numpy array containing the concatenated data from all CSV files in the directory. The first column
             of each CSV file is assumed to contain headers and is not included in the resulting array.
         """
-        file            = directory_path + f"/results_{utc}_{str(itr+1)}.csv"
-        dataFrame       = dp.pd.read_csv(file, header=None, dtype=str).transpose()
+        file            = directory_path + f"/results_{utc}_{str(itr+1)}.csv"               # Construct the full file path using directory path, UTC, and iteration
+        dataFrame       = dp.pd.read_csv(file, header=None, dtype=str).transpose()          # Read CSV file with no headers as strings and transpose it
+        
         try:
-            listcols   = (dataFrame.apply(lambda col: col.map(Decimal))).values.tolist()
-        except Exception:
-            print("Could not apply Decimal.")
+            listcols    = (dataFrame.apply(lambda col: col.map(Decimal))).values.tolist()   # Convert each column to Decimal and get values as list
+        except Exception:   
+            print("Could not apply Decimal.")                                               # Print error message if Decimal conversion fails
             pass
-        df              = (dp.pd.DataFrame(listcols, dtype=object).transpose()).dropna()
-        df.to_csv(file, index=False, header=None, mode='w')
-        return listcols
+        
+        df              = (dp.pd.DataFrame(listcols, dtype=object).transpose()).dropna()    # Convert list to DataFrame, transpose, and drop NAN values
+        df.to_csv(file, index=False, header=None, mode='w')                                 # Write the processed DataFrame back to the same CSV file
+        return listcols                                                                     # Return the list of Decimal values
 
     def norm_results(self,results):
         """
