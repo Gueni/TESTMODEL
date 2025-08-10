@@ -109,7 +109,7 @@ class Processing:
             
         return resultsvect                                                                  # Return list of normalized simulation results
 
-    def norm_results_csv(self,results):
+    def norm_results_csv(self, results):
         """
         Normalize a list of lists by padding shorter sublists with NaN values to match the longest sublist.
 
@@ -122,16 +122,16 @@ class Processing:
         Raises:
         ValueError: If the input is not a list of lists.
         """
-        resultsvect             = []
-        longest_length          = max(map(len, results))  # Find the longest sublist
-        for sublist in results:
-            difference_lengths  = longest_length - len(sublist)
-            NaNarray            = dp.np.full(difference_lengths, dp.np.nan)  # Create an array of NaNs
-            outputresults       = [dp.np.append(NaNarray, dp.np.array(item)).tolist() for item in sublist]
-            resultsvect.append(outputresults)
-        return resultsvect
+        resultsvect             = []                                                                        # Initialize empty list for normalized results
+        longest_length          = max(map(len, results))                                                    # Determine length of longest sublist
+        for sublist in results:                                                                             # Iterate through each sublist in input
+            difference_lengths  = longest_length - len(sublist)                                             # Calculate required padding length
+            NaNarray            = dp.np.full(difference_lengths, dp.np.nan)                                 # Create NaN padding array
+            outputresults       = [dp.np.append(NaNarray, dp.np.array(item)).tolist() for item in sublist]  # Pad each item in sublist with NaNs and convert to list
+            resultsvect.append(outputresults)                                                               # Add normalized sublist to results
+        return resultsvect                                                                                  # Return list of normalized sublists
 
-    def extractArrays(self,fileName):
+    def extractArrays(self, fileName):
         """
         Reads a CSV file that contains comma-separated numerical data and returns the individual columns
         of the CSV file as a nested list.
@@ -159,22 +159,26 @@ class Processing:
 
             [[1.0, 4.0, 7.0], [2.0, 5.0, 8.0], [3.0, 6.0, 9.0]]
         """
-        path    =   dp.os.getcwd() + '/'
-        array   =   []
-        with open(path + fileName + '.csv') as f:
-            line            =   f.readline()
-            firstRow        =   line.split(",")
-            columnsNumber   =   len(firstRow)
-            for i in range(columnsNumber):
-                array.append([])
-                array[i].append((float(firstRow[i])))
-            for row in f:
-                for i in range(columnsNumber):
-                    otherRows   =   row.split(",")
-                    array[i].append((float(otherRows[i])))
-        return array
+        path    =   dp.os.getcwd() + '/'                            # Get current working directory path
+        array   =   []                                              # Initialize empty list for results
+        
+        with open(path + fileName + '.csv') as f:                   # Open CSV file (adds .csv extension)
+            line            =   f.readline()                        # Read first line of file
+            firstRow        =   line.split(",")                     # Split first line by commas
+            columnsNumber   =   len(firstRow)                       # Determine number of columns
+            
+            for i in range(columnsNumber):                          # Initialize each column's list
+                array.append([])                                    # Add empty list for current column
+                array[i].append((float(firstRow[i])))               # Add first value to column
+                
+            for row in f:                                           # Process remaining rows
+                for i in range(columnsNumber):                      # For each column in row
+                    otherRows   =   row.split(",")                  # Split current row by commas
+                    array[i].append((float(otherRows[i])))          # Add value to appropriate column
+                    
+        return array                                                # Return nested list of columns
 
-    def get_index(self,Data: list, Point: float, Index: int) -> int:
+    def get_index(self, Data: list, Point: float, Index: int) -> int:
         """
         Returns the index of the given target point if found in the data list.
 
@@ -200,44 +204,43 @@ class Processing:
         get_index(data, 8.8, 2)
         1
         """
-        array   =   dp.np.asarray(Data[Index])
-        idx     =   dp.np.nanargmin(dp.np.abs(array - Point))
-        return idx
+        array   =   dp.np.asarray(Data[Index])                      # Convert target sublist to numpy array
+        idx     =   dp.np.nanargmin(dp.np.abs(array - Point))       # Find index of closest value to Point
+        return idx                                                  # Return the found index
 
     def csv_append_rows(self, fileName: str, data: list, save_mode: str = 'a') -> None:
-
         """
-            Append the provided ND data array as a row to the specified CSV file.
+        Append the provided ND data array as a row to the specified CSV file.
 
-            Args:
-                fileName (str)      : The name of the CSV file to which the data will be appended.
-                data (list)         : The ND data array to be appended.
-                save_mode (str)     : Optional argument specifying the file open mode. Default value is 'a'
-                which appends data to the end of the file. To overwrite the file, set save_mode to 'w'.
+        Args:
+            fileName (str)      : The name of the CSV file to which the data will be appended.
+            data (list)         : The ND data array to be appended.
+            save_mode (str)     : Optional argument specifying the file open mode. Default value is 'a'
+                                which appends data to the end of the file. To overwrite the file, 
+                                set save_mode to 'w'.
 
-            Returns:
-                None
+        Returns:
+            None
 
-            Raises:
-                TypeError: If the provided data is not a list.
-                ValueError: If the provided data is an empty list.
-
+        Raises:
+            TypeError: If the provided data is not a list.
+            ValueError: If the provided data is an empty list.
         """
-        # Check if data is a list
-        if not isinstance(data, list):
-            raise TypeError("data should be a list.")
-        # Check if the data list is empty
-        if len(data) == 0:
-            raise ValueError("data list cannot be empty.")
-        # Check if all elements in the data list are lists
-        if all(isinstance(i, list) for i in data):
-            # If yes, create a Pandas DataFrame from the list
-            df = dp.pd.DataFrame(list(data))
-        else:
-            # If not, create a Pandas DataFrame from the transposed list
-            df = dp.pd.DataFrame(data).T
-        # Write the DataFrame to the specified CSV file
-        df.to_csv(fileName, mode=save_mode, index=False, header=False)
+        if not isinstance(data, list):                             # Validate input is a list
+            raise TypeError("data should be a list.")              # Raise error if not list
+        
+        if len(data) == 0:                                         # Check for empty data
+            raise ValueError("data list cannot be empty.")         # Raise error if empty
+        
+        if all(isinstance(i, list) for i in data):                 # Check for nested lists
+            df = dp.pd.DataFrame(list(data))                       # Create DataFrame directly
+        else:                                                      # For flat lists
+            df = dp.pd.DataFrame(data).T                           # Transpose before DataFrame
+        
+        df.to_csv(fileName,                                       # Write to CSV file
+                mode=save_mode,                                   # Use specified save mode
+                index=False,                                      # Exclude index column
+                header=False)                                     # Exclude header row
 
     def findIndex(self, points, matrix, pattern=True):
         """
@@ -260,21 +263,23 @@ class Processing:
         - Finds the index of the first point in the first row.
         - Returns an array filled with this index.
         """
-        indices = []
-        if pattern:
-            # Find the index of each point in its respective row
-            indices = [matrix[i].index(points[i]) for i in range(len(points))]
-            # Compute the weighted sum dynamically instead of hardcoding
+        indices = []                                                                            # Initialize empty list for indices
+        if pattern:                                                                             # Pattern mode calculation
+            indices = [matrix[i].index(points[i]) for i in range(len(points))]                  # Find the index of each point in its respective row
+            
+            #? Compute the weighted sum dynamically instead of hardcoding
             itr = sum(
-                indices[i] * dp.np.prod([len(matrix[j]) for j in range(i + 1, len(matrix))])
-                for i in range(len(indices) - 1)
-            ) + indices[-1]  # Last index is added directly
-            indices.append(itr)  # Append computed index for reference
-        else:
-            # Find the index of the first point in the first row
-            itr = matrix[0].index(points[0])
-            indices = dp.np.full(len(matrix) + 1, itr).tolist()  # Fill with the same value
-        return indices, itr
+                indices[i] * dp.np.prod([len(matrix[j]) for j in range(i + 1, len(matrix))])    # Weighted product
+                for i in range(len(indices) - 1)                                                # For all but last index
+            ) + indices[-1]                                                                     # Add last index directly
+            
+            indices.append(itr)                                                                 # Append computed index for reference
+        else:                                                                                   # Non-pattern mode
+            
+            itr = matrix[0].index(points[0])                                                    # Find the index of the first point in the first row
+            indices = dp.np.full(len(matrix) + 1, itr).tolist()                                 # Fill with the same value for all positions
+        
+        return indices, itr                                                                     # Return both indices and primary index
 
     def findPoint(self, matrix, index, pattern=True):
         """
@@ -288,24 +293,21 @@ class Processing:
         Returns:
         - ParametersMap : a numpy array of size (totalLengths, len(matrix)), containing the matrix values with the proper indexing.
         """
-
         if not pattern:
-            # Convert the selected portion of matrix to a numpy array, transpose it, and convert it back to a list
-            ParametersMap = dp.np.array(matrix[index[-1]:]).T.tolist()
-            return ParametersMap, len(ParametersMap[0])  # Return matrix and the number of rows (length of first column)
+            ParametersMap = dp.np.array(matrix[index[-1]:]).T.tolist()                          # Convert slice to array, transpose, and back to list
+            return ParametersMap, len(ParametersMap[0])                                         # Return matrix and row count (length of first column)
 
-        # Compute the product of all sublist lengths to determine total number of rows
-        lengths = [len(sublist) for sublist in matrix]
-        totalLengths = dp.np.prod(lengths)
-        ParametersMap = dp.np.zeros((totalLengths, len(matrix)))  # Initialize empty matrix of correct shape
-
-        step_size = totalLengths  # Start with total length
-        for col, sublist in enumerate(matrix):
-            step_size //= lengths[col]  # Reduce step size for each column
-            repeat_factor = totalLengths // (step_size * lengths[col])  # Compute how often values should repeat
-            ParametersMap[:, col] = dp.np.tile(dp.np.repeat(sublist, step_size), repeat_factor)  # Fill column efficiently
-
-        return ParametersMap[index[-1]:], len(ParametersMap[index[-1]:])  # Slice according to index and return
+        lengths = [len(sublist) for sublist in matrix]                                          # Get lengths of each sublist
+        totalLengths = dp.np.prod(lengths)                                                      # Calculate total parameter combinations
+        ParametersMap = dp.np.zeros((totalLengths, len(matrix)))                                # Initialize result matrix with zeros
+        
+        step_size = totalLengths                                                                # Initialize step size with total length
+        for col, sublist in enumerate(matrix):                                                  # Process each column (parameter)
+            step_size //= lengths[col]                                                          # Adjust step size for current parameter
+            repeat_factor = totalLengths // (step_size * lengths[col])                          # Calculate repetition factor
+            ParametersMap[:, col] = dp.np.tile(dp.np.repeat(sublist, step_size), repeat_factor) # Fill column with properly repeated and tiled values
+        
+        return ParametersMap[index[-1]:], len(ParametersMap[index[-1]:])                        # Return sliced matrix (from index) and its row count
 
     def findStart(self, matrix, pattern=True):
         """
@@ -318,31 +320,32 @@ class Processing:
         Returns:
         - Matrix (list[list[int]])  : A new matrix that starts at the given index.
         """
-
         if pattern:
-            return [row[:] for row in matrix]  # Create a shallow copy of each row and return
+            return [row[:] for row in matrix]                                   # Create new list with copies of each row
+        max_len = max(len(row) for row in matrix)                               # Find longest row length
+        padded_matrix = [row + [0] * (max_len - len(row)) for row in matrix]    # Pad shorter rows with zeros for each row in matrix
+        return dp.np.array(padded_matrix).T.tolist()                            # Convert to array, transpose, and return as list
 
-        # Find the maximum row length in the matrix to standardize dimensions
-        max_len = max(len(row) for row in matrix)
-        # Pad shorter rows with zeros so that all rows are of equal length
-        padded_matrix = [row + [0] * (max_len - len(row)) for row in matrix]
-
-        return dp.np.array(padded_matrix).T.tolist()  # Transpose the matrix and return as a list
-
-    def dump_json_data(self,json_file):
-        """_summary_
+    def dump_json_data(self, json_file):
+        """
+        Loads and returns data from a JSON file located in the Script/assets directory.
 
         Args:
-            json_file (_type_): _description_
+            json_file (str): The name of the JSON file (with extension) to be loaded 
+                            from the Script/assets directory.
 
         Returns:
-            _type_: _description_
+            dict: A dictionary containing the parsed JSON data from the file.
+
+        Raises:
+            FileNotFoundError: If the specified JSON file does not exist.
+            json.JSONDecodeError: If the file contains invalid JSON data.
         """
-        path = dp.os.getcwd().replace("\\","/")+"/Script/assets/"+json_file
-        file = open(path,encoding='utf-8')   # Opening JSON file
-        data = dp.json.load(file)   # returns JSON object as a dictionary
-        file.close()
-        return data
+        path = dp.os.getcwd().replace("\\", "/") + "/Script/assets/" + json_file    # Construct full path to JSON file in assets directory
+        file = open(path, encoding='utf-8')                                         # Open JSON file with UTF-8 encoding to handle special characters
+        data = dp.json.load(file)                                                   # Load and convert JSON content to Python dict
+        file.close()                                                                # Ensure file handle is properly closed
+        return data                                                                 # Return the parsed JSON data
 
     def rms_avg(self, Op, nested_list, time_values):
         """
@@ -379,24 +382,29 @@ class Processing:
                 print("Error: Invalid input. Please enter valid numbers.")                                          #
         return result                                                                                               #
 
-    def natsorted_list(self,dir):
-
+    def natsorted_list(self, dir):
         """
-        Return a list of file paths in the specified directory, sorted naturally.
+        Return a list of CSV file paths in the specified directory, sorted naturally (human-order).
+        Excludes files ending with '_Map.csv'.
 
-        Parameters  :
-            dir (str): Directory path to scan for files.
+        Parameters:
+            dir (str): Directory path to scan for CSV files. Should be a valid directory path.
 
         Returns:
-            list: A list of file paths sorted naturally.
+            list: A naturally sorted list of CSV file paths with forward slashes.
 
+        Raises:
+            FileNotFoundError: If the specified directory does not exist.
+            NotADirectoryError: If the path exists but is not a directory.
         """
-        file_list      =   []
-        for filename in dp.os.scandir(dir):
-            if filename.is_file() and filename.path.endswith('.csv') and not filename.path.endswith('_Map.csv'):
-                file_list.append(str(filename.path.replace("\\","/")))
-        file_list      =   dp.natsorted(file_list)
-        return file_list
+        file_list = []                                                      # Initialize empty list to store file paths
+        for filename in dp.os.scandir(dir):                                 # Scan directory and filter CSV files (excluding _Map.csv files)
+            if (filename.is_file() and                                      # Check if it's a file (not directory)
+                filename.path.endswith('.csv') and                          # Check for .csv extension
+                not filename.path.endswith('_Map.csv')):                    # Exclude _Map.csv files
+                file_list.append(str(filename.path.replace("\\", "/")))     # Convert paths to forward slashes
+        file_list = dp.natsorted(file_list)                                 # Sort files in natural/human order (e.g., file2 comes after file1, not file10)
+        return file_list                                                    # Return sorted list of CSV file paths
 
     def magnetic_loss(self, nestedresults, FFT_current, l, trafo_inputs, choke_inputs):
         """
