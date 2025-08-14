@@ -7,7 +7,10 @@
 #?                               |____/_/   \_\_/_/   \_\ |_|   |_| \_\\___/ \____|_____|____/____/___|_| \_|\____|
 #?
 #?-------------------------------------------------------------------------------------------------------------------------------------------------------------
+from collections import defaultdict
 
+dict1 = defaultdict(dict)  # Creates new dicts automatically when accessing missing keys
+dict1['modelvars']['x']['c']['bb'] = 5.2
 import os,sys
 sys.path.insert(1,os.getcwd() + '/Script/assets')
 import Dependencies as dp
