@@ -12,7 +12,7 @@ import os,sys
 sys.path.insert(1,os.getcwd() + '/Script/assets')
 import Dependencies as dp
 from decimal import Decimal
-from scipy.integrate import quad, cumtrapz
+from scipy.integrate import quad
 from scipy.optimize import minimize, least_squares
 
 class Processing:
@@ -35,7 +35,7 @@ class Processing:
             A 2D numpy array containing the concatenated data from all CSV files in the directory. The first column
             of each CSV file is assumed to contain headers and is not included in the resulting array.
         """
-        file            = directory_path + f"/results_{utc}_{str(itr+1)}.csv"
+        file            = directory_path + f"/results_{utc}_{str(itr+1)}.csv"           
         dataFrame       = dp.pd.read_csv(file, header=None, dtype=str).transpose()
         try:
             listcols   = (dataFrame.apply(lambda col: col.map(Decimal))).values.tolist()
