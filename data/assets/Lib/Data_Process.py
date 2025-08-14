@@ -9,8 +9,13 @@
 #?-------------------------------------------------------------------------------------------------------------------------------------------------------------
 from collections import defaultdict
 
-dict1 = defaultdict(dict)  # Creates new dicts automatically when accessing missing keys
-dict1['modelvars']['x']['c']['bb'] = 5.2
+from collections import defaultdict
+
+def recursive_defaultdict():
+    return defaultdict(recursive_defaultdict)
+
+dict1 = recursive_defaultdict()
+dict1['modelvars']['x']['c']['bb'] = 5.2  # Works at any depth
 import os,sys
 sys.path.insert(1,os.getcwd() + '/Script/assets')
 import Dependencies as dp
