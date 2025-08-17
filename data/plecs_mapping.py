@@ -1605,7 +1605,7 @@ def return_resistances(op_dict):
 
 	return  dp.np.array(dp.Resistances)
 
-def remove_ranges(input_list, *ranges):
+def remove_ranges(input_list, *ranges):                                                                                                                                                                                                                # Define remove_ranges function
     """
     Remove specified ranges from the input list.
 
@@ -1616,14 +1616,14 @@ def remove_ranges(input_list, *ranges):
     Returns:
     	list					: The modified input list with specified ranges removed.
     """
-    ranges = sorted(ranges, reverse=True)  # Sort in reverse order to avoid index shifting issues
-    for start, end in ranges:
-        if 0 <= start <= len(input_list) and 0 <= end <= len(input_list):
-            del input_list[start:end+1]
+    ranges = sorted(ranges, reverse=True)  # Sort in reverse order to avoid index shifting issues                                                                                                                                                       # Sort ranges in descending order
+    for start, end in ranges:                                                                                                                                                                                                                          # Iterate through each range
+        if 0 <= start <= len(input_list) and 0 <= end <= len(input_list):                                                                                                                                                                             # Check if range is valid
+            del input_list[start:end+1]                                                                                                                                                                                                               # Remove the specified range
 
-    return input_list
+    return input_list                                                                                                                                                                                                                                  # Return modified list
 
-def overwrite_values_with_ints(lst,shift=0):
+def overwrite_values_with_ints(lst,shift=0):                                                                                                                                                                                                           # Define overwrite_values_with_ints function
     """
     Overwrites the values of the input list `lst` with integers corresponding to their index.
 
@@ -1634,60 +1634,61 @@ def overwrite_values_with_ints(lst,shift=0):
     Returns:
     - dict          : An ordered dictionary with the same keys as `od`, but with integer values corresponding to their index.
     """
-    new_od = dp.OrderedDict()
-    for i, value in enumerate(lst):
-        new_od[value] = i + shift
-    return new_od
+    new_od = dp.OrderedDict()                                                                                                                                                                                                                          # Create new ordered dictionary
+    for i, value in enumerate(lst):                                                                                                                                                                                                                    # Iterate through list with index
+        new_od[value] = i + shift                                                                                                                                                                                                                      # Set dictionary value to index + shift
+    return new_od                                                                                                                                                                                                                                      # Return the new ordered dictionary
 
 def tofile_map_gen(mapping_Raw,lengths):
-	"""
-		Generates two ordered dictionaries of mappings from a raw mapping list and a list of segment lengths.
+		"""
+			Generates two ordered dictionaries of mappings from a raw mapping list and a list of segment lengths.
 
-		The function takes three arguments:
+			The function takes three arguments:
 
-		Args:
-		------
-		map_names (dict): A dictionary containing the names of the maps and their corresponding index.
-		The keys are strings representing the names of the maps, and the values are
-		integers representing their index. Each map index must be unique and should
-		be within the range of the mapping_Raw list indices.
+			Args:
+			------
+			map_names (dict): A dictionary containing the names of the maps and their corresponding index.
+			The keys are strings representing the names of the maps, and the values are
+			integers representing their index. Each map index must be unique and should
+			be within the range of the mapping_Raw list indices.
 
-		mapping_Raw (list): A list representing the raw mapping data.
+			mapping_Raw (list): A list representing the raw mapping data.
 
-		lengths (list): A list of integers representing the lengths of the segments in the mapping data.
-		The sum of the lengths must be less than or equal to the length of mapping_Raw.
+			lengths (list): A list of integers representing the lengths of the segments in the mapping data.
+			The sum of the lengths must be less than or equal to the length of mapping_Raw.
 
-		Returns:
-		--------
-		A tuple containing two ordered dictionaries:
+			Returns:
+			--------
+			A tuple containing two ordered dictionaries:
 
-		- Tofile_mapping_3D (dp.OrderedDict): An ordered dictionary of 3D mappings, where the keys are
-		the names of the maps and the values are lists of integers.
+			- Tofile_mapping_3D (dp.OrderedDict): An ordered dictionary of 3D mappings, where the keys are
+			the names of the maps and the values are lists of integers.
 
-		- Tofile_mapping_multiple (dp.OrderedDict): An ordered dictionary of multiple mappings, where the
-		keys are the names of the maps and the values are
-		lists of integers.
-	"""
-	c,idx_shift 								=	0,1
-	Maps_names =  [		"Peak_Currents"		,
-                        "Peak_Voltages"		,
-                        "Dissipations"		,
-                        "Elec_Stats"		,
-                        "Temps"				,
-						"Thermal_Stats"		,
-                        "Controls"
-	]
+			- Tofile_mapping_multiple (dp.OrderedDict): An ordered dictionary of multiple mappings, where the
+			keys are the names of the maps and the values are
+			lists of integers.
+		"""
 
-	Tofile_mapping_3D ,Tofile_mapping_multiple		= 	dp.OrderedDict(),dp.OrderedDict()
-	for i in range(1,len(lengths)):
-		Tofile_mapping_3D[Maps_names[i-1]] 			= overwrite_values_with_ints(dp.copy.deepcopy(mapping_Raw[c+1:lengths[i]+c+1]),shift=0)
-		Tofile_mapping_multiple[Maps_names[i-1]] 	= overwrite_values_with_ints(dp.copy.deepcopy(mapping_Raw[c+1:lengths[i]+c+1]),shift=idx_shift)
-		c			+=lengths[i]
-		idx_shift	+=lengths[i]
-	return	Tofile_mapping_3D,Tofile_mapping_multiple
+		c,idx_shift 								=	0,1                                                                                                                                                                                                      # Initialize counter and index shift variables
+		Maps_names =  [		"Peak_Currents"		,                                                                                                                                                                                                         # List of mapping names
+							"Peak_Voltages"		,                                                                                                                                                                                                         # Voltage measurements mapping
+							"Dissipations"		,                                                                                                                                                                                                         # Power dissipation mapping
+							"Elec_Stats"		,                                                                                                                                                                                                         # Electrical statistics mapping
+							"Temps"				,                                                                                                                                                                                                         # Temperature measurements mapping
+							"Thermal_Stats"		,                                                                                                                                                                                                         # Thermal statistics mapping
+							"Controls"                                                                                                                                                                                                                    # Control signals mapping
+		]
 
-def gen_consts(Constans_list):
-	"""
+		Tofile_mapping_3D ,Tofile_mapping_multiple		= 	dp.OrderedDict(),dp.OrderedDict()                                                                                                                                                             # Initialize ordered dictionaries for mappings
+		for i in range(1,len(lengths)):                                                                                                                                                                                                                   # Iterate through length indices
+			Tofile_mapping_3D[Maps_names[i-1]] 			= overwrite_values_with_ints(dp.copy.deepcopy(mapping_Raw[c+1:lengths[i]+c+1]),shift=0)                                                                                                        # Create 3D mapping with 0-based indexing
+			Tofile_mapping_multiple[Maps_names[i-1]] 	= overwrite_values_with_ints(dp.copy.deepcopy(mapping_Raw[c+1:lengths[i]+c+1]),shift=idx_shift)                                                                                                 # Create multiple mapping with shifted indexing
+			c			+=lengths[i]                                                                                                                                                                                                                      # Update counter by current length
+			idx_shift	+=lengths[i]                                                                                                                                                                                                                      # Update index shift by current length
+		return	Tofile_mapping_3D,Tofile_mapping_multiple                                                                                                                                                                                                 # Return both mapping dictionaries
+
+def gen_consts(Constans_list):                                                                                                                                                                                                                        # Define gen_consts function
+    """
      This function generates a dictionary of constants based on the configuration specified in 'dp.JSON['TF_Config']'.
      The constants are organized as key-value pairs, where the key is the constant name, and the value is a list containing the constant name, its physical mapping, and units.
      The specific constants and their details are determined based on the configuration.
@@ -1696,11 +1697,11 @@ def gen_consts(Constans_list):
                                                             A list of Constants parameters from the model mapping. 
       Returns          :   Constants_dict        :          Dictionary
                                                             An ordered dictionary of constants and values from the model parameters mapping.
-	"""
-	constants_dict	=	dp.OrderedDict()
-	for sublist in Constans_list:
-		constants_dict[f'{sublist[0]}'] = [f'{sublist[0]}', dp.pmapping[f'{sublist[0]}'], f'{sublist[1]}']
-	return	constants_dict
+    """
+    constants_dict    =    dp.OrderedDict()                                                                                                                                                                                                           # Initialize ordered dictionary for constants
+    for sublist in Constans_list:                                                                                                                                                                                                                     # Iterate through each constant in input list
+        constants_dict[f'{sublist[0]}'] = [f'{sublist[0]}', dp.pmapping[f'{sublist[0]}'], f'{sublist[1]}']                                                                                                                                           # Add constant to dict with name, mapping and units
+    return    constants_dict                                                                                                                                                                                                                          # Return the populated constants dictionary
 
 def gen_pmap_plt():
 	"""

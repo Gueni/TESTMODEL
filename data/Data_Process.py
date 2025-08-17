@@ -644,19 +644,30 @@ class Processing:
         return new_t,new_signal                                             # Return new time and signal vectors
 
     def IIR_Filter(self, Time, Signal, Cutoff, Order=2, BType='low', FType='butter'):
-        """_summary_                                                                                                                # Docstring for IIR_Filter function
+        """
+        Design and apply an Infinite Impulse Response (IIR) filter to a signal with zero-phase distortion.
 
-        Args:
-            Time (_type_): _description_
-            Signal (_type_): _description_
-            Cutoff (_type_): _description_
-            Order (int, optional): _description_. Defaults to 2.
-            BType (str, optional): _description_. Defaults to 'low'.
-            FType (str, optional): _description_. Defaults to 'butter'.
+        This function uses SciPy's signal processing module (scipy.signal) to design and apply Butterworth, Chebyshev, 
+        or other IIR filters. Zero-phase filtering is achieved using filtfilt, which processes the signal forward 
+        and backward to eliminate phase delay.
+
+        Libraries Used:
+        - scipy.signal.iirfilter  (https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.iirfilter.html)    :Designs an IIR filter of specified type (Butterworth, Chebyshev, etc.) and order.
+        - scipy.signal.filtfilt (https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.filtfilt.html)     :Applies zero-phase filtering by processing the signal forward and backward.
+
+        Parameters:
+        - Time      (numpy.ndarray)       : Time vector corresponding to the signal (in seconds). Used to calculate the sampling frequency.
+        - Signal    (numpy.ndarray)       : Input signal to be filtered (1D array).
+        - Cutoff    (float or list)       : Cutoff frequency (Hz) for low/high-pass filters, or [low, high] frequencies for band-pass/stop filters.
+        - Order     (int, optional)       : Order of the filter. Higher orders provide steeper roll-off but may introduce numerical instability. Default: 2.
+        - BType     (str, optional)       : Filter type: 'low' (low-pass), 'high' (high-pass), 'band' (band-pass), or 'bandstop'. Default: 'low'.
+        - FType     (str, optional)       : Filter design type: 'butter' (Butterworth), 'cheby1' (Chebyshev Type I), 'cheby2' (Chebyshev Type II), or 'ellip' (elliptic). Default: 'butter'.
 
         Returns:
-            _type_: _description_
+        - numpy.ndarray               : The filtered signal with zero-phase distortion.
+
         """
+
         dt                  =   Time[1] - Time[0]                                                                                   # Calculate time step
         Fs                  =   1.0/dt                                                                                             # Calculate sampling frequency
         Fn                  =   min(Fs/2-1, Cutoff)                                                                                # Calculate Nyquist frequency
@@ -667,16 +678,32 @@ class Processing:
         return Signal_Filtered                                                                                                     # Return filtered signal
 
     def pyFFT(self, signal, fs):
-        """                                                                                                                         # Docstring for pyFFT function
+        """
         Compute the Fast Fourier Transform (FFT) of a signal and return amplitude, phase, and frequency information.
+        
+        This function uses SciPy's FFT implementation (scipy.fft) which provides efficient numerical computation
+        of the discrete Fourier Transform. The function automatically utilizes all available CPU cores for parallel
+        computation.
 
-        Parameters  :
-            signal (numpy.ndarray)  : Input signal.
-            fs (float)              : Sampling frequency of the signal.
+        Libraries used:
+        - scipy.fft             (https://docs.scipy.org/doc/scipy/reference/fft.html)                                              : Fast Fourier Transform implementation
+        - scipy.fftpack.fftfreq (https://docs.scipy.org/doc/scipy/reference/generated/scipy.fft.fftfreq.html#scipy.fft.fftfreq)    : Frequency bin calculation
+
+        Parameters:
+            signal (numpy.ndarray)      : Input time-domain signal (1D array)
+            fs (float)                  : Sampling frequency of the signal in Hz
 
         Returns:
-            tuple: Tuple containing amplitude, phase, and frequency arrays.
+            tuple: Contains three elements:
+                - amplitude (numpy.ndarray) : Scaled FFT magnitude spectrum 
+                - phase (numpy.ndarray)     : Phase angles in degrees [0-360]
+                - frequency (numpy.ndarray) : Frequency bins in Hz corresponding to the amplitude/phase values
 
+        Notes:
+            1. The DC component (0 Hz) is scaled by 1/N
+            2. All other components are scaled by 2/N
+            3. Only positive frequencies are returned
+            4. Phase values are wrapped in the range [-180, 180] degrees
         """
         N               = len(signal)                                                   # Get length of signal
         f               = dp.fftfreq(N,1/fs)                                            # Calculate frequency bins
@@ -698,7 +725,7 @@ class Processing:
             return None                                                                         # Return None if index doesn't exist
 
     def FFT_mat(self, T_vec, nestedresults):
-        """                                                                                                                         # Docstring for FFT_mat function
+        """                                                                                                                        
         Compute the Fast Fourier Transform (FFT) matrix of nested results.
 
         Parameters  :
