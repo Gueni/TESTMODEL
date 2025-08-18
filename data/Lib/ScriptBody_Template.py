@@ -6,7 +6,7 @@ dataProcess             =   dp.PP.Processing()
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-def simScript(OptStruct,Thread,Map,iterNumber,ResultsPath,misc,crash=False):
+def simScript(RunScript,OptStruct,Thread,Map,iterNumber,ResultsPath,misc,crash=False):
     """This function is used to write scripts for automated simulations. Multiple simulations with parameters or conditions variations can be programmed here.
        Please make a copy of this file and rename it to 'ScriptBody.py' and place it in the same directory as this file.
        Please don't delete or make changes to this file.
@@ -36,5 +36,10 @@ def simScript(OptStruct,Thread,Map,iterNumber,ResultsPath,misc,crash=False):
     #?  to assign a sweep parameter to a simulation parameter use the following command:
         #*  mdlVars['DesiredParameter']                     =   mapVars[x]
             #   x is the parameter index as created in the 'Input_vars.json' file, ranging from 0 to 9.
+
+    #! -------------------------------------------------------------------------------------Don't change under this line-------------------------------------------------------------------------------------
+
+    diff = dp.DeepDiff(OptStruct[Thread-1]['ModelVars'], OptStruct[Thread]['ModelVars'], verbose_level=2).get("values_changed", {})
+    RunScript.log_updates(diff)
 
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------
