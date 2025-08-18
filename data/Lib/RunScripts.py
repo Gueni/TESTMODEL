@@ -16,104 +16,167 @@ class runScripts:
     
     def __init__(self,jsonInputs):
 
-        self.JS                 =   jsonInputs                                                                                                                      #!  declare json input file
-        self.misc               =   dp.msc.Misc()                                                                                                                   #!  initialize miscellaneous class
-        self.fileLog            =   dp.flg.FileAndLogging(json_dir=self.JS['scriptName'])                                                                           #!  initialize FileAndLogging class
-        self.simutil            =   dp.sutl.SimulationUtils()                                                                                                       #!  initialize SimulationUtils class
-        self.plot               =   dp.plt.HTML_REPORT(self.fileLog.resultfolder,self.fileLog.utc)                                                                  #!  initialize pyplot class
-        self.paramProcess       =   dp.PM.ParamProcess()                                                                                                            #!  initialize ParamProcess class
-        self.postProcessing     =   dp.PP.Processing()                                                                                                              #!  initialize Processing class
+        """
+        
+        This function initializes the runScripts class with the provided JSON inputs.
+        It sets up various class attributes and initializes necessary classes for simulation, logging, and post-processing.
+        
+        Args:
+            jsonInputs (dict): Dictionary containing JSON inputs for the simulation.
+        
+        """
+
+        self.JS                 =   jsonInputs                                                      #  declare json input file
+        self.misc               =   dp.msc.Misc()                                                   #  initialize miscellaneous class
+        self.fileLog            =   dp.flg.FileAndLogging(json_dir=self.JS['scriptName'])           #  initialize FileAndLogging class
+        self.simutil            =   dp.sutl.SimulationUtils()                                       #  initialize SimulationUtils class
+        self.plot               =   dp.plt.HTML_REPORT(self.fileLog.resultfolder,self.fileLog.utc)  #  initialize pyplot class
+        self.paramProcess       =   dp.PM.ParamProcess()                                            #  initialize ParamProcess class
+        self.postProcessing     =   dp.PP.Processing()                                              #  initialize Processing class
 
     def simInit(self):
-        """This function initializes the simulation environment; from PLECS model to parameters to creation of target results folder.
+
         """
-        self.fileLog.createFolders()                                                                                                                                #!  create results and logging folder
-        dp.pmap.select_mapping(dp.pmap.DCDC_pmap_Raw)                                                                                                               #!  generate mapping for post-processing
-        self.simutil.init_sim(self.JS['maxThreads']           ,                                                                                                     #!  initiate simulation variables and class objects
-                           eval(self.JS['startPoint'])        ,
-                           eval(self.JS['X1'])                ,
-                           eval(self.JS['X2'])                ,
-                           eval(self.JS['X3'])                ,
-                           eval(self.JS['X4'])                ,
-                           eval(self.JS['X5'])                ,
-                           eval(self.JS['X6'])                ,
-                           eval(self.JS['X7'])                ,
-                           eval(self.JS['X9'])                ,
-                           eval(self.JS['X9'])                ,
-                           eval(self.JS['X10'])               ,
-                           self.JS['permute']                 ,
-                           self.JS['model']
-                    )
+        This function initializes the simulation environment 
+        from PLECS model to parameters to creation of target results folder.
+        
+        """
+        # Initialize the simulation environment by creating necessary folders,
+        # selecting the mapping for post-processing, initializing simulation variables,
+        self.fileLog.createFolders()                                                                                                                            
+        dp.pmap.select_mapping(dp.pmap.DCDC_pmap_Raw)        
 
-        self.plot.note              =   self.JS['simNote']                                                                                                          #!  include a message or a note in the HTML report
-        self.fileLog.header()                                                                                                                                       #!  define log file header
+        # initialize the simulation variables and class objects        
+        self.simutil.init_sim(self.JS['maxThreads'],eval(self.JS['startPoint']),*[eval(self.JS[f"X{i}"]) for i in range(1, 11)],self.JS['permute'],self.JS['model'])
 
-        for item in self.JS['ModelVars'] :                                                                                                                          #!  upadate modelVars items coming from json file
-            exec(item)                                                                                                                                              #!  execute python commands from list in json var
-        dp.anlOpts                  =   self.JS['AnalysisOpts']                                                                                                     #!  upadate analysis opts in PLECS
-        dp.mdlVars['AnalysisOpts']  =   self.JS['AnalysisOpts']                                                                                                     #!  upadate analysis opts dictionary in mdlVars
+        # Add a Note to the HTML report and define the log file header.
+        self.plot.note              =   self.JS['simNote']                                                                                                
+        self.fileLog.header()                                                                                                                             
 
+        # Initialize the PLECS model and set up the model variables,
+        # solver options, and analysis options.
+        # execute python commands from list in json var.
+        for item in self.JS['ModelVars'] :                                                                                                                      
+            exec(item)                                                                                    
+
+        # Initialize Analysis options with the provided JSON input.
+        dp.anlOpts                  =   self.JS['AnalysisOpts']                                                                         
+        dp.mdlVars['AnalysisOpts']  =   self.JS['AnalysisOpts']     
+
+        # Apply tolerances to the model variables if not running in parallel.
         if not dp.JSON['parallel']:
-            dp.mdlVars              =   self.simutil.applyTolerances(self.JS['Comps'],eval(self.JS['Tols']),dp.mdlVars,self.JS['applyTol'],self.JS['randTol'])      #!  apply component tolerances mapping
+            dp.mdlVars              =   self.simutil.applyTolerances(self.JS['Comps'],eval(self.JS['Tols']),dp.mdlVars,self.JS['applyTol'],self.JS['randTol'])   
 
-        dp.mdlVars['DCDC_Average']  =   self.paramProcess.dcdcAverageModelCalculate(dp.mdlVars)                                                                          #!  update DCDC average model parameters
+        # DCDC Average Model Calculation 
+        dp.mdlVars['DCDC_Average']  =   self.paramProcess.dcdcAverageModelCalculate(dp.mdlVars)                             
 
-        if self.JS['limit_precision']:                                                                                                                              #!  limit precision of all model parameters
+        # limit precision of model parameters if specified in the JSON input.
+        # This is useful for reducing the numerical precision of model parameters to a specified level.
+        if self.JS['limit_precision']:                                                                                  
             dp.mdlVars              =   self.paramProcess.limit_precision(dp.mdlVars , dp.mdl_precision)
             dp.slvOpts              =   self.paramProcess.limit_precision(dp.slvOpts , dp.mdl_precision)
             dp.anlOpts              =   self.paramProcess.limit_precision(dp.anlOpts , dp.mdl_precision)
 
-        self.obj                    =   dp.pc.PlecsRPC(dp.url,dp.port,dp.mdlVars,dp.slvOpts,dp.anlOpts)                                                             #!  intialize pyplecs class
-        self.obj.PlecsConnect()                                                                                                                                     #!  connect to plecs model through RPC server
-        self.obj.modelInit_path(self.JS['modelname'])                                                                                                               #!  initialize and load the PLECS model
-        self.fileLog.InitializationCommands(self.obj.path,                                                                                                          #!  write mdlVars as initialization commands in PLECS
+        # Initialize the solver options and analysis options with the provided JSON input.
+        # Connect to the PLECS model through the RPC server.
+        # Initialize the PLECS model with the specified model name.
+        # Write the model variables as initialization commands in PLECS.
+
+        self.obj                    =   dp.pc.PlecsRPC(dp.url,dp.port,dp.mdlVars,dp.slvOpts,dp.anlOpts)                  
+        self.obj.PlecsConnect()                                                                                                       
+        self.obj.modelInit_path(self.JS['modelname'])
+        self.fileLog.InitializationCommands(self.obj.path,
                                          self.fileLog.resultfolder+"/"+"PLECS_MODEL_"+"standalone_"+self.JS['modelname'],
                                          dp.mdlVars,
                                          (dp.os.getcwd()).replace("\\","/")+"/Script/assets/InitializationCommands.m",
                                          self.misc)
-        self.obj.ClearTrace(self.JS['modelname'],self.JS['scopes'])                                                                                                 #!  clear plecs scopes traces from saved data
+        
+        # Clear the traces of the desired scopes in the PLECS model.
+        # This is useful for removing any previous traces or data from the specified scopes.
+        self.obj.ClearTrace(self.JS['modelname'],self.JS['scopes'])
 
     def simLog(self,OptStruct):
+        
+        """ 
+        This function logs the simulation parameters and updates the iteration number.
+        
+        Args:
+            OptStruct (dict): Dictionary containing the simulation parameters.
+        """
 
+        # Increment the iteration number and log the current iteration number.
+        # It also logs the updated parameters and the name of the simulation.
         self.simutil.iterNumber    +=  1                                                                                                                            #!  increment iteration number
         self.fileLog.log(f"Iteration Number        {'='.rjust(67, ' ')} {str(self.simutil.iterNumber)}/{str(self.simutil.Iterations)}"                                           )
         self.fileLog.param_log(dp.updated_params_dict,self.simutil.Threads,isFirst=False)
         self.fileLog.log(f"['Name']                {'='.rjust(67, ' ')} '{OptStruct['Name']}' \n")
+        
+        # Log the parameters of the current simulation iteration for HTML tables.
         self.plot.set_tab_dict(self.misc,OptStruct['ModelVars'])                                                                                                    #!  add model parameters values to report table
+        
+        # Log the focused parameters for the current iteration.
         self.plot.iter_param_key.append(self.JS['paramKeys'])                                                                                                       #!  log focused parameters names
         self.plot.iter_param_val.append(eval(self.JS['paramVals']))                                                                                                 #!  log focused parameters values
         self.plot.iter_param_unt.append(self.JS['paramUnts'])
 
     def log_updates(self,dict):
+        
+        """ 
+        This function logs the updates made to the model parameters.
+        
+        Args:
+            dict (dict): Dictionary containing the updated parameters.
+        """
+        
+        # Log the changes made to the model parameters.
+        # It iterates through the dictionary and logs the key and new value of each updated parameter.
 
         for path, change in dict.items():
             self.fileLog.log(f"{(path.replace("root", "")).ljust(50)} = {str(change['new_value'])}\n")
 
     def simRun(self,threads=1,parallel=False,callback=""):
-        """This function runs a simulation or an analysis and records the elapsed time.
+
+        """
+        This function runs a simulation or an analysis and records the elapsed time.
 
         Args:
-            threads (int, optional): number of parallel threads to simulate. Defaults to 1.
-            parallel (bool, optional): determine whether a single or parallel simulation. Defaults to False.
-            callback (str, optional): define a callback fundtion to be executed after simulation is completed. Defaults to "".
+            threads   (int, optional) : number of parallel threads to simulate. Defaults to 1.
+            parallel  (bool, optional): determine whether a single or parallel simulation. Defaults to False.
+            callback  (str, optional) : define a callback fundtion to be executed after simulation is completed. Defaults to "".
         """
+        # Selects between simulation and analysis based on the JSON input.
+        # If analysis is not selected, it launches a simulation.
+        # Otherwise, it launches an analysis.
+
         self.misc.tic()
+
         if (not self.JS['analysis']):
-            self.obj.LaunchSim(threads,self.obj.path,parallel,callback)                                                                                             #!  launch simulation through RPC
+
+            self.obj.LaunchSim(threads,self.obj.path,parallel,callback)   
         else:
-            self.obj.LaunchAnalysis(threads,self.obj.path,self.JS['analysisName'],parallel,callback)                                                                #!  launch analysis through RPC
+
+            self.obj.LaunchAnalysis(threads,self.obj.path,self.JS['analysisName'],parallel,callback)
+
+        # It also logs the time taken for the simulation or analysis to complete.
 
         self.fileLog.log(f"Simualtion Time   {'= '.rjust(74, ' ')}{str(self.misc.toc())} seconds.\n")
         self.misc.tic()
 
     def simSave(self,Simulation=0,Crash=False):
-        """This function saves the simulation results to disk and store them in data matrices. In addition, it performs post-processing on raw results.
+
+        """
+        This function saves the simulation results to disk and store them in data matrices.
+        In addition, it performs post-processing on raw results.
 
         Args:
-            Simulation (int, optional): simulation package number. Defaults to 0.
-            Crash (bool, optional): determine if a crash happened in a previous iteration. Defaults to False.
+            Simulation  (int, optional)     : simulation package number. Defaults to 0.
+            Crash       (bool, optional)    : determine if a crash happened in a previous iteration. Defaults to False.
         """
-        self.obj.holdTrace(self.JS['modelname'],self.JS['scopes'])                                                                                                  #!  hold the traces of the desired scopes
+        # Hold the traces of the desired scopes
+        self.obj.holdTrace(self.JS['modelname'],self.JS['scopes'])
+
+        # Save the simulation results to CSV files and store them in data matrices too
+        # then log the time taken for this operation.
         if (self.JS['saveData']):
             self.misc.tic()
             self.simutil.save_data(self.obj.OptStruct,self.simutil,self.fileLog,itr=Simulation,crash=Crash)                                                         #!  save simulation data to csv files when required
@@ -139,9 +202,12 @@ class runScripts:
         self.fileLog.line_separator()
 
     def simEnd(self):
+
         """
         This function plots the processed results graphically in HTML files.
         It also creates copies of simulation files and scripts in the results folder.
+        It resets the simulation iteration counter and generates an HTML report from the results and visualizations.
+        Finally, it finalizes logging and saves traces of the desired scopes externally.
         """
         # Reset simulation iteration counter
         self.simutil.iterNumber = 0
@@ -157,6 +223,7 @@ class runScripts:
         self.obj.SaveTraces(self.JS['modelname'],self.JS['scopes'],self.fileLog.resultfolder)
 
     def simMissing(self, iter, threads_vector, Threads):
+
         """
         This function determines which simulation thread has crashed during 
         parallel runs to repeate it later.
