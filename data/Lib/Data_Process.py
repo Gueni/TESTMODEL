@@ -589,38 +589,45 @@ class Processing:
 
     def rms_avg(self, Op, nested_list, time_values):
         """
-        Calculate the Root Mean Square (RMS) or Average (AVG) values for nested lists of signal data.
+        Calculate the Root Mean Square (RMS) or Average (AVG) of signal data using trapezoidal integration.
+        
+        For 'RMS', computes the square root of the integral of squared values over time (normalized by duration).  
+        For 'AVG', computes the integral of values over time (normalized by duration).  
+        Uses `numpy.trapz()` for numerical integration, which approximates the area under the curve using the trapezoidal rule.  
+        [numpy.trapz() docs]: https://numpy.org/doc/1.25/reference/generated/numpy.trapz.html  
 
         Parameters:
             Op (str)            : Operation selection - 'RMS' for Root Mean Square or 'AVG' for Average.
-            nested_list (list)  : Nested list containing signal values.
-            time_values (list)  : List of corresponding time values.
+            nested_list (list)  : Nested list containing signal values (e.g., [[samples1], [samples2], ...]).
+            time_values (list)  : List of corresponding time values (must be same length as signal samples).
 
         Returns:
-            array : List of RMS or AVG values.
+            array : Computed RMS or AVG values for each sublist in `nested_list`.
 
+        Raises:
+            ZeroDivisionError : If the time range (`delta_T = time_values[-1] - time_values[0]`) is zero.
+            ValueError       : If input data is invalid (e.g., non-numeric).
         """
-        result          =   dp.np.array([])                                                                        # Empty list to store the RMS values
-        delta_T         =   time_values[-1] - time_values[0]
-
-        for sublist in nested_list:                                                                                 # Go through all lists of values in the nested list.                                                        # slice time if needed.
-            match Op:                                                                                               # Use Op arg to select which operation to execute.
-                case 'RMS':                                                                                         #
-                    try:
-                        squared_values  = (dp.np.array(sublist))**2                                                 # do the square of current.
-                        res_value       = dp.np.sqrt(dp.np.trapz(squared_values, x=time_values) / delta_T)          # Calculate the RMS value.
-                    except ZeroDivisionError:                                                                       #
-                        print("Error: Division by zero is not allowed.")                                            #
-                case 'AVG':                                                                                         #
-                    try:
-                        res_value  = dp.np.trapz(dp.np.array(sublist), x=time_values) / delta_T                     # Calculate the Average value.
-                    except ZeroDivisionError:                                                                       #
-                        print("Error: Division by zero is not allowed.")                                            #
-            try:                                                                                                    #
-                result = dp.np.append(result, res_value)                                                            # Append the RMS value to the result list
-            except ValueError:                                                                                      #
-                print("Error: Invalid input. Please enter valid numbers.")                                          #
-        return result                                                                                               #
+        result          =   dp.np.array([])                     # Initialize an empty numpy array to store the results.                                                  
+        delta_T         =   time_values[-1] - time_values[0]    # Calculate the time interval (delta_T) based on the first and last time values. 
+        for sublist in nested_list:     # Iterate through each sublist in the nested list.                    
+            match Op:   #   Match the operation type to determine the calculation method.                       
+                case 'RMS': # If the operation is 'RMS', calculate the Root Mean Square value.                          
+                    try:    # Try to perform the RMS calculation.
+                        squared_values  = (dp.np.array(sublist))**2 # Square each value in the sublist.                                                 
+                        res_value       = dp.np.sqrt(dp.np.trapz(squared_values, x=time_values) / delta_T)  # Integrate the squared values and divide by delta_T, then take the square root.       
+                    except ZeroDivisionError:   # If a division by zero occurs, handle the exception.                                                 
+                        print("Error: Division by zero is not allowed.")    # Print an error message if division by zero occurs.             
+                case 'AVG': # If the operation is 'AVG', calculate the Average value.
+                    try:    #   Try to perform the Average calculation.
+                        res_value  = dp.np.trapz(dp.np.array(sublist), x=time_values) / delta_T # Integrate the values in the sublist and divide by delta_T to get the average.
+                    except ZeroDivisionError:   #  If a division by zero occurs, handle the exception.
+                        print("Error: Division by zero is not allowed.")    # Print an error message if division by zero occurs.          
+            try:    # Try to append the calculated result to the result array.
+                result = dp.np.append(result, res_value)    # Append the calculated result to the result array.                                     
+            except ValueError:  # If a ValueError occurs while appending, handle the exception. 
+                print("Error: Invalid input. Please enter valid numbers.")  # Print an error message if the input is invalid.                    
+        return result   # Return the result array containing the calculated RMS or AVG values for each sublist in the nested list.
 
     def natsorted_list(self,dir):
 
@@ -899,52 +906,79 @@ class Processing:
         return new_t,new_signal
 
     def IIR_Filter(self, Time, Signal, Cutoff, Order=2, BType='low', FType='butter'):
-        """_summary_
+        """
+        Design and apply an Infinite Impulse Response (IIR) filter to a signal with zero-phase distortion.
 
-        Args:
-            Time (_type_): _description_
-            Signal (_type_): _description_
-            Cutoff (_type_): _description_
-            Order (int, optional): _description_. Defaults to 2.
-            BType (str, optional): _description_. Defaults to 'low'.
-            FType (str, optional): _description_. Defaults to 'butter'.
+        This function uses SciPy's signal processing module (scipy.signal) to design and apply Butterworth, Chebyshev, 
+        or other IIR filters. Zero-phase filtering is achieved using filtfilt, which processes the signal forward 
+        and backward to eliminate phase delay.
+
+        Libraries Used:
+        - scipy.signal.iirfilter  (https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.iirfilter.html)    :Designs an IIR filter of specified type (Butterworth, Chebyshev, etc.) and order.
+        - scipy.signal.filtfilt (https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.filtfilt.html)     :Applies zero-phase filtering by processing the signal forward and backward.
+
+        Parameters:
+        - Time      (numpy.ndarray)       : Time vector corresponding to the signal (in seconds). Used to calculate the sampling frequency.
+        - Signal    (numpy.ndarray)       : Input signal to be filtered (1D array).
+        - Cutoff    (float or list)       : Cutoff frequency (Hz) for low/high-pass filters, or [low, high] frequencies for band-pass/stop filters.
+        - Order     (int, optional)       : Order of the filter. Higher orders provide steeper roll-off but may introduce numerical instability. Default: 2.
+        - BType     (str, optional)       : Filter type: 'low' (low-pass), 'high' (high-pass), 'band' (band-pass), or 'bandstop'. Default: 'low'.
+        - FType     (str, optional)       : Filter design type: 'butter' (Butterworth), 'cheby1' (Chebyshev Type I), 'cheby2' (Chebyshev Type II), or 'ellip' (elliptic). Default: 'butter'.
 
         Returns:
-            _type_: _description_
+        - numpy.ndarray               : The filtered signal with zero-phase distortion.
+
         """
-        dt                  =   Time[1] - Time[0]
-        Fs                  =   1.0/dt
-        Fn                  =   min(Fs/2-1, Cutoff)
 
-        b,a                 =   dp.scipy.signal.iirfilter(Order, Wn=Fn, fs=Fs, btype=BType, ftype=FType)
-        Signal_Filtered     =   dp.scipy.signal.filtfilt(b, a, Signal)
+        dt                  =   Time[1] - Time[0]                                                                                   # Calculate time step
+        Fs                  =   1.0/dt                                                                                             # Calculate sampling frequency
+        Fn                  =   min(Fs/2-1, Cutoff)                                                                                # Calculate Nyquist frequency
 
-        return Signal_Filtered
+        b,a                 =   dp.scipy.signal.iirfilter(Order, Wn=Fn, fs=Fs, btype=BType, ftype=FType)                           # Design IIR filter
+        Signal_Filtered     =   dp.scipy.signal.filtfilt(b, a, Signal)                                                             # Apply zero-phase filtering
+
+        return Signal_Filtered                                                                                                     # Return filtered signal
 
     def pyFFT(self, signal, fs):
         """
         Compute the Fast Fourier Transform (FFT) of a signal and return amplitude, phase, and frequency information.
+        
+        This function uses SciPy's FFT implementation (scipy.fft) which provides efficient numerical computation
+        of the discrete Fourier Transform. The function automatically utilizes all available CPU cores for parallel
+        computation.
+
+        Libraries used:
+        - scipy.fft             (https://docs.scipy.org/doc/scipy/reference/fft.html)                                              : Fast Fourier Transform implementation
+        - scipy.fftpack.fftfreq (https://docs.scipy.org/doc/scipy/reference/generated/scipy.fft.fftfreq.html#scipy.fft.fftfreq)    : Frequency bin calculation
 
         Parameters:
-            signal (numpy.ndarray)  : Input signal.
-            fs (float)              : Sampling frequency of the signal.
+            signal (numpy.ndarray)      : Input time-domain signal (1D array)
+            fs (float)                  : Sampling frequency of the signal in Hz
 
         Returns:
-            tuple: Tuple containing amplitude, phase, and frequency arrays.
+            tuple: Contains three elements:
+                - amplitude (numpy.ndarray) : Scaled FFT magnitude spectrum 
+                - phase (numpy.ndarray)     : Phase angles in degrees [0-360]
+                - frequency (numpy.ndarray) : Frequency bins in Hz corresponding to the amplitude/phase values
 
+        Notes:
+            1. The DC component (0 Hz) is scaled by 1/N
+            2. All other components are scaled by 2/N
+            3. Only positive frequencies are returned
+            4. Phase values are wrapped in the range [-180, 180] degrees
         """
-        N               = len(signal)                                                   #
-        f               = dp.fftfreq(N,1/fs)                                            #
-        f               = f[f >= 0]                                                     #
+        N               = len(signal)                                                   # Get length of signal
+        f               = dp.fftfreq(N,1/fs)                                            # Calculate frequency bins
+        f               = f[f >= 0]                                                     # Keep only positive frequencies
         useful          = dp.np.arange(0, len(f)/2, dtype=int)                          # Select useful indices and corresponding frequency values
-        fft             = dp.fft(x=signal,workers=dp.multiprocessing.cpu_count())       # Compute FFT
+        fft             = dp.fft(x=signal,workers=dp.multiprocessing.cpu_count())       # Compute FFT using all available CPUs
         amplitude       = dp.np.abs(fft)                                                # Calculate magnitude of FFT result
-        amplitude[0]    = (1/N) * amplitude[0]                                          # Scale the magnitude values
-        amplitude[1:N]  = (2/N) * amplitude[1:N]                                        # Scale the magnitude values
-        amplitude       = amplitude[useful]                                             # Select useful indices and corresponding magnitude values
-        pahse           = dp.np.angle(fft[useful],deg=True)                             # Calculate phase angles of the FFT result
-        frequency       = f[useful]                                                     #
-        return amplitude, pahse, frequency
+        amplitude[0]    = (1/N) * amplitude[0]                                          # Scale DC component
+        amplitude[1:N]  = (2/N) * amplitude[1:N]                                        # Scale other components
+        amplitude       = amplitude[useful]                                             # Select useful frequency components
+        pahse           = dp.np.angle(fft[useful],deg=True)                             # Calculate phase angles in degrees
+        frequency       = f[useful]                                                     # Select useful frequencies
+        return amplitude, pahse, frequency                                              # Return amplitude, phase and frequency
 
     def safe_get(self,my_list, index):
         try:
