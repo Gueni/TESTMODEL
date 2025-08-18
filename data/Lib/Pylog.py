@@ -26,6 +26,10 @@ class FileAndLogging:
         self.nested_res_hier        =   ''
         self.files                  =   [1]
 
+    def line_separator(self):
+        line_length = 105
+        self.log("-" * line_length)
+
     def natsort_files(self,ResDir):
         """
         Sorts out a list of files in a given directory in an alphanumeric way.

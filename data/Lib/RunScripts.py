@@ -13,7 +13,9 @@ import Dependencies as dp
 
 #?--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 class runScripts:
+    
     def __init__(self,jsonInputs):
+
         self.JS                 =   jsonInputs                                                                                                                      #!  declare json input file
         self.misc               =   dp.msc.Misc()                                                                                                                   #!  initialize miscellaneous class
         self.fileLog            =   dp.flg.FileAndLogging(json_dir=self.JS['scriptName'])                                                                           #!  initialize FileAndLogging class
@@ -117,30 +119,47 @@ class runScripts:
             self.simutil.save_data(self.obj.OptStruct,self.simutil,self.fileLog,itr=Simulation,crash=Crash)                                                         #!  save simulation data to csv files when required
             self.fileLog.log(f"Saving Data   {'= '.rjust(78, ' ')}{str(self.misc.toc())} seconds.\n")
 
-    def simlog_header(self,simulation=0):
-            
-            if not simulation:
+    def iterations_header(self, simulation=0):
+        """
+        Logs the iterations header information including parameters and current simulation number.
+        
+        Args:
+            simulation (int): Current simulation index.
+        """
+        # Check if it is the first simulation then log the default parameters
+        # and create a header for iterations.
+        if not simulation:
+            self.fileLog.param_log(self.obj.OptStruct[simulation], self.simutil.Threads)
+            self.fileLog.line_separator()
+            self.fileLog.log(dp.figlet_format("ITERATIONS PARAMETERS", width=200))
 
-                self.fileLog.param_log(self.obj.OptStruct[simulation],self.simutil.Threads)
-                self.fileLog.log("--------------------------------------------------------------------------------------------------------------------------")
-                self.fileLog.log(dp.figlet_format("ITERATIONS PARAMETERS",width=200))
-
-            self.fileLog.log("--------------------------------------------------------------------------------------------------------------------------")
-            self.fileLog.log(f"Simulation Number       {'='.rjust(67, ' ')} {str(simulation+1)}/{str(self.simutil.Simulations)}"                                               )
-            self.fileLog.log("--------------------------------------------------------------------------------------------------------------------------")
+        # Log current simulation number. 
+        self.fileLog.line_separator()
+        self.fileLog.log(f"Simulation Number {'='.rjust(67, ' ')} {simulation+1}/{self.simutil.Simulations}")
+        self.fileLog.line_separator()
 
     def simEnd(self):
-        """This function plots the processed results graphically in HTML files. It also creates copies of simulation files and scripts in the results folder.
         """
-        self.simutil.iterNumber = 0                                                                                                                                 #!  reset simulation iteration
+        This function plots the processed results graphically in HTML files.
+        It also creates copies of simulation files and scripts in the results folder.
+        """
+        # Reset simulation iteration counter
+        self.simutil.iterNumber = 0
+        
+        # Generate HTML report from results and visualizations if data saving is enabled
         if (self.JS['saveData']):
-            self.plot.auto_plot(self.simutil,self.fileLog,self.misc,open=self.JS['openHTML'],iterReport=self.JS['iterReport'])                                      #!  generate HTML report from results set
-            # self.plot.plots_sweeps_json()                                                                                                                         #todo: function is broken, needs to be re-written in a better way  #generate 3D/2D plots after simulation sweeps
-        self.fileLog.footer(self.simutil)                                                                                                                           #!  create footer for log file
-        self.obj.SaveTraces(self.JS['modelname'],self.JS['scopes'],self.fileLog.resultfolder)                                                                       #!  save the traces of the desired scopes externally
+            self.plot.auto_plot(self.simutil,self.fileLog, self.misc,open=self.JS['openHTML'],iterReport=self.JS['iterReport'])  
+        
+        # Finalize logging and save traces
+        self.fileLog.footer(self.simutil)  # Create footer for log file
+        
+        # Save the traces of the desired scopes externally
+        self.obj.SaveTraces(self.JS['modelname'],self.JS['scopes'],self.fileLog.resultfolder)
 
-    def simMissing(self,iter,threads_vector,Threads):
-        """This function determines which simulation thread has crashed during parallel runs to repeate it later.
+    def simMissing(self, iter, threads_vector, Threads):
+        """
+        This function determines which simulation thread has crashed during 
+        parallel runs to repeate it later.
 
         Args:
             iter (int): current iteration where a crash occured
@@ -150,10 +169,14 @@ class runScripts:
         Returns:
             MissingIter (list): list of identified simulation iterations that crashed
         """
-        MissingIter             =   self.postProcessing.findMissingResults(self.fileLog.resultfolder+"/CSV_TIME_SERIES",iter,threads_vector,Threads)                #!  find missing iteration data file
-        self.obj.OptStruct      =   []                                                                                                                              #!  reintialize empty optstruct
-
-        MissingIter             =   (dp.np.array(MissingIter)-1).tolist()                                                                                           #!  converts the missing iters array back to list
+        # Find missing iteration data file and clean up optstruct
+        MissingIter         = self.postProcessing.findMissingResults(self.fileLog.resultfolder+"/CSV_TIME_SERIES",iter,threads_vector,Threads)
+        
+        # Reinitialize empty optstruct
+        self.obj.OptStruct  = []
+        
+        # Convert missing iters array back to list
+        MissingIter = (dp.np.array(MissingIter)-1).tolist()  
         return MissingIter
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------

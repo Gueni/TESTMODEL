@@ -54,7 +54,7 @@ def main():
             
             # Simulation Iterations Header logging 
             j = 0
-            RunScript.simlog_header(i)
+            RunScript.iterations_header(i)
 
             while j < RunScript.simutil.Threads:
 
