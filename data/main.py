@@ -37,10 +37,11 @@ def main():
     tries           =       0
     
     # Parallel Execution Section
-    # --------------------------
     if dp.JSON['parallel']:
+
         # Main parallel simulation loop
         while i < RunScript.simutil.Simulations:
+
             # Determine iteration range based on hierarchical or flat parallelization
             if dp.JSON['hierarchical']:
                 iteration_range             =   list(range(sum(RunScript.simutil.threads_vector[0:i]),sum(RunScript.simutil.threads_vector[0:i+1])))
@@ -51,27 +52,27 @@ def main():
             # Initialize model options for current parallel batch
             RunScript.obj.modelinit_opts(RunScript.simutil.Threads,iteration_range,RunScript.JS['parallel'])
             
-            # Per-thread Script Execution Section
-            # -----------------------------------
+            # Simulation Iterations Header logging 
             j = 0
             RunScript.simlog_header(i)
+
             while j < RunScript.simutil.Threads:
-                # Execute simulation script for each thread
+
+                # Execute simulation script and log updated values for each thread
                 ScriptBody.simScript(RunScript,RunScript.obj.OptStruct,j,RunScript.simutil.Map,RunScript.simutil.iterNumber,RunScript.fileLog.ResultsPath,RunScript.simutil)
                 RunScript.simLog(RunScript.obj.OptStruct[j])
                 j+=1
             
             # Simulation Run and Error Handling Section
-            # ----------------------------------------
             try:
-                # Normal execution path
+                # Normal execution parameter setting
                 crash                           =   False
                 RunScript.simRun(RunScript.simutil.Threads,True,Callback)
                 RunScript.simSave(i,crash)
                 tries                           =   0
                 i+=1
             except:
-                # Error recovery path
+                # Error recovery parameter setting
                 crash                           =   True
                 iterNumber                      =   RunScript.simutil.iterNumber
                 
@@ -100,7 +101,6 @@ def main():
                     continue
     
     # Serial Execution Section
-    # ------------------------
     else:
         # Non-parallel execution path
         RunScript.obj.modelinit_opts(RunScript.simutil.Threads,RunScript.JS['parallel'])
@@ -108,8 +108,7 @@ def main():
         RunScript.simRun(threads=1,parallel=False)
         RunScript.simSave()
 
-    # Cleanup Section
-    # ---------------
+    # Cleanup and footer logging Section
     RunScript.simEnd()
 
 if __name__ == "__main__":
