@@ -39,7 +39,6 @@ def simScript(RunScript,OptStruct,Thread,Map,iterNumber,ResultsPath,misc,crash=F
 
     #! -------------------------------------------------------------------------------------Don't change under this line-------------------------------------------------------------------------------------
 
-    diff = dp.DeepDiff(OptStruct[Thread-1]['ModelVars'], OptStruct[Thread]['ModelVars'], verbose_level=2).get("values_changed", {})
-    RunScript.log_updates(diff)
+    dp.updated_params_dict = dp.DeepDiff(OptStruct[0]['ModelVars'], OptStruct[Thread]['ModelVars'], verbose_level=2).get("values_changed", {})
 
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------

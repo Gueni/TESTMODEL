@@ -35,7 +35,12 @@ def main():
     # Initialize counters for iterations and retries
     i               =       0
     tries           =       0
-    
+
+    # Log the default parameters and create a header for iterations.
+    RunScript.fileLog.param_log(RunScript.obj.OptStruct[i], RunScript.simutil.Threads)
+    RunScript.fileLog.line_separator()
+    RunScript.fileLog.log(dp.figlet_format("ITERATIONS PARAMETERS", width=200))
+
     # Parallel Execution Section
     if dp.JSON['parallel']:
 
@@ -51,10 +56,12 @@ def main():
             
             # Initialize model options for current parallel batch
             RunScript.obj.modelinit_opts(RunScript.simutil.Threads,iteration_range,RunScript.JS['parallel'])
-            
-            # Simulation Iterations Header logging 
             j = 0
-            RunScript.iterations_header(i)
+
+            # Log current simulation number. 
+            RunScript.fileLog.line_separator()
+            RunScript.fileLog.log(f"Simulation Number {'='.rjust(67, ' ')} {i+1}/{RunScript.simutil.Simulations}")
+            RunScript.fileLog.line_separator()
 
             while j < RunScript.simutil.Threads:
 

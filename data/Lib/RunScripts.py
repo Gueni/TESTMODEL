@@ -106,9 +106,15 @@ class runScripts:
 
         # Increment the iteration number and log the current iteration number.
         # It also logs the updated parameters and the name of the simulation.
+        
         self.simutil.iterNumber    +=  1                                                                                                                            #!  increment iteration number
         self.fileLog.log(f"Iteration Number        {'='.rjust(67, ' ')} {str(self.simutil.iterNumber)}/{str(self.simutil.Iterations)}"                                           )
-        self.fileLog.param_log(dp.updated_params_dict,self.simutil.Threads,isFirst=False)
+        
+        # Log the changes made to the model parameters.
+        # It iterates through the dictionary and logs the key and new value of each updated parameter.
+
+        for path, change in dp.updated_params_dict.items():
+            self.fileLog.log(f"""{path.replace("root", "").ljust(50)} = {str(change['new_value'])}\n""")
         self.fileLog.log(f"['Name']                {'='.rjust(67, ' ')} '{OptStruct['Name']}' \n")
         
         # Log the parameters of the current simulation iteration for HTML tables.
@@ -181,25 +187,6 @@ class runScripts:
             self.misc.tic()
             self.simutil.save_data(self.obj.OptStruct,self.simutil,self.fileLog,itr=Simulation,crash=Crash)                                                         #!  save simulation data to csv files when required
             self.fileLog.log(f"Saving Data   {'= '.rjust(78, ' ')}{str(self.misc.toc())} seconds.\n")
-
-    def iterations_header(self, simulation=0):
-        """
-        Logs the iterations header information including parameters and current simulation number.
-        
-        Args:
-            simulation (int): Current simulation index.
-        """
-        # Check if it is the first simulation then log the default parameters
-        # and create a header for iterations.
-        if not simulation:
-            self.fileLog.param_log(self.obj.OptStruct[simulation], self.simutil.Threads)
-            self.fileLog.line_separator()
-            self.fileLog.log(dp.figlet_format("ITERATIONS PARAMETERS", width=200))
-
-        # Log current simulation number. 
-        self.fileLog.line_separator()
-        self.fileLog.log(f"Simulation Number {'='.rjust(67, ' ')} {simulation+1}/{self.simutil.Simulations}")
-        self.fileLog.line_separator()
 
     def simEnd(self):
 
