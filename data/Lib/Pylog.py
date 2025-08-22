@@ -13,20 +13,37 @@ sys.path.insert(1,os.getcwd() + '/Script/assets')
 import Dependencies as dp
 
 #?-------------------------------------------------------------------------------------------------------------------------------------------------------------
+
 class FileAndLogging:
+
     def __init__(self, suffix="", json_dir=""):
-        self.utc                    =   str(int(dp.time.time()*1000))           #! define Unix Time stamp.
-        dp.suffix                   =   suffix
-        self.ResultsPath            =   ""                                      #! define path to dump simulation results in
-        self.basename               =   dp.os.path.basename(dp.sys.argv[0])[:-3]
-        self.resultfolder           =   (dp.os.getcwd()).replace("\\","/") + "/Script/" + "D".upper() + "ata/Res/" + json_dir + "_" + self.utc + suffix
-        self.logfolder              =   (dp.os.getcwd()).replace("\\","/") + "/Script/" + "D".upper() + "ata/Log/" + json_dir
-        self.jsonfolder             =   (dp.os.getcwd()).replace("\\","/") + "/Script/" + "D".upper() + "ata/Json/" + json_dir
-        self.initfolder             =   (dp.os.getcwd()).replace("\\","/") + "/Script/" + "D".upper() + "ata/cmd/" + json_dir
-        self.nested_res_hier        =   ''
-        self.files                  =   [1]
+
+        self.utc                    =   str(int(dp.time.time()*1000))                                                                                     # current time in milliseconds
+        dp.suffix                   =   suffix                                                                                                            # suffix for result folder
+        self.ResultsPath            =   ""                                                                                                                # path to results folder
+        self.basename               =   dp.os.path.basename(dp.sys.argv[0])[:-3]                                                                          # base name of the script without .py
+        self.resultfolder           =   (dp.os.getcwd()).replace("\\","/") + "/Script/" + "D".upper() + "ata/Res/" + json_dir + "_" + self.utc + suffix   # result folder path
+        self.logfolder              =   (dp.os.getcwd()).replace("\\","/") + "/Script/" + "D".upper() + "ata/Log/" + json_dir                             # log folder path
+        self.jsonfolder             =   (dp.os.getcwd()).replace("\\","/") + "/Script/" + "D".upper() + "ata/Json/" + json_dir                            # json input folder path
+        self.initfolder             =   (dp.os.getcwd()).replace("\\","/") + "/Script/" + "D".upper() + "ata/cmd/" + json_dir                             # initialization commands folder path
+        self.nested_res_hier        =   ''                                                                                                                # nested results hierarchy
+        self.files                  =   [1]                                                                                                               # list of files
 
     def line_separator(self):
+        """
+        Creates and logs a visual line separator for output formatting.
+        
+        This method generates a horizontal line composed of dash characters
+        to visually separate sections in log output. The line length is
+        fixed at 105 characters for consistent formatting.
+        
+        Returns:
+            None
+        """
+
+        # Define the length of the separator line
+        # Log the separator line using the log method
+
         line_length = 105
         self.log("-" * line_length)
 
@@ -40,8 +57,10 @@ class FileAndLogging:
         Returns:
             list: sorted list of files.
         """
+        # Initialize an empty list to hold file paths and sort them alphanumerically
+        # then return the sorted list of file paths then return it
+
         file_list   =   []
-        # iterate over files in results directory.
         for filename in dp.os.scandir(ResDir):
             if filename.is_file() and filename.path.endswith('.csv') and not filename.path.endswith('_Map.csv') and not filename.path.endswith('_Standalone.csv'):
                 file_list.append(str(filename.path.replace("\\","/")))
@@ -60,6 +79,10 @@ class FileAndLogging:
         Returns:
         - ResultsPath (str) : The path to the results folder.
         """
+        # Create the results folder and subfolders for different types of results
+        # If the folder already exists, ignore the error and continue
+        # Return the path to the results folder 
+
         try:
             dp.os.makedirs(self.resultfolder , exist_ok = False)
             dp.os.makedirs(self.resultfolder+"/HTML_REPORTS", exist_ok = False)
@@ -88,12 +111,13 @@ class FileAndLogging:
         OSError: If the specified log folder already exists and the `exist_ok` flag is set to False.
 
         """
+
+        # Attempt to create the specified log folder.
+        # If the folder already exists, an OSError will be raised (unless exist_ok is True).
+
         try:
-            # Attempt to create the specified log folder.
-            # If the folder already exists, an OSError will be raised (unless exist_ok is True).
             dp.os.makedirs(self.logfolder, exist_ok = False)
         except OSError:
-            # If the folder already exists, ignore the error and continue.
             pass
 
         # Create a unique log file name based on the current UTC time.
@@ -113,17 +137,39 @@ class FileAndLogging:
             pathf (string)  : path of the file to save to.
             msg (string)    : message to be logged to file.
         """
+
+        # if the file exists, open it in append mode, otherwise create a new file
+
         if dp.exists(self.LogFile):
             dp.sys.stdout  =   open(self.LogFile,'a')
         else :
             dp.sys.stdout  =   open(self.LogFile,'w+')
+        
+        # log the message
         print(msg)
+
+        # close the file and restore stdout
         dp.sys.stdout.close()
-        sys.stdout = sys.__stdout__  # Restore stdout if needed
+        sys.stdout = sys.__stdout__
 
     def json_input_folder(self):
+        """
+        Creates directories for JSON input and initialization files if they don't exist.
+        
+        This method attempts to create two directories specified by the class attributes
+        `jsonfolder` and `initfolder`. If the directories already exist, the method
+        silently continues without raising an error. This ensures the necessary folder
+        structure is in place for storing JSON input files and initialization data.
+        
+        The method uses exist_ok=True parameter to prevent errors when directories
+        already exist, making it safe to call multiple times.
+        
+        Returns:
+            None
+        """
         try:
-            # Attempt to create the specified log folder.If the folder already exists, an OSError will be raised (unless exist_ok is True).
+            # Attempt to create the specified log folder.If the folder already exists,
+            # an OSError will be raised (unless exist_ok is True).
             dp.os.makedirs(self.jsonfolder, exist_ok = True)
             dp.os.makedirs(self.initfolder, exist_ok = True)
 
@@ -154,6 +200,11 @@ class FileAndLogging:
             - This function does not return anything, but it has side effects that modify the state of the
             object.
         """
+
+        # Create the results folder and set the ResultsPath attribute
+        # Create the logging folder and set the LogFile attribute
+        # and create the JSON input folder
+
         self.ResultsPath            =   self.results_folder()
         self.LogFile                =   self.logging_folder()
         self.json_input_folder()
@@ -172,6 +223,10 @@ class FileAndLogging:
             Side Effects:
             Writes to the log file using the instance's `log` method.
         """
+        # Generate a header for the log file
+        # The header includes a horizontal line, a stylized "SIMULATION STARTED" message
+        # and another horizontal line to visually separate the header from the rest of the log content
+
         self.log("--------------------------------------------------------------------------------------------------------------------------" )
         self.log(dp.figlet_format("SIMULATION  STARTED",width=100))
         self.log("--------------------------------------------------------------------------------------------------------------------------" )
@@ -186,10 +241,13 @@ class FileAndLogging:
             self: object
                 The instance of the class that calls this method.
 
-            Returns:
-            --------
-            None
+            Returns: None
         """
+
+        # Generate the footer for the log file
+        # The footer includes the total simulation time, a message indicating that the simulation has ended,
+        # and a copy of all output files to the result folder
+
         self.log("--------------------------------------------------------------------------------------------------------------------------"    )
         tf_sim  =   dp.time.time()
         self.log(f"Total Simulation Time    {'= '.rjust(67, ' ')}{str((tf_sim-dp.tinit_sim).__round__(3)/60)} minutes."                          )
@@ -221,10 +279,21 @@ class FileAndLogging:
             self : object
                 An instance of the class that this method belongs to.
 
-            Returns:
-            --------
-            None
+            Returns: None
         """
+
+        # Copy the log file to the result folder with a specific name
+        # Copy the PLECS model file to the result folder with a specific name
+        # Copy the script file to the result folder with a specific name
+        # Copy the MyLibraries directory to the result folder
+        # Copy the app.js file to the HTML_REPORTS subfolder in the result folder
+        # Copy the Input_vars.json file to the result folder and json folder
+        # Copy the Param_Dicts.py file to the result folder
+        # Copy the plecs_mapping.py file to the result folder
+        # Copy the InitializationCommands.m file to the result folder and init folder
+        # Copy the Input_vars.json file to the json folder with a timestamp in the filename
+        # This ensures that all necessary files are available in the result folder for further analysis or reporting
+
         dp.shutil.copy(self.LogFile, os.path.join(self.resultfolder, self.LogF_name))
         dp.shutil.copy(dp.cp_mdl, self.resultfolder+"/" +"PLECS_MODEL_"+ dp.cp_mdl.split('\\')[-1])
         dp.shutil.copy(dp.script_path, os.path.join(self.resultfolder, self.basename+".py"))
@@ -251,15 +320,19 @@ class FileAndLogging:
         Returns:
             str: Commit hash , commit comment
         """
+
+        # Retrieve the last commit hash and comment from the git repository
+        # by running the git log command with specific formatting options.
+        # capture the output and splits it into the hash and comment parts.
+        # If an error occurs during the command execution, it prints the error message
+        # and returns None for both the hash and comment.
         try:
-            # Run git log command to get the latest commit hash and comment
             result = dp.subprocess.run(
                                         ['git', 'log', '-1', '--pretty=format:%H%n%s']  ,
                                         capture_output  = True                          ,
                                         text            = True                          ,
                                         check           = True
                                     )
-            # Split the result into hash and comment
             commit_hash, commit_comment = result.stdout.split('\n', 1)
             return commit_hash, commit_comment
         except dp.subprocess.CalledProcessError as e:
@@ -267,7 +340,6 @@ class FileAndLogging:
             return None, None
 
     def param_log(self,dictt,Threads=1,prefix='',isFirst=True):
-    # def param_log(self,dictt,Threads=1,iterNumber = 1 ,tot_iter=1,sim_num=1,tot_sim=1,prefix='',isFirst=True):
 
         """
         Takes a dictionry then crawls all over its parameters in a recursive way
@@ -281,18 +353,29 @@ class FileAndLogging:
             isFirst (Bool)              : helps make the recursive function run an expression only once. Defaults to True.
         """
 
+        # If this is the first call, log the last commit hash and comment
+        # and the current date and time, along with the number of threads.
+
         if isFirst:
             commit_hash, commit_comment = self.get_last_commit()
+
             if commit_hash and commit_comment:
                 self.log("--------------------------------------------------------------------------------------------------------------------------")
                 self.log(f"Last Full Commit Hash {'='.rjust(69, ' ')} {str(commit_hash)}"                                                        )
                 self.log(f"Last Commit Hash      {'='.rjust(69, ' ')} {str(commit_hash[:11])}"                                                   )
                 self.log(f"Last Commit Comment   {'='.rjust(69, ' ')} {str(commit_comment)}"                                                     )
+
             self.log(f"Date & Time             {'='.rjust(67, ' ')} {str(dp.datetime.datetime.now())}"                                           )
             self.log(f"Thread Count            {'='.rjust(67, ' ')} {str(Threads)}"                                                              )
             self.log("--------------------------------------------------------------------------------------------------------------------------")
             self.log(dp.figlet_format("DEFAULT PARAMETERS",width=200))
             self.log("--------------------------------------------------------------------------------------------------------------------------")
+
+        # If the input is a dictionary, iterate through its items
+        # and log each key-value pair with the specified prefix.
+        # If the value is another dictionary, recursively call param_log on it
+        # with an updated prefix.
+
         if isinstance(dictt, dict):
             for k, v2 in dictt.items():
                 p2 = "{}['{}']".format(prefix, k)
@@ -302,9 +385,9 @@ class FileAndLogging:
                 dp.sys.stdout  =   open(self.LogFile,'a')
             else :
                 dp.sys.stdout  =   open(self.LogFile,'w+')
-            print('{}   = {}'.format(prefix.ljust(87, ' '), repr(dictt))) #replace repr w/ str for less digits.
+            print('{}   = {}'.format(prefix.ljust(87, ' '), repr(dictt))) #? replace repr w/ str for less digits.
             dp.sys.stdout.close()
-            sys.stdout = sys.__stdout__  # Restore stdout if needed
+            sys.stdout = sys.__stdout__
 
     def InitializationCommands(self, input_file, output_file, flat_dict ,m_file, misc):
         """
@@ -317,24 +400,29 @@ class FileAndLogging:
             output_file (str)       : Path to the output file.
             flat_dict (list): List of strings to replace the matching line.
         """
+
+        # Open the input file for reading and the output file for writing
+        # Read each line from the input file, check for the specific line
+        # If the line contains 'InitializationCommands ""', replace it with the flattened dictionary string
+        # Write the modified line to the output file, otherwise write the line as is
+        # Flatten the dictionary to a string using the specified separator
+
         with open(input_file, 'r', encoding='utf-8') as infile, open(output_file, 'w', encoding='utf-8') as outfile:
             flattened_str_dot           = misc.dict_to_string(flat_dict, sep='.')
-            # flattened_str_underscore    = self.dict_to_string(flat_dict, sep='_')
             for line in infile:
                     if 'InitializationCommands ""' in line:
-                        # updated_line = line.split('""')[0] + ' "' + flattened_str_dot + "\n" + flattened_str_underscore +'"'  # Replace the empty quotes with octave_str inside the quotes
-                        updated_line = line.split('""')[0] + ' "' + flattened_str_dot + "\n" +'"'  # Replace the empty quotes with octave_str inside the quotes
+                        updated_line = line.split('""')[0] + ' "' + flattened_str_dot + "\n" +'"'
                         outfile.write(updated_line)
                     else:
                         outfile.write(line)
-        # Write flattened_str_dot to the .m file
-        os.makedirs(os.path.dirname(m_file), exist_ok=True)  # Create directories if needed
+
+        # Create the directory for the .m file if it does not exist
+        # and write the flattened dictionary string to the .m file
+        # Ensure the directory exists before writing the file
+
+        os.makedirs(os.path.dirname(m_file), exist_ok=True)
         with open(m_file, 'w', encoding='utf-8') as m_out:
             m_out.write(flattened_str_dot)
         m_out.close()
 
 #?-------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-
-
-
