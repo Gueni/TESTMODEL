@@ -12,14 +12,15 @@ sys.path.insert(1,os.getcwd() + '/Script/assets')
 import Dependencies as dp
 
 #?-------------------------------------------------------------------------------------------------------------------------------------------------------------
+
 class Misc :
     def __init__(self):
 
-        self.TicToc                 =   self.TicTocGenerator()                  #! create an instance of the TicTocGen generator
-        self.mode                   =   ''
-        self.map_index              =   ''
-        self.map_names              =   ''
-        self.maxThreads             =   1
+        self.TicToc                 =   self.TicTocGenerator()          # create an instance of the TicToc generator
+        self.mode                   =   ''                              # mode of operation
+        self.map_index              =   ''                              # map index
+        self.map_names              =   ''                              # map names
+        self.maxThreads             =   1                               # max number of threads 
 
     def listMethods(self,Class):
         """
@@ -30,6 +31,10 @@ class Misc :
         Args:
             Class (Class): Python class
         """
+        
+        # create a list of all methods in the class that do not start with '__'
+        # and print them out
+
         method_list =   [method for method in dir(Class) if method.startswith('__') is False]
         print(method_list)
 
@@ -40,8 +45,12 @@ class Misc :
         Yields:
             float: returns the time difference
         """
-        ti = 0              # initial time
-        tf = dp.time.time() # final time
+
+        # initialize time variables
+        # and yield the time difference
+
+        ti = 0
+        tf = dp.time.time()
         while True:
             ti = tf
             tf = dp.time.time()
@@ -57,7 +66,10 @@ class Misc :
         Returns:
             float: time difference returned by generator.
         """
+
         # return the time difference yielded by generator instance TicToC
+        # if tempBool is True else do not return anything
+
         tempTimeInterval = next(self.TicToc)
         if tempBool:
             return tempTimeInterval
@@ -66,6 +78,8 @@ class Misc :
         """
         Records a time in TicToc, marks the beginning of a time interval
         """
+        # call toc with False to mark the beginning of a time interval`
+        # without returning the time difference`
         self.toc(False)
 
     def keys_exists(self,ref_dict,res_dict):
@@ -84,6 +98,12 @@ class Misc :
         Returns:
             dict            : result dictionary without exisiting keys.
         """
+
+        # check if all keys in ref_dict exist in res_dict
+        # if they do, remove them from res_dict and return the rest
+        # as a dictionary object and raise errors if
+        # the input arguments are not of type dictionary
+
         key_list    =   list(ref_dict.keys())
         if not isinstance(res_dict, dict):
             raise AttributeError('keys_exists() expects dict as first argument.')
@@ -96,7 +116,6 @@ class Misc :
                 _element = _element[key]
             except KeyError:
                 break
-            # res_dict.pop(key)
             del res_dict[key]
         return res_dict
 
@@ -110,6 +129,12 @@ class Misc :
         Returns:
             list of str: A list of transformed key paths in the format "['a']['b']['c']".
         """
+
+        # Convert each dot-separated key path into the bracketed string format
+        # and return the list of transformed key paths
+        # e.g., 'a.b.c' -> "['a']['b']['c']"
+        # for use in nested dictionary access or updates
+
         converted_keys = []
         for key in key_paths:
             new_key = "['" + "']['".join(key.split('.')) + "']"
@@ -128,6 +153,13 @@ class Misc :
         Returns:
             None: The input dictionary is modified in place.
         """
+
+        # Update the value in the nested dictionary at the specified key path
+        # by multiplying it with the given multiplier
+        # e.g., for key_path "['a']['b']['c']", it accesses d['a']['b']['c']
+        # and updates its value to d['a']['b']['c'] * multiplier
+        # if the key path exists in the dictionary
+
         keys = key_path.strip("[]").replace("']['", "/").replace("'", "").split("/")
         temp = d
         for key in keys[:-1]:
@@ -150,18 +182,23 @@ class Misc :
             dict: A flattened dictionary with keys joined by the separator.
 
         """
+
+        # Recursively flatten the nested dictionary
+        # If a value is callable (like a function), execute it to get its result
+        # If a value is a string, wrap it in single quotes
+        # Return the flattened dictionary
+        # e.g., {'a': {'b': 1}} -> {'a.b': 1}   
+        
         items = []
         for k, v in d.items():
             new_key = f"{parent_key}{sep}{k}" if parent_key else k
             if isinstance(v, dict):
                 items.extend(self.flatten_dict(v, new_key, sep=sep).items())
             else:
-                # If the value is callable, execute it
                 if callable(v):
-                    v = v()  # Execute the function to get its result
-                # If the value is a string, we wrap it in quotes
+                    v = v()
                 if isinstance(v, str):
-                    v = f"'{v}'"  # Wrap the string in single quotes, including paths
+                    v = f"'{v}'"
                 items.append((new_key, v))
         return dict(items)
 
@@ -178,6 +215,13 @@ class Misc :
             str: A string representing the flattened dictionary, with each key-value pair
                 on a new line in the format `key=value;`.
         """
+
+        # First flatten the dictionary using the specified separator
+        # Then convert the flattened dictionary to a string
+        # where each key-value pair is formatted as `key=value;`
+        # and each pair is on a new line
+        # e.g., {'a': {'b': 1}} -> "a.b=1;"
+
         flattened_dict = self.flatten_dict(d, sep=sep)
-        # Convert dictionary to string with `key=value;` format, each pair on a new line
         return '\n'.join(f"{key}={value};" for key, value in flattened_dict.items())
+#?-------------------------------------------------------------------------------------------------------------------------------------------------------------
