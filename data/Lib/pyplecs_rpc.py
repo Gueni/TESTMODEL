@@ -39,8 +39,8 @@ class PlecsRPC:
         self.anlOpts                    =   anlOpts                              # Assign Parameters Dictionary "AnalysisOpts"
         self.OptStruct                  =   []                                   # Initialize simulation parameters vector
         self.METHOD			            =   METHOD				                 # Desired RPC connection medium. Default is JSON. Alternative is XML.
-        self.command                    =   dp.command
-        self.path                       =   ''
+        self.command                    =   dp.command                           # Path to PLECS executable file
+        self.path                       =   ''                                   # Path to the plecs model file
 
     def set_plecs_priority(self,PRIORITY):
         """
@@ -67,6 +67,11 @@ class PlecsRPC:
         - Set the priority of PLECS.exe process to HIGH:
             instance.set_plecs_priority('HIGH')
         """
+
+        # search for the plecs process and set its priority
+        # if the process is found set its priority accordingly
+        # otherwise raise an exception 
+
         proc_iter       = dp.psutil.process_iter(attrs=["pid", "name"])
         for p in proc_iter:
             if p.info["name"] == "PLECS.exe":
@@ -83,7 +88,10 @@ class PlecsRPC:
         """
         Opens the PLECS simulation software in HIGH priority mode.
 
-        This function uses the subprocess module to execute the PLECS executable file. The PLECS executable file path is specified in `self.command`. If the executable file is found and can be executed, it is opened in HIGH priority mode using the `ABOVE_NORMAL_PRIORITY_CLASS` flag from the psutil module.
+        This function uses the subprocess module to execute the PLECS executable file. 
+        The PLECS executable file path is specified in `self.command`. If the executable 
+        file is found and can be executed, it is opened in HIGH priority mode using the 
+        `ABOVE_NORMAL_PRIORITY_CLASS` flag from the psutil module.
 
         Parameters:
         -----------
@@ -98,11 +106,11 @@ class PlecsRPC:
         -------
         Exception : If the PLECS executable file cannot be found or executed.
 
-        Examples:
-        ---------
-        >>> my_sim = Simulation()
-        >>> my_sim.open_plecs()
         """
+
+        # open plecs in high priority mode 
+        # raise an exception if the plecs executable file is not found or cannot be executed
+
         try:
             pid = dp.subprocess.Popen([self.command], creationflags=dp.psutil.ABOVE_NORMAL_PRIORITY_CLASS).pid
         except Exception:
@@ -118,6 +126,11 @@ class PlecsRPC:
         self : instance of a class
             An instance of a class that contains this method.
         """
+
+        # search for the plecs process and kill it
+        # if the process is found kill it
+        # otherwise do nothing
+
         proc_iter = dp.psutil.process_iter(attrs=["pid", "name"])
         for p in proc_iter:
             if p.info["name"] == "PLECS.exe":
@@ -133,13 +146,16 @@ class PlecsRPC:
                 The first value is an integer representing the CPU usage percentage.
                 The second value is an integer representing the number of CPU cores that can execute the PLECS.exe process.
         """
+        
+        # search for the plecs process and get its cpu usage
+        # if the process is found return its cpu usage and the number of cpu cores that can execute it
+
         proc_iter   = dp.psutil.process_iter(attrs=["pid", "name"])
         cpu_usage   = None
         for p in proc_iter:
             if p.info["name"] == "PLECS.exe":
                 cpu_usage = p.cpu_percent(interval=2)
                 try:
-                    # get the number of CPU cores that can execute this process
                     cores = len(p.cpu_affinity())
                 except dp.psutil.AccessDenied:
                     cores = 0
@@ -155,9 +171,17 @@ class PlecsRPC:
             instances (int)       : Number of instances to be generated, default is 1.
             parallel  (bool)      : Flag to indicate if parallel simulations will be performed.
         """
+
+        # if only one instance is required and parallel simulations are not needed
+        # return a single dictionary containing the model variables, solver options, analysis options and name
+
         if (instances == 1 and not parallel):
             self.OptStruct  =   {'ModelVars':self.mdlVars, 'SolverOpts':self.slvOpts, 'AnalysisOpts':self.anlOpts, 'Name':'Iter_1'}
             return
+
+        # if multiple instances are required or parallel simulations are needed
+        # create a list of dictionaries containing the model variables, solver options, analysis options and name
+        # each dictionary corresponds to one instance of the simulation 
 
         mdl_list        =   [dp.copy.deepcopy(self.mdlVars) for _ in range(instances)]
         slv_list        =   [dp.copy.deepcopy(self.slvOpts) for _ in range(instances)]
@@ -180,10 +204,15 @@ class PlecsRPC:
         Returns:
         - None
         """
+
+        # set connection parameters 
         url           =   self.url
         port          =   self.port
 
-        # import RPC module
+        # import RPC module based on the desired connection method and
+        # establish connection to the plecs server using the specified method
+        # raise an exception if the connection cannot be established
+
         if self.METHOD == "JSON":
             self.server  = dp.jsonrpc_requests.Server(url + ":" + port)
 
@@ -200,6 +229,9 @@ class PlecsRPC:
             modelname (string)       : The name of the plecs model.
         """
 
+        # search for the plecs model in the current working directory and its subdirectories
+        # if the model is found open it
+        # otherwise print an error message and exit the program
         root_dir = os.getcwd()
         plecs_files = []
         for name in os.listdir(root_dir):
@@ -212,6 +244,9 @@ class PlecsRPC:
                             for item in os.listdir(os.path.join(root_dir, name, file)):
                                 if os.path.isfile(os.path.join(root_dir, name, file, item)) and item.endswith('.plecs'):
                                     plecs_files.append(item)
+
+        # if the model is found open it
+        # otherwise print an error message and exit the program                                    
         if modelname in plecs_files:
             for path in dp.glob.glob(f'{root_dir}/**/*.plecs', recursive=True):
                 if modelname == path.split('\\')[-1]:
@@ -231,6 +266,9 @@ class PlecsRPC:
              modelname (string)       : The name of the plecs model.
 
         """
+        # search for the plecs model in the current working directory and its subdirectories
+        # if the model is found return its absolute path
+        # otherwise return an empty string
 
         for folder, subfolders, files in os.walk(os.getcwd()):
             for file in files:
@@ -246,6 +284,10 @@ class PlecsRPC:
         file_path (String)       : the path of the model.
 
         """
+
+        # get the relative path of the plecs model
+        # raise an exception if the path cannot be found
+
         try:
             file_path = (os.path.join(os.path.dirname(os.path.abspath(__file__)),Model)).replace("\\","/")
             return file_path
@@ -266,15 +308,16 @@ class PlecsRPC:
         If the path is valid and refers to a PLECS file, the model will be loaded over the XML-RPC server.
         Otherwise, it returns an error message.
         """
+
+        # get the file extension of the path
+        # if the path is valid and refers to a plecs file load it over the xmlrpc server
+        # otherwise print an error message
+
         ext = dp.os.path.splitext(path)[-1].lower()
-        #test if the path is valid and it refers to a plecs file
         if (path is not None) and (ext == ".plecs"):
             try :
-                #load the plecs model file over the xmlrpc server
                 self.server.plecs.load(path)
-            #raise an error otherwise
             except Exception as e:
-                # print(e)
                 return e
         else:
             print('Simulation Path is invalid or Empty')
@@ -291,17 +334,18 @@ class PlecsRPC:
                 the time values and the corresponding simulated values.
 
         """
+        # Extract the model name from the given path and launch the simulation
+        # if only one instance is required and parallel simulations are not needed
+        # launch the simulation without a callback function
+        # otherwise, launch the simulation with a callback function
+
         SIM_NAME     =  os.path.split(path)
         modelname    =  (list(SIM_NAME)[-1]).split('.')[0]
 
-        # launch plecs simulation
-        # try:
         if (instances == 1 and not parallel):
             results =   self.server.plecs.simulate(modelname,self.OptStruct)
         else:
             results =   self.server.plecs.simulate(modelname,self.OptStruct,callback)
-        # except xmlrpc.client.Fault:
-        #     results = {'time': [], 'Values': []}
 
         return results
 
@@ -322,6 +366,12 @@ class PlecsRPC:
             PlecsError: if an error occurs while communicating with the Plecs server during the analysis.
 
         """
+
+        # Extract the model name from the given path and launch the analysis
+        # and if only one instance is required and parallel simulations are not needed
+        # launch the analysis without a callback function
+        # otherwise, launch the analysis with a callback function
+
         SIM_NAME     =  os.path.split(path)
         modelname    =  (list(SIM_NAME)[-1]).split('.')[0]
 
@@ -345,38 +395,124 @@ class PlecsRPC:
         Raises:
             None.
         """
-        # modelname   =   self.MODEL_NAME
+
+        # Close the plecs model specified by the path over the xmlrpc server
+
         self.server.plecs.close(path)
 
-    def ClearTrace(self,modelname,scopes):
-        modelname   =  (modelname.split('.'))[0]
+    def ClearTrace(self, modelname, scopes):
+        """
+        Clears the traces for specified scopes in a given model.
+        
+        This function removes all existing trace data from the specified scopes
+        in the model. It extracts the base model name by removing any file extension
+        and attempts to clear traces for each scope. If any errors occur during
+        the clearing process, they are silently ignored.
+        
+        Args:
+            modelname (str): The name of the model, which may include a file extension.
+            scopes (list): A list of scope names within the model whose traces should be cleared.
+            
+        Returns:
+            None
+        """
+
+        # Extract the base model name by removing any file extension
+        # Attempt to clear traces for each specified scope
+        # Silently ignore any errors that occur during the clearing process
+
+        modelname = (modelname.split('.'))[0]
 
         try:
             for scope in scopes:
-                self.server.plecs.scope(modelname+'/'+scope,'ClearTraces')
+                self.server.plecs.scope(modelname+'/'+scope, 'ClearTraces')
         except:
             pass
 
-    def SaveTraces(self,modelname,scopes,path):
-        modelname   =   (modelname.split('.'))[0]
-        path        =   path + '/Scopes_Traces'
+
+    def SaveTraces(self, modelname, scopes, path):
+        """
+        Saves trace data from specified scopes to a designated directory.
+        
+        This function exports trace data from the specified scopes to files in the
+        given path. It creates a subdirectory named 'Scopes_Traces' and saves each
+        scope's traces to individual files. Scope names with slashes are converted
+        to underscores for filesystem compatibility.
+        
+        Args:
+            modelname (str): The name of the model, which may include a file extension.
+            scopes (list): A list of scope names within the model whose traces should be saved.
+            path (str): The base directory path where the trace files will be saved.
+            
+        Returns:
+            None
+        """
+
+        # Ensure the target directory exists
+        # Create a subdirectory named 'Scopes_Traces' within the specified path
+        # Extract the base model name by removing any file extension
+        # Attempt to save traces for each specified scope to the designated directory
+        # Silently ignore any errors that occur during the saving process
+
+        modelname = (modelname.split('.'))[0]
+        path = path + '/Scopes_Traces'
 
         try:
             for scope in scopes:
-                self.server.plecs.scope(modelname+'/'+scope, 'SaveTraces', path+'/'+scope.replace("/","_"))
+                self.server.plecs.scope(modelname+'/'+scope, 'SaveTraces', path+'/'+scope.replace("/", "_"))
         except:
             pass
 
-    def holdTrace(self,modelname,scopes):
-        modelname   =  (modelname.split('.'))[0]
+
+    def holdTrace(self, modelname, scopes):
+        """
+        Holds (pauses) the tracing for specified scopes in a given model.
+        
+        This function pauses the data collection for the specified scopes in the model,
+        maintaining the current trace data without clearing it. Useful for examining
+        specific moments in a simulation without losing the captured data.
+        
+        Args:
+            modelname (str): The name of the model, which may include a file extension.
+            scopes (list): A list of scope names within the model whose tracing should be paused.
+            
+        Returns:
+            None
+        """
+       
+        # Extract the base model name by removing any file extension
+        # Attempt to hold traces for each specified scope
+        # Silently ignore any errors that occur during the process
+
+        modelname = (modelname.split('.'))[0]
 
         try:
             for scope in scopes:
-                self.server.plecs.scope(modelname+'/'+scope , 'HoldTrace')
+                self.server.plecs.scope(modelname+'/'+scope, 'HoldTrace')
         except:
             pass
 
-    def holdTraceCallback(self,scopes):
+
+    def holdTraceCallback(self, scopes):
+        """
+        Generates a callback script for holding traces of specified scopes.
+        
+        This function creates a PLECS callback script as a string that can be used
+        to pause tracing for multiple scopes. The generated script contains commands
+        to hold the trace for each specified scope.
+        
+        Args:
+            scopes (list): A list of scope names for which the hold trace callback should be generated.
+            
+        Returns:
+            str: A string containing the PLECS callback script with commands to hold traces
+                for all specified scopes.
+        """
+
+        # Generate a PLECS callback script to hold traces for the specified scopes
+        # Return the generated script as a string
+        # Each scope will have a command to hold its trace
+
         callback = """"""
 
         for scope in scopes:
@@ -393,12 +529,40 @@ class PlecsRPC:
             modelname (string)  : name of the plecs model to run
             misc (object)       : object from the class miscellaneous
         """
-        self.Open_Model(modelname)                                    #! Open the Corresponding PLECS model
-        self.path   =   self.get_Absolute_Path(modelname)             #! Set The Path of the Model in each Script
+
+        # Open the plecs model and get its absolute path
+        # raise an exception if the model cannot be found or opened
+
+        self.Open_Model(modelname)
+        self.path   =   self.get_Absolute_Path(modelname)
 
     def modelinit_opts(self,maxThreads=1,iteration_range=[0],parallel=False):
-        self.optStruct(maxThreads,iteration_range,parallel)                             #! generate a list of simstructs for multi-threaded simulation.
+        """
+        Initialize simulation options and prepare for parallel execution if enabled.
+        
+        This method configures the simulation environment by setting up thread structures
+        for parallel processing, establishing connection to the PLECS model, and loading
+        the model for simulation. It includes a brief delay to ensure proper initialization
+        before attempting to connect.
+
+        Args:
+            maxThreads (int): Maximum number of threads to use for parallel simulation.
+                            Defaults to 1 (sequential execution).
+            iteration_range (list): Range of iterations to simulate. Defaults to [0].
+            parallel (bool): Flag indicating whether to enable parallel execution.
+                            Defaults to False.
+
+        Returns: None
+        """
+
+        # Set up thread structures for parallel execution if enabled
+        # Establish connection to the PLECS model
+        # Load the PLECS model for simulation
+        # Include a brief delay to ensure proper initialization before connecting
+        
+        self.optStruct(maxThreads,iteration_range,parallel)
         dp.time.sleep(5)
-        self.PlecsConnect()                                           #! Connect to the plecs model
+        self.PlecsConnect()
         self.LoadModel(self.path)
 
+#?-------------------------------------------------------------------------------------------------------------------------------------------------------------
