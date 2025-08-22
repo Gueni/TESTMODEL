@@ -11,7 +11,7 @@ import os,sys
 sys.path.insert(1,os.getcwd() + '/Script/assets')
 import Dependencies as dp
 
-#?--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#?-------------------------------------------------------------------------------------------------------------------------------------------------------------
 class runScripts:
     
     def __init__(self,jsonInputs):
@@ -107,8 +107,8 @@ class runScripts:
         # Increment the iteration number and log the current iteration number.
         # It also logs the updated parameters and the name of the simulation.
         
-        self.simutil.iterNumber    +=  1                                                                                                                            #!  increment iteration number
-        self.fileLog.log(f"Iteration Number        {'='.rjust(67, ' ')} {str(self.simutil.iterNumber)}/{str(self.simutil.Iterations)}"                                           )
+        self.simutil.iterNumber    +=  1
+        self.fileLog.log(f"Iteration Number        {'='.rjust(67, ' ')} {str(self.simutil.iterNumber)}/{str(self.simutil.Iterations)}")
         
         # Log the changes made to the model parameters.
         # It iterates through the dictionary and logs the key and new value of each updated parameter.
@@ -118,11 +118,11 @@ class runScripts:
         self.fileLog.log(f"['Name']                {'='.rjust(67, ' ')} '{OptStruct['Name']}' \n")
         
         # Log the parameters of the current simulation iteration for HTML tables.
-        self.plot.set_tab_dict(self.misc,OptStruct['ModelVars'])                                                                                                    #!  add model parameters values to report table
+        self.plot.set_tab_dict(self.misc,OptStruct['ModelVars'])
         
         # Log the focused parameters for the current iteration.
-        self.plot.iter_param_key.append(self.JS['paramKeys'])                                                                                                       #!  log focused parameters names
-        self.plot.iter_param_val.append(eval(self.JS['paramVals']))                                                                                                 #!  log focused parameters values
+        self.plot.iter_param_key.append(self.JS['paramKeys'])
+        self.plot.iter_param_val.append(eval(self.JS['paramVals']))
         self.plot.iter_param_unt.append(self.JS['paramUnts'])
 
     def log_updates(self,dict):
@@ -185,7 +185,7 @@ class runScripts:
         # then log the time taken for this operation.
         if (self.JS['saveData']):
             self.misc.tic()
-            self.simutil.save_data(self.obj.OptStruct,self.simutil,self.fileLog,itr=Simulation,crash=Crash)                                                         #!  save simulation data to csv files when required
+            self.simutil.save_data(self.obj.OptStruct,self.simutil,self.fileLog,itr=Simulation,crash=Crash)
             self.fileLog.log(f"Saving Data   {'= '.rjust(78, ' ')}{str(self.misc.toc())} seconds.\n")
 
     def simEnd(self):
@@ -233,4 +233,4 @@ class runScripts:
         MissingIter = (dp.np.array(MissingIter)-1).tolist()  
         return MissingIter
 
-#--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#?-------------------------------------------------------------------------------------------------------------------------------------------------------------
