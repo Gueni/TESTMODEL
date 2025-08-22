@@ -19,24 +19,34 @@ class SimulationUtils:
         self.sweepMatrix,self.startPoint                = [],[]                         # Define starting point of sweep
         self.idx, self.matrix                           = '', ''                        # Define order of sweep
         self.postProcessing                             = dp.PP.Processing()            # Call the Post-Processing class and point to log data
-        self.Map, self.Iterations                       = '', 1                         #
-        self.iterNumber, self.Threads, self.Simulations = 1, 1, 1                       #
-        self.threads_vector                             = []                            #
-        self.iter_continuous                            = 0                             #
-        self.iter_10s                                   = 0                             #
-        self.MAT_list                                   = ''                            #
-        self.__dict__.update({f"MAT{i}": " " for i in range(1, 13)})                    #
+        self.Map, self.Iterations                       = '', 1                         # Define mapping parameters Maps and Iterations
+        self.iterNumber, self.Threads, self.Simulations = 1, 1, 1                       # Define Iteration Number, Threads and Simulations
+        self.threads_vector                             = []                            # Define vector of threads for hierarchical simulations
+        self.iter_continuous                            = 0                             # Define continuous iteration counter
+        self.iter_10s                                   = 0                             # Define 10s iteration counter
+        self.MAT_list                                   = ''                            # Define list of data matrices
+        self.__dict__.update({f"MAT{i}": " " for i in range(1, 13)})                    # Initialize empty data matrices for MAT1-MAT12
 
     def simThreads(self, desired_threads=1):
         """
         Calculates the number of threads that should be used for a simulation.
-
+        
+        This function determines the optimal number of threads to use for a simulation
+        by comparing the desired number of threads with the available CPU cores.
+        It ensures efficient resource utilization by preventing overallocation of
+        CPU resources while allowing for parallel processing when beneficial.
+        
         Args:
-            desired_threads (int): The number of threads requested.
-
+            desired_threads (int): The number of threads requested for the simulation.
+                                Defaults to 1 if not specified.
+                                
         Returns:
-            int: The number of threads that will be used, limited by available CPU cores.
+            int: The number of threads that will be used for the simulation, which is
+                the minimum between the available CPU cores and the desired threads.
+                This prevents overallocation of system resources.
         """
+
+        # Compare the desired number of threads with the available CPU cores
         return min(dp.multiprocessing.cpu_count(), desired_threads)
 
     def paralellThreads(self, Threads, Iterations):
@@ -54,11 +64,15 @@ class SimulationUtils:
         ValueError: If Threads or Iterations are not positive integers.
 
         Example:
-        If Threads=4 and Iterations=16, the function will return 4 because it is the maximum number of threads that can be used to complete all iterations simultaneously.
+        If Threads=4 and Iterations=16, the function will return 4 because it is the maximum number
+        of threads that can be used to complete all iterations simultaneously.
         """
+
+        # Validate input parameters threads should be positive integers and iterations should be positive integers
         if not isinstance(Threads, int) or not isinstance(Iterations, int) or Threads <= 0 or Iterations <= 0:
             raise ValueError("Threads and Iterations must be positive integers.")
 
+        # Find the largest number of threads that evenly divides the total iterations
         for i in range(Threads, 0, -1):
             remainder = Iterations % i
             if remainder == 0:
@@ -97,11 +111,15 @@ class SimulationUtils:
         self.Map,self.Iterations =   self.postProcessing.findPoint(self.matrix,self.idx,pattern)
         self.iterNumber          =   0
 
-        # initialize empty data matrices
-        [setattr(self, f"MAT{i}", dp.np.zeros((self.Iterations, dp.Y_Length[i]))) for i in list(range(1, 7)) + list(range(9, 14))]      # MAT1-MAT6: For Peak, RMS & AVG Currents & Voltages MAT9-MAT13: For Dissipations, Electrical Stats, Temperatures, Thermal Stats & Controls
-        [setattr(self, f"MAT{i}", dp.np.zeros((self.Iterations * len(dp.harmonics), dp.Y_Length[i]))) for i in range(7, 9)]             # MAT7-MAT8: For FFT of Currents and Voltages
+        # initialize empty data matrices 
+        # MAT1-MAT6: For Peak, RMS & AVG Currents & Voltages MAT9-MAT13: For Dissipations, Electrical Stats, Temperatures, Thermal Stats & Controls
+        # MAT7-MAT8: For FFT of Currents and Voltages
+        [setattr(self, f"MAT{i}", dp.np.zeros((self.Iterations, dp.Y_Length[i]))) for i in list(range(1, 7)) + list(range(9, 14))]
+        [setattr(self, f"MAT{i}", dp.np.zeros((self.Iterations * len(dp.harmonics), dp.Y_Length[i]))) for i in range(7, 9)]
 
 #!----------------------------------------------------------------------------------------------------------------------------------------------------------
+        # if hierarchical simulations are enabled in JSON input file 
+        # use hierarchicalSims function to determine count of paralleled simulations
         if dp.JSON['hierarchical']:
             self.threads_vector         =   self.postProcessing.hierarchicalSims(self.Map)
             self.Simulations            =   len(self.threads_vector)
@@ -113,7 +131,8 @@ class SimulationUtils:
             self.Simulations         =   self.Iterations//self.Threads
 
         self.MAT_list = [getattr(self, f"MAT{i}") for i in range(1, 14)]
-        # initialize mapping parameters
+
+        # initialize mapping parameters for either DCDC or OBC models
         if model == 'DCDC':
             self.mode      = dp.pmap.Maps_index['DCDC_data_mat'][0]
             self.map_index = dp.pmap.Maps_index['DCDC_data_mat'][1]
@@ -140,6 +159,11 @@ class SimulationUtils:
 
                 Returns:None                            : The function modifies `OptStruct` in place.
             """
+            # Transform component key paths to match the structure of `OptStruct`
+            # and apply tolerances if `Config` is set to a non-zero value.
+            # If `rand` is True, random values within specified ranges are applied.
+            # Otherwise, fixed tolerance values are used.
+
             Comps =misc.transform_key_paths(Comps)
             if (Config):
                 for i in range(len(Comps)):
@@ -163,6 +187,10 @@ class SimulationUtils:
                             Config                 :  Integer, Optional A flag indicating whether to apply tolerances (1) or not (0). Defaults to 0.
             Returns     :   Num                    :  A dictionary containing the model variables with applied tolerances, or the original model variables if Config is set to 0.
         """
+
+        # Apply tolerances to specified components in the model variables if Config is set to a non-zero value.
+        # If rand is True, random tolerance values within specified ranges are applied.
+        # Otherwise, fixed tolerance values are used.
         if (Config):
             ModelVars_Flat      =   dp.flatdict.FlatDict(mdlVars, delimiter='.')
 
@@ -203,6 +231,17 @@ class SimulationUtils:
             ValueError: If `arg` is not a numpy array or does not have shape (m, n), or if `mode` is not a valid integer
                 between 1 and 4 (inclusive).
         """
+
+        # using mode to determine operation to be performed on input array arg
+        # arg is expected to be a 2D numpy array with shape (m, n)
+        # time_values is the Time Vector
+        # mode is an integer representing the operation to perform
+        # mode 1: Peak Current/Voltage (max absolute value)
+        # mode 2: Average Current/Voltage (mean value)
+        # mode 3: Peak Voltage (max value)
+        # mode 4: RMS Current/Voltage (RMS value)
+        # mode 5: AVG Current/Voltage (AVG value)
+        # mode 6: nothing (no operation)
         match mode:
             case 1 :  return   dp.np.nanmax(dp.np.absolute(arg),axis=1)
             case 2 :  return   dp.np.mean(arg,axis=1)
@@ -226,6 +265,14 @@ class SimulationUtils:
                 - res_list (list): List of resistance values.
                 - P_aux (float): Auxiliary power value from the thermal model variables.
         """
+
+        # Retrieve resistance values and auxiliary power based on threading and crash conditions.
+        # If multiple threads are used and parallel processing is enabled without a crash,
+        # access the specific element in optstruct using index l.
+        # If a crash has occurred, access the first element of optstruct.
+        # Otherwise, access optstruct directly.
+        # Return the list of resistances and auxiliary power.
+
         if (Threads >= 1 and dp.JSON['parallel'] and not crash):
                 res_list                        = dp.pmap.return_resistances(optstruct[l])
                 P_aux                           = optstruct[l]['ModelVars']['Common']['Thermal']['Paux']
@@ -252,6 +299,11 @@ class SimulationUtils:
         saveMode : str, optional
             The mode of saving the data to disk. Can be 'a' for appending or 'w' for overwriting. Default is 'a'.
         """
+
+        # Save the simulation results to disk and store them in data matrices.
+        # The function processes the results for each thread, performs various operations,
+        # and updates the corresponding data matrices. Finally, it appends the results to CSV files.
+
         iteration_range     = list(range(sum(self.threads_vector[0:itr]),sum(self.threads_vector[0:itr+1]))) if dp.JSON['hierarchical'] else list(range(itr*simutil.Threads,simutil.Threads*(itr+1)))
         for l in range(simutil.Threads):
             results_TF                          = self.postProcessing.gen_result(fileLog.resultfolder+"/CSV_TIME_SERIES",iteration_range[l],fileLog.utc)
@@ -263,10 +315,10 @@ class SimulationUtils:
             threads_idx                         = l+sum(self.threads_vector[0:itr]) if dp.JSON['hierarchical'] else l+itr*simutil.Threads
             for mat_name, mode, sl in dp.matrix_ops:
                 getattr(self, mat_name)[threads_idx, :] = self.operation(T_vect, nestedresults_l[sl, :], mode)
-            self.MAT7[threads_idx*len(dp.harmonics) : len(dp.harmonics)*(l+1)+(threads_idx-l)*len(dp.harmonics), :] =  self.postProcessing.FFT_mat(T_vect,nestedresults_l[1 : dp.Y_list[1]+1 , :])                            # FFT_Current
-            self.MAT8[threads_idx*len(dp.harmonics) : len(dp.harmonics)*(l+1)+(threads_idx-l)*len(dp.harmonics), :] =  self.postProcessing.FFT_mat(T_vect, nestedresults_l[sum(dp.Y_list[0:2]) : sum(dp.Y_list[0:3]) , :])    # FFT_Voltage
-            self.MAT9[threads_idx,:]  = self.postProcessing.dissipations(nestedresults_l,res_list,self.MAT2,threads_idx,self.MAT7)                                                                                            # Dissipations
-            self.MAT12[threads_idx,:] = self.postProcessing.therm_stats(self.MAT_list,threads_idx,P_aux)                                                                                                                      # thermal_stats
+            self.MAT7[threads_idx*len(dp.harmonics) : len(dp.harmonics)*(l+1)+(threads_idx-l)*len(dp.harmonics), :] =  self.postProcessing.FFT_mat(T_vect,nestedresults_l[1 : dp.Y_list[1]+1 , :])                         
+            self.MAT8[threads_idx*len(dp.harmonics) : len(dp.harmonics)*(l+1)+(threads_idx-l)*len(dp.harmonics), :] =  self.postProcessing.FFT_mat(T_vect, nestedresults_l[sum(dp.Y_list[0:2]) : sum(dp.Y_list[0:3]) , :]) 
+            self.MAT9[threads_idx,:]  = self.postProcessing.dissipations(nestedresults_l,res_list,self.MAT2,threads_idx,self.MAT7)                                                                                         
+            self.MAT12[threads_idx,:] = self.postProcessing.therm_stats(self.MAT_list,threads_idx,P_aux)                                                                                                                   
         self.MAT_list[6:8] = [self.MAT7[:self.Iterations * len(dp.harmonics)], self.MAT8[:self.Iterations * len(dp.harmonics)]]
         [ self.postProcessing.csv_append_rows(f"{fileLog.resultfolder}/CSV_MAPS/{name}_Map.csv", data.tolist(), save_mode=saveMode) for name, data in zip(dp.map_names, self.MAT_list) ]
 #?-------------------------------------------------------------------------------------------------------------------------------------------------------------
