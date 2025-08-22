@@ -38,7 +38,8 @@ def simScript(RunScript,OptStruct,Thread,Map,iterNumber,ResultsPath,misc,crash=F
             #   x is the parameter index as created in the 'Input_vars.json' file, ranging from 0 to 9.
 
     #! -------------------------------------------------------------------------------------Don't change under this line-------------------------------------------------------------------------------------
-
+    
+    # Add the changed parameters for the current iteration to a dictionary for logging
     dp.updated_params_dict = dp.DeepDiff(OptStruct[0]['ModelVars'], OptStruct[Thread]['ModelVars'], verbose_level=2).get("values_changed", {})
 
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------
