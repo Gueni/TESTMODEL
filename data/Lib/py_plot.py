@@ -137,10 +137,16 @@ class HTML_REPORT:
 
         return table_figure
 
-    def add_table(self,nested_dict,output_file='parameter_table.html',i=0):
-
+    def add_table(self, nested_dict, f, i=0):
         # Convert the nested dict to JSON for JavaScript usage
         dict_json = dp.json.dumps(nested_dict)
+        
+        # Generate category options dynamically from nested_dict keys
+        category_options = []
+        for category in nested_dict.keys():
+            category_options.append(f'<option value="{category}">{category.capitalize()}</option>')
+        
+        category_options_html = '\n'.join(category_options)
         
         # Create initial table (showing all)
         parameters, values = [], []
@@ -165,11 +171,7 @@ class HTML_REPORT:
                         <label for="categorySelect"><strong>Select Category:</strong></label>
                         <select id="categorySelect" class="dropdown" onchange="updateTable()">
                             <option value="all">All Categories</option>
-                            <option value="system">System</option>
-                            <option value="network">Network</option>
-                            <option value="database">Database</option>
-                            <option value="logging">Logging</option>
-                            <option value="security">Security</option>
+                            {category_options_html}
                         </select>
                     </div>
 
@@ -208,9 +210,11 @@ class HTML_REPORT:
                         }} else {{
                             // Show specific category
                             const subdict = parameterData[selectedCategory];
-                            for (const [param, value] of Object.entries(subdict)) {{
-                                parameters.push(param);
-                                values.push(String(value));
+                            if (subdict) {{
+                                for (const [param, value] of Object.entries(subdict)) {{
+                                    parameters.push(param);
+                                    values.push(String(value));
+                                }}
                             }}
                         }}
                         
@@ -253,8 +257,7 @@ class HTML_REPORT:
         # Check if file exists and read current content
         existing_content = ""
         try:
-            with open(output_file, 'r', encoding='utf-8') as f:
-                existing_content = f.read()
+            existing_content = f.read()
         except FileNotFoundError:
             # If file doesn't exist, we'll create it with the full HTML structure
             pass 
@@ -267,10 +270,9 @@ class HTML_REPORT:
                 html_content = existing_content + html_content
         
         # Write to HTML file
-        with open(output_file, 'w', encoding='utf-8') as f:
-            f.write(html_content)
+        f.write(html_content)
         
-        print(f"Parameter table appended to: {output_file}")
+        print(f"Parameter table appended to: {f}")
 
     def multiplot(self,csv_file):
         """Generate a plot of voltage and current data from a Plecs simulation output file.
@@ -474,7 +476,7 @@ class HTML_REPORT:
                     </div>')
 
             f.write(self.separator)
-            self.add_table(nested_dict=dp.mdlVar,output_file=f,i=0)
+            self.add_table(dp.mdlVars,f,i=0)
             f.write(self.separator)
             f.write(multiplot.to_html(include_plotlyjs=include_plotlyjs))
             f.write(self.separator)
