@@ -1,0 +1,155 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Interactive Parameter Table</title>
+    <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f8f9fa;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 25px;
+            color: #2c3e50;
+        }
+        .controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 25px;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 8px;
+            color: white;
+        }
+        .dropdown {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 6px;
+            background: white;
+            color: #333;
+            font-size: 14px;
+            min-width: 200px;
+            cursor: pointer;
+        }
+        .table-container {
+            margin-top: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .instructions {
+            text-align: center;
+            color: #7f8c8d;
+            margin-top: 15px;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔧 Configuration Parameters Dashboard</h1>
+            <p>Interactive table with category filtering</p>
+        </div>
+        
+        <div class="controls">
+            <label for="categorySelect"><strong>Select Category:</strong></label>
+            <select id="categorySelect" class="dropdown" onchange="updateTable()">
+                <option value="all">All Categories</option>
+                <option value="system">System</option>
+                <option value="network">Network</option>
+                <option value="database">Database</option>
+                <option value="logging">Logging</option>
+                <option value="security">Security</option>
+            </select>
+        </div>
+
+        <div id="tableContainer" class="table-container">
+            <div id="parameterTable"></div>
+        </div>
+        
+        <div class="instructions">
+            <p>Select a category from the dropdown to filter the parameters</p>
+        </div>
+    </div>
+
+    <script>
+        // Store the data
+        const parameterData = {"system": {"version": "1.2.3", "build_date": "2023-12-01", "status": "active", "mode": "production"}, "network": {"ip_address": "192.168.1.100", "subnet_mask": "255.255.255.0", "gateway": "192.168.1.1", "dns": "8.8.8.8", "port": "8080"}, "database": {"host": "localhost", "port": "5432", "user": "admin", "password": "encrypted123", "max_connections": "100", "timeout": "30s"}, "logging": {"level": "INFO", "file_path": "/var/log/app.log", "max_size": "10MB", "retention_days": "30"}, "security": {"ssl_enabled": "true", "certificate_path": "/etc/ssl/cert.pem", "key_path": "/etc/ssl/key.pem", "auth_timeout": "300s"}};
+        
+        // Function to update the table based on selected category
+        function updateTable() {
+            const select = document.getElementById('categorySelect');
+            const selectedCategory = select.value;
+            
+            let parameters = [];
+            let values = [];
+            
+            if (selectedCategory === 'all') {
+                // Show all categories
+                for (const [category, subdict] of Object.entries(parameterData)) {
+                    parameters.push(`<b>${category.toUpperCase()}</b>`);
+                    values.push("");
+                    
+                    for (const [param, value] of Object.entries(subdict)) {
+                        parameters.push(`&nbsp;&nbsp;${param}`);
+                        values.push(String(value));
+                    }
+                }
+            } else {
+                // Show specific category
+                const subdict = parameterData[selectedCategory];
+                for (const [param, value] of Object.entries(subdict)) {
+                    parameters.push(param);
+                    values.push(String(value));
+                }
+            }
+            
+            // Create or update the table
+            const tableData = [{
+                type: 'table',
+                header: {
+                    values: ['<b>Parameter</b>', '<b>Value</b>'],
+                    align: 'left',
+                    fill: {color: '#2c3e50'},
+                    font: {color: 'white', size: 14, family: 'Arial'},
+                    height: 40
+                },
+                cells: {
+                    values: [parameters, values],
+                    align: 'left',
+                    fill: {color: ['#f8f9fa', 'white']},
+                    font: {size: 13, family: 'Arial'},
+                    height: 30
+                }
+            }];
+            
+            const layout = {
+                margin: {l: 20, r: 20, t: 10, b: 20},
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)'
+            };
+            
+            Plotly.newPlot('parameterTable', tableData, layout, {displayModeBar: false});
+        }
+        
+        // Initialize the table on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            updateTable();
+        });
+    </script>
+</body>
+</html>
