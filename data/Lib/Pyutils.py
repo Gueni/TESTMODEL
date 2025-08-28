@@ -269,19 +269,25 @@ class SimulationUtils:
         # Retrieve resistance values and auxiliary power based on threading and crash conditions.
         # If multiple threads are used and parallel processing is enabled without a crash,
         # access the specific element in optstruct using index l.
-        # If a crash has occurred, access the first element of optstruct.
-        # Otherwise, access optstruct directly.
-        # Return the list of resistances and auxiliary power.
 
         if (Threads >= 1 and dp.JSON['parallel'] and not crash):
                 res_list                        = dp.pmap.return_resistances(optstruct[l])
                 P_aux                           = optstruct[l]['ModelVars']['Common']['Thermal']['Paux']
+        
+        # If a crash has occurred, access the first element of optstruct.
+
         elif (crash):
                 res_list                        = dp.pmap.return_resistances(optstruct[0])
                 P_aux                           = optstruct[0]['ModelVars']['Common']['Thermal']['Paux']
+        
+        # If single-threaded or not parallel, access the first element of optstruct.
+
         else:
                 res_list                        = dp.pmap.return_resistances(optstruct)
                 P_aux                           = optstruct['ModelVars']['Common']['Thermal']['Paux']
+
+        # Return the list of resistances and auxiliary power.
+
         return res_list,P_aux
 
     def save_data(self,optstruct,simutil,fileLog,itr=0,saveMode='w',crash=False):
@@ -300,25 +306,45 @@ class SimulationUtils:
             The mode of saving the data to disk. Can be 'a' for appending or 'w' for overwriting. Default is 'a'.
         """
 
-        # Save the simulation results to disk and store them in data matrices.
-        # The function processes the results for each thread, performs various operations,
-        # and updates the corresponding data matrices. Finally, it appends the results to CSV files.
-
+        # iteration_range is determined based on whether hierarchical parallelization is enabled
         iteration_range     = list(range(sum(self.threads_vector[0:itr]),sum(self.threads_vector[0:itr+1]))) if dp.JSON['hierarchical'] else list(range(itr*simutil.Threads,simutil.Threads*(itr+1)))
+        
+        # Loop through each thread in the current simulation batch
+        # For each thread, generate the result file and process the CSV data
+        # Normalize the results and convert them to a numpy array
+        # Remove NaN values from each sub-array in the nested results
+        # Update the model variables and retrieve resistance values and auxiliary power
+        # Perform specified operations on the time vector and normalized results
+        # threads_idx is calculated based on whether hierarchical parallelization is enabled
+
         for l in range(simutil.Threads):
             results_TF                          = self.postProcessing.gen_result(fileLog.resultfolder+"/CSV_TIME_SERIES",iteration_range[l],fileLog.utc)
             nestedresults                       = dp.np.array(self.postProcessing.norm_results_csv(results_TF))
             nestedresults_l                     = dp.np.array([dp.np.array(subarr,dtype=dp.np.float64)[~dp.pd.isnull(dp.np.array(subarr))] for subarr in nestedresults])
             res_list , P_aux                    = self.var_update(simutil.Threads,crash,optstruct,l)
             T_vect                              = nestedresults_l[0]
-
             threads_idx                         = l+sum(self.threads_vector[0:itr]) if dp.JSON['hierarchical'] else l+itr*simutil.Threads
+            
+            # loop through predefined matrix operations and apply them to the corresponding data matrices
+            # Mat1: Peak Currents, Mat2: RMS Currents, Mat3: AVG Currents
+            # Mat4: Peak Voltages, Mat5: RMS Voltages, Mat6:
+
             for mat_name, mode, sl in dp.matrix_ops:
                 getattr(self, mat_name)[threads_idx, :] = self.operation(T_vect, nestedresults_l[sl, :], mode)
+
+            # Mat7: FFT of Currents, Mat8: FFT of Voltages
+            # Mat9: Dissipations, Mat10: Electrical Stats, Mat11: Temperatures
+            # Mat12: Thermal Stats, Mat13: Controls
+
             self.MAT7[threads_idx*len(dp.harmonics) : len(dp.harmonics)*(l+1)+(threads_idx-l)*len(dp.harmonics), :] =  self.postProcessing.FFT_mat(T_vect,nestedresults_l[1 : dp.Y_list[1]+1 , :])                         
             self.MAT8[threads_idx*len(dp.harmonics) : len(dp.harmonics)*(l+1)+(threads_idx-l)*len(dp.harmonics), :] =  self.postProcessing.FFT_mat(T_vect, nestedresults_l[sum(dp.Y_list[0:2]) : sum(dp.Y_list[0:3]) , :]) 
             self.MAT9[threads_idx,:]  = self.postProcessing.dissipations(nestedresults_l,res_list,self.MAT2,threads_idx,self.MAT7)                                                                                         
             self.MAT12[threads_idx,:] = self.postProcessing.therm_stats(self.MAT_list,threads_idx,P_aux)                                                                                                                   
         self.MAT_list[6:8] = [self.MAT7[:self.Iterations * len(dp.harmonics)], self.MAT8[:self.Iterations * len(dp.harmonics)]]
+        
+        # Save the data matrices to CSV files in the specified results folder
+        # Each matrix is saved with a corresponding name from map_names
+        # The save_mode parameter determines whether to append or overwrite the files
+        
         [ self.postProcessing.csv_append_rows(f"{fileLog.resultfolder}/CSV_MAPS/{name}_Map.csv", data.tolist(), save_mode=saveMode) for name, data in zip(dp.map_names, self.MAT_list) ]
 #?-------------------------------------------------------------------------------------------------------------------------------------------------------------
