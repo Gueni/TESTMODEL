@@ -20,39 +20,36 @@ class HTML_REPORT:
     """
     def __init__(self,ResultsPath='',utc='',standalone =False):
 
-        self.ResultsPath                =   ResultsPath                                                                                              # Path to the results directory
-        self.utc                        =   utc                                                                                                      # UTC time string for the report
-        self.hostname                   =   str(dp.socket.gethostname())                                                                             # Hostname of the machine
-        self.script_name                =   dp.scriptname                                                                                            # Name of the script being executed
-        self.valkey_list                =   []                                                                                                       # List to hold value keys
-        self.values_list                =   []                                                                                                       # List to hold values
-        self.headerColor                =   '#009ADA'                                                                                              # Color for the header of tables
-        self.even_rc                    =   '#E0E0E0'                                                                                              # Color for even rows in tables
-        self.odd_rc                     =   'white'                                                                                                  # Color for odd rows in tables
-        self.title                      = ( f"<html><head><title>{self.script_name}_Report_{self.utc}_{self.hostname}"                               # Title for the HTML report
-                                            f"</title></head><body></body></html>"                                                                   # Closing HTML tags for the title
-                                        )                                                                                                            # Formatted title string
-        self.separator                  =   "<html><body><hr style='height:1px;border:none;color:#333;background-color:#333;'></body></html>"        # Separator line in the HTML report
-        self.image                      =   ''                                                                                                       # String to hold the base64 encoded image
-        self.tab_val_list               =   []                                                                                                       # List to hold values from the tabular data
-        self.iter_param_key             =   []                                                                                                       # List to hold keys for iterated parameters
-        self.iter_param_val             =   []                                                                                                       # List to hold values for iterated parameters
-        self.iter_param_unt             =   []                                                                                                       # List to hold units for iterated parameters
-        self.note                       =   "N/A"                                                                                                    # Note for the simulation, default is "N/A"
-        self.constants_list             =   []                                                                                                       # List to hold names of constants
-        self.constants_vals             =   []                                                                                                       # List to hold values of constants
-        self.constants_units            =   []                                                                                                       # List to hold units of constants
-        self.standalone                 =   standalone                                                                                               # Flag to indicate if the report is standalone or not
-        self.json_file                  =   "Standalone_variables.json" if standalone else "Input_vars.json"                                         # JSON file to read configuration data
-        self.json_path                  =   dp.os.path.join(dp.os.getcwd(), "Script", "assets", self.json_file).replace("\\", "/")                   # Path to the JSON file containing configuration data
-
-        with open(self.json_path) as file:
-            self.data = dp.json.load(file)
-
-        self.X1, self.X2, self.X3, self.X4, self.X5, self.X6, self.X7, self.X8, self.X9, self.X10 = (
-            eval(self.data[f'X{i}']) for i in range(1, 11)
-        )
-
+        self.ResultsPath                =   ResultsPath
+        self.utc                        =   utc
+        self.hostname                   =   str(dp.socket.gethostname())
+        self.script_name                =   dp.scriptname
+        self.values_dict                =   dict()
+        self.config_dicts               =   dict()
+        self.configkey_list             =   []
+        self.configval_list             =   []
+        self.valkey_list                =   []
+        self.values_list                =   []
+        self.headerColor                =   '#009ADA'
+        self.even_rc                    =   '#E0E0E0'
+        self.odd_rc                     =   'white'
+        self.title                      =   f"<html><head><title>{self.script_name}_Report_{self.utc}_{self.hostname}</title></head><body></body></html>"
+        self.separator                  =   "<html><body><hr style='height:1px;border:none;color:#333;background-color:#333;'></body></html>"
+        self.image                      =   ''
+        self.tab_val_list               =   []
+        self.tab_conf_list              =   []
+        self.iter_param_key             =   []
+        self.iter_param_val             =   []
+        self.iter_param_unt             =   []
+        self.note                       =   "N/A"
+        self.constants_list             =   []
+        self.constants_vals             =   []
+        self.constants_units            =   []
+        self.standalone                 =   standalone
+        self.json_file                  =   "Standalone_variables.json" if standalone else "Input_vars.json"
+        self.json_path                  =   dp.os.path.join(dp.os.getcwd(), "Script", "assets", self.json_file).replace("\\", "/")
+        with open(self.json_path) as f  :   self.data = dp.json.load(f)
+        for i in range(1, 11)           :   setattr(self, f"X{i}", eval(self.data[f"X{i}"]))
         self.pattern                    =   self.data['permute']
         self.dimension_names            =   self.data['Dimension_Names']
         self.matrix                     =   [self.X1, self.X2, self.X3, self.X4, self.X5, self.X6, self.X7, self.X8, self.X9, self.X10]
@@ -83,6 +80,74 @@ class HTML_REPORT:
         for line in lines:
             self.image+=line
         fin.close()
+
+    def set_tab_dict(self,misc,input_dict):
+        """
+            Extract relevant configuration information from a dictionary of nested dictionaries, and store in lists.
+
+            The function takes a dictionary of nested dictionaries as input, and extracts the relevant configuration information
+            by iterating over the dictionary and checking for the presence of certain keys. The relevant sub-dictionaries are
+            stored in a hard-coded configuration dictionary, and the values for each configuration are stored in a separate
+            dictionary. The resulting dictionaries are stored in lists.
+
+            Parameters:
+            -----------
+            misc : miscellaneous
+                An instance of the `miscellaneous` class, containing various utility functions.
+
+            input_dict : dict
+                A dictionary of nested dictionaries, containing various configuration information.
+
+            Returns:
+            --------
+            None
+        """
+        source_mdlvar			=	dp.copy.deepcopy(input_dict)
+        self.config_dicts		= 	{ # Hard coded !!
+
+        							'Probes'  			: 	source_mdlvar['Common']['Probes']			,
+        							'ToFile'			:	source_mdlvar['Common']['ToFile']			,
+        							'PSFBconfigs'  		: 	source_mdlvar['Common']['PSFBconfigs'] 	,
+        							'RboxConfigs'  		: 	source_mdlvar['Common']['RboxConfigs']
+
+               						}
+        self.values_dict 		= 	misc.keys_exists(self.config_dicts,source_mdlvar)
+        self.tab_val_list.append(self.values_dict)
+        self.tab_conf_list.append(self.config_dicts)
+
+    def table_data(self, dictt, key_list, val_list, prefix=''):
+        """
+        Extract data from a nested dictionary and store in two separate lists.
+
+        The function takes a nested dictionary as input, and recursively extracts the keys and values from the dictionary.
+        The keys are stored in a list, with a prefix string to indicate the nested structure of the key. The values are
+        stored in a separate list, converted to a string format.
+
+        Parameters:
+        -----------
+        dictt : dict
+            The nested dictionary from which to extract data.
+
+        key_list : list
+            The list to store the extracted keys.
+
+        val_list : list
+            The list to store the extracted values.
+
+        prefix : str, optional
+            A prefix string to add to the keys to indicate the nested structure of the key. Defaults to an empty string.
+
+        Returns:
+        --------
+        None
+        """
+        if isinstance(dictt, dict):
+            for k, v2 in dictt.items():
+                p2 = "{}['{}']".format(prefix, k)
+                self.table_data(v2, key_list,val_list,p2)
+        else:
+            key_list.append(prefix)
+            val_list.append(str(dictt)) # self.val_list.append(repr(dictt)) #if you want full long value.
 
     def add_constant_table(self,csv_file):
         """
@@ -137,142 +202,161 @@ class HTML_REPORT:
 
         return table_figure
 
-    def add_table(self, nested_dict, f, i=0):
-        # Convert the nested dict to JSON for JavaScript usage
-        dict_json = dp.json.dumps(nested_dict)
-        
-        # Generate category options dynamically from nested_dict keys
-        category_options = []
-        for category in nested_dict.keys():
-            category_options.append(f'<option value="{category}">{category.capitalize()}</option>')
-        
-        category_options_html = '\n'.join(category_options)
-        
-        # Create initial table (showing all)
-        parameters, values = [], []
-        for category, subdict in nested_dict.items():
-            parameters.append(f"<b>{category.upper()}</b>")
-            values.append("")  # Empty value for category header
-            
-            for param, value in subdict.items():
-                parameters.append(f"&nbsp;&nbsp;{param}")
-                values.append(str(value))
-        
-        # Create the HTML content to append
-        html_content = f"""
-                <!-- BEGIN APPENDED PARAMETER TABLE -->
-                <div class="container">
-                    <div class="header">
-                        <h1>🔧 Configuration Parameters Dashboard</h1>
-                        <p>Interactive table with category filtering</p>
-                    </div>
-                    
-                    <div class="controls">
-                        <label for="categorySelect"><strong>Select Category:</strong></label>
-                        <select id="categorySelect" class="dropdown" onchange="updateTable()">
-                            <option value="all">All Categories</option>
-                            {category_options_html}
-                        </select>
-                    </div>
+    def add_table(self,i=0):
+        """
+        Constructs two tables out of given data from two dictionaries one for configuratdions
+        the other for values.
 
-                    <div id="tableContainer" class="table-container">
-                        <div id="parameterTable"></div>
-                    </div>
-                    
-                    <div class="instructions">
-                        <p>Select a category from the dropdown to filter the parameters</p>
-                    </div>
-                </div>
+        Returns:
+            object : plotly graph object.
+        """
+        table_height            =   600
+        self.configkey_list.clear()
+        self.configval_list.clear()
+        self.valkey_list.clear()
+        self.values_list.clear()
+        self.table_data(self.tab_conf_list[i],self.configkey_list,self.configval_list)
+        self.table_data(self.tab_val_list[i],self.valkey_list,self.values_list)
+        config_Nrow             =   len(self.configval_list)
+        val_Nrow                =   len(self.values_list)
+        param_Nrow              =   len(self.iter_param_val[i])
 
-                <script>
-                    // Store the data
-                    const parameterData = {dict_json};
-                    
-                    // Function to update the table based on selected category
-                    function updateTable() {{
-                        const select = document.getElementById('categorySelect');
-                        const selectedCategory = select.value;
-                        
-                        let parameters = [];
-                        let values = [];
-                        
-                        if (selectedCategory === 'all') {{
-                            // Show all categories
-                            for (const [category, subdict] of Object.entries(parameterData)) {{
-                                parameters.push(`<b>${{category.toUpperCase()}}</b>`);
-                                values.push("");
-                                
-                                for (const [param, value] of Object.entries(subdict)) {{
-                                    parameters.push(`&nbsp;&nbsp;${{param}}`);
-                                    values.push(String(value));
-                                }}
-                            }}
-                        }} else {{
-                            // Show specific category
-                            const subdict = parameterData[selectedCategory];
-                            if (subdict) {{
-                                for (const [param, value] of Object.entries(subdict)) {{
-                                    parameters.push(param);
-                                    values.push(String(value));
-                                }}
-                            }}
-                        }}
-                        
-                        // Create or update the table
-                        const tableData = [{{
-                            type: 'table',
-                            header: {{
-                                values: ['<b>Parameter</b>', '<b>Value</b>'],
-                                align: 'left',
-                                fill: {{color: '#2c3e50'}},
-                                font: {{color: 'white', size: 14, family: 'Arial'}},
-                                height: 40
-                            }},
-                            cells: {{
-                                values: [parameters, values],
-                                align: 'left',
-                                fill: {{color: ['#f8f9fa', 'white']}},
-                                font: {{size: 13, family: 'Arial'}},
-                                height: 30
-                            }}
-                        }}];
-                        
-                        const layout = {{
-                            margin: {{l: 20, r: 20, t: 10, b: 20}},
-                            paper_bgcolor: 'rgba(0,0,0,0)',
-                            plot_bgcolor: 'rgba(0,0,0,0)'
-                        }};
-                        
-                        Plotly.newPlot('parameterTable', tableData, layout, {{displayModeBar: false}});
-                    }}
-                    
-                    // Initialize the table on page load
-                    document.addEventListener('DOMContentLoaded', function() {{
-                        updateTable();
-                    }});
-                </script>
-                <!-- END APPENDED PARAMETER TABLE -->
-                """
-        
-        # Check if file exists and read current content
-        existing_content = ""
-        try:
-            existing_content = f.read()
-        except FileNotFoundError:
-            # If file doesn't exist, we'll create it with the full HTML structure
-            pass 
-        else:
-            # If file exists, append our content before the closing body tag
-            if '</body>' in existing_content:
-                html_content = existing_content.replace('</body>', html_content + '\n</body>')
-            else:
-                # If no body tag found, just append to the end
-                html_content = existing_content + html_content
-        
-        # Write to HTML file
-        f.write(html_content)
-        
-        print(f"Parameter table appended to: {f}")
+        #* subsystems configuration table------------------------------------
+        config_table            =   dp.go.Table(    header  =   dict(
+                                                                values      =   ['SUBSYSTEM', 'CONFIGURATION']                       ,
+                                                                fill_color  =   self.headerColor                                     ,
+                                                                font_size   =   12                                                   ,
+                                                                line_color  =   'darkslategray'                                      ,
+                                                                align       =   'center'
+                                                            ),
+
+                                                    cells   =   dict(
+                                                                values      =   [self.configkey_list, self.configval_list]           ,
+                                                                fill_color  =   [[self.odd_rc,self.even_rc]*config_Nrow]             ,
+                                                                align       =   ['left', 'center']                                   ,
+                                                                font_size   =   10                                                   ,
+                                                                line_color  =   'darkslategray'
+                                                            )
+                                        )
+        #* parameters values table-------------------------------------------
+        val_table               =   dp.go.Table(    header  =   dict(
+                                                                values      =   ['ALL PARAMETERS', 'VALUE']                         ,
+                                                                fill_color  =   self.headerColor                                    ,
+                                                                font_size   =   12                                                  ,
+                                                                line_color  =   'darkslategray'                                     ,
+                                                                align       =   'center'
+                                                            ),
+
+                                                    cells   =   dict(
+                                                                values      =   [self.valkey_list, self.values_list]                 ,
+                                                                fill_color  =   [[self.odd_rc,self.even_rc]*val_Nrow]                ,
+                                                                align       =   ['left', 'center']                                   ,
+                                                                font_size   =   10                                                   ,
+                                                                line_color  =   'darkslategray'
+                                                            )
+                                        )
+        #* parameters values table-------------------------------------------
+        updated_vals_table       =   dp.go.Table(    header  =   dict(
+                                                                      values      =   ['FOCUSED PARAMETERS', 'VALUE', 'UNIT']                      ,
+                                                                fill_color  =   self.headerColor                                     ,
+                                                                font_size   =   12                                                   ,
+                                                                line_color  =   'darkslategray'                                      ,
+                                                                align       =   'center'
+                                                            ),
+
+                                                    cells   =   dict(   values      =  [self.iter_param_key[i], self.iter_param_val[i], self.iter_param_unt[i]],
+                                                                fill_color  =   [[self.odd_rc,self.even_rc]*param_Nrow]              ,
+                                                                align       =   ['left', 'center']                                   ,
+                                                                font_size   =   10                                                   ,
+                                                                line_color  =   'darkslategray'
+                                                            )
+                                        )
+
+        #* parameters values table-------------------------------------------
+        readme_message           =   dp.go.Table(    header  =   dict(   values      =   ['SIMULATION NOTES']                        ,
+                                                                fill_color  =   self.headerColor                                     ,
+                                                                font_size   =   12                                                   ,
+                                                                line_color  =   'darkslategray'                                      ,
+                                                                align       =   'center'
+                                                            ),
+
+                                                    cells   =   dict(   values      =   [self.note]                                  ,
+                                                                align       =   ['left']                                             ,
+                                                                font_size   =   12                                                   ,
+                                                                line_color  =   'darkslategray'                                      ,
+                                                            )
+                                        )
+
+
+        table_figure            =   dp.make_subplots(
+                                                    rows                            =   2                                            ,
+                                                    cols                            =   2                                            ,
+                                                    shared_xaxes                    =   True                                         ,
+                                                    horizontal_spacing              =   0.03                                         ,
+                                                    specs                           =   [[{"type": "table"}, {"type": "table"}],[{"type": "table"}, {"type": "table"}]]
+                                        )
+
+
+        table_figure.update_layout(height=table_height, title_text="Simulation Model Configurations & Parameters:",font_size=16)
+        table_figure.add_trace(config_table,row=1, col=1)
+        table_figure.add_trace(val_table,row=1, col=2)
+        table_figure.add_trace(readme_message,row=2, col=1)
+        table_figure.add_trace(updated_vals_table,row=2, col=2)
+
+        return table_figure
+
+    def subplot(self,name_list,filename,x_axis,y_axis,xlabel_list,ylabel_list,
+                titles,n_rows,n_cols,xticks=None,yticks=None,xaxis_range=None,yaxis_range=None):
+        """
+        creates a subplot by default of 3 and returns a figure.
+
+        Args:
+            filename (string)                   : path /name of the csv file containing the data.
+            x_axis (list)                       : list of x axes column numbers (indicates the index of column inside the data file).
+            y_axis (list)                       : list of y axes column numbers (indicates the index of column inside the data file).
+            xlabel_list (list)                  : list of labels for the x axes.
+            ylabel_list (list)                  : list of lables for the y axes.
+            titles (list)                       : list of titles for the different subplots.
+            nrows (int, optional)               : number of rows in the subplot figure. Defaults to 3.
+            ncols (int, optional)               : number of columns in the subplot figure. Defaults to 1.
+            xticks (float, optional)            : x axis ticks step. Defaults to None.
+            yticks (float, optional)            : y axis ticks step. Defaults to None.
+            xaxis_range (list, optional)        : range/slice of x axis values [start,end]. Defaults to None.
+            yaxis_range (list, optional)        : range/slice of y axis values [start,end]. Defaults to None.
+
+        Returns:
+            fig (object)                        : Figure object containing all subplots.
+        """
+        if int(n_rows) <= 4:
+            df          = dp.pd.read_csv(filename)
+            fig         = dp.make_subplots(rows=n_rows, cols=n_cols,subplot_titles=titles,shared_xaxes=True,vertical_spacing=0.08)
+            for i in range(n_rows):
+                X,Y     =   df.iloc[:,x_axis[i]], df.iloc[:,y_axis[i]]
+                if len(set(Y)) == 1:
+                    # If all Y values are the same, only plot the first and last values
+                    new_df = dp.pd.DataFrame({'X': [X.iloc[0], X.iloc[-1]], 'Y': [Y.iloc[0], Y.iloc[-1]]})
+                    fig.add_trace(dp.go.Scatter(x=new_df['X'], y=new_df['Y'], name=name_list[i]), row=i+1, col=1)
+                else:
+                    fig.add_trace(dp.go.Scatter(x=X, y=Y, name=name_list[i]), row=i+1, col=1)
+                fig['layout'][f'xaxis{i+1}']['title']= xlabel_list[i]
+                fig['layout'][f'yaxis{i+1}']['title']= ylabel_list[i]
+
+                fig.update_xaxes(range=xaxis_range, dtick=xticks)
+                fig.update_yaxes(range=yaxis_range, dtick=yticks)
+
+                fig.update_layout(
+                    showlegend      =   False                       ,
+                    yaxis2          =   dict(
+                                            anchor      =   'free'  ,
+                                            position    =   0       ,
+                                            side        =   'left'
+                                            )                       ,
+                    # paper_bgcolor   =   '#f8fafd'                  ,
+                    plot_bgcolor    =   '#f8fafd'
+
+                    )
+
+        return fig
 
     def multiplot(self,csv_file):
         """Generate a plot of voltage and current data from a Plecs simulation output file.
@@ -453,6 +537,7 @@ class HTML_REPORT:
         #* The include_plotlyjs="cdn" parameter causes a script tag to be included in the HTML output that references the Plotly CDN ("content delivery network").
         #* This offloads the work of providing the necessary javascript from your server to a more scalable one. A browser will typically cache this making subsequent page loads faster.
         multiplot       = self.multiplot(csv_filename)
+        tables          = self.add_table(i)
         date            = str(dp.datetime.datetime.now().replace(microsecond=0))
         if dp.JSON["figureName"] and dp.JSON["figureComment"]:
             self.FigureNames                =   [dp.plt_title_list[i][0] for i in range(len(dp.plt_title_list))]
@@ -476,7 +561,7 @@ class HTML_REPORT:
                     </div>')
 
             f.write(self.separator)
-            self.add_table(dp.mdlVars,f,i=0)
+            f.write(tables.to_html(include_plotlyjs=include_plotlyjs))
             f.write(self.separator)
             f.write(multiplot.to_html(include_plotlyjs=include_plotlyjs))
             f.write(self.separator)
