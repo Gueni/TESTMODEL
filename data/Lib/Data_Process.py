@@ -15,46 +15,15 @@ from scipy.integrate import quad
 from scipy.optimize import minimize, least_squares
 
 #?-------------------------------------------------------------------------------------------------------------------------------------------------------------
+
 class Processing:
+    
     def __init__(self):
+        """
+        Initialize the DataProcess class.
+
+        """
         pass
-
-    def append_zeros(self,nestedresults):
-        """
-        Append zeros to the nestedresults array to make sure that all sub-arrays have
-        the desired length as specified in the 'ToFile' dictionary.
-
-        Args:
-            nestedresults (numpy.ndarray)   : The nested array of results to be padded with zeros.
-            misc (object)                   : An object containing miscellaneous settings and variables.
-
-        Returns:
-            numpy.ndarray                   : The modified nested array of results, with zeros appended to
-                                            sub-arrays that do not have the desired length as specified in
-                                            the 'ToFile' dictionary.
-        """
-        actual_lengths 		= 	[1]						                        # list of actual lengths , will be filled from the dict
-        list_of_indices 	= 	[]						                        # list of the indices of the missing arrays
-        list_of_lens		=	[]						                        # list of the lengths correspondiding to the indices
-        del_idx_list        =   []                                              #
-        del_len_list        =   []                                              #
-        pattern             =   r'Y(?!2|3|5|6|7|8|12)'                              # Define a pattern that matches the Ys in plecs
-        for key in dp.ToFile.keys():                                            # get the desired lengths from the tofile dict into a list
-            if 'Y' in key and dp.re.findall(pattern, key):                      #
-                actual_lengths.append(dp.ToFile[key]['Length'] )                # use plecs_lens instead of desired and pop out the extra ys
-        for i in range(len(actual_lengths)):                                    #
-            if not actual_lengths[i] == dp.Y_list[i]:                           #
-                sum_of_previous_values = sum(dp.Y_list[:i])                     #
-                list_of_indices.append(sum_of_previous_values)                  #
-                list_of_lens.append(dp.Y_list[i])                               #
-            elif  actual_lengths[i] == dp.Y_list[i] and dp.Y_list[i] == 1:      #
-                sum_of_previous_values = sum(dp.Y_list[:i])                     #
-                del_idx_list.append(sum_of_previous_values)                     #
-                del_len_list.append(dp.Y_list[i])                               #
-        for index, x in zip(list_of_indices, list_of_lens):                     # go over the newly populated lists and patch up the array
-            zeros = dp.np.zeros((x-1, len(nestedresults[0])))      #
-            nestedresults = dp.np.insert(nestedresults, index, zeros,axis=0)    #
-        return nestedresults
 
     def gen_result(self, directory_path, itr, utc):
         """
@@ -71,172 +40,31 @@ class Processing:
             A 2D numpy array containing the concatenated data from all CSV files in the directory. The first column
             of each CSV file is assumed to contain headers and is not included in the resulting array.
         """
+
+        # Construct the path to the CSV file for the given iteration using the directory path, UTC timestamp, and iteration number.  
+        # Read the CSV file into a pandas DataFrame with no headers, treat all data as strings, and transpose it.  
+
         file            = directory_path + f"/results_{utc}_{str(itr+1)}.csv"
         dataFrame       = dp.pd.read_csv(file, header=None, dtype=str).transpose()
+        
+        # Attempt to convert all elements of the DataFrame to Decimal for precise numerical operations.  
+        # If conversion fails for any reason, catch the exception, print a warning, and continue without interruption.  
+       
         try:
             listcols   = (dataFrame.apply(lambda col: col.map(Decimal))).values.tolist()
+
         except Exception:
             print("Could not apply Decimal.")
             pass
+
+        # Convert the list of columns back into a pandas DataFrame with object dtype, transpose it, and drop any NaN values.  
+        # Overwrite the original CSV file with the cleaned DataFrame, without headers or index.  
+        # Return the list of columns as a list of lists.  
+
         df              = (dp.pd.DataFrame(listcols, dtype=object).transpose()).dropna()
         df.to_csv(file, index=False, header=None, mode='w')
+
         return listcols
-
-    def col2csv(self,nestedlist,filename,itr,mode='a'):
-        """
-            Saves a list of lists to a csv file as columns.
-
-            Args:
-                nestedlist (list)   : List of lists to be saved.
-                filename (string)   : Path to the csv file.
-                itr (int)           : Starting index for the file name.
-                mode (string)       : Mode for opening the file (default is 'a', append).
-
-            Returns:
-                None. The function saves the csv file to the specified path.
-
-            Raises:
-                None.
-        """
-        df = dp.pd.DataFrame(nestedlist).transpose()
-        df2 = df.dropna()
-        df2.to_csv(filename +str(itr+1) + '.csv', index=None,header=None,mode=mode)
-
-    def csvSlice(self,fileName,startIndex,endIndex):
-        """
-            Reads a CSV file and returns the columns as a nested list between two specific indices.
-
-            Args:
-                fileName (str)      : The path to the CSV file.
-                startIndex (int)    : The starting index of the columns to return.
-                endIndex (int)      : The ending index of the columns to return.
-
-            Returns:
-                List[List[str]]     : A nested list containing the columns between the start and end index.
-
-            Raises:
-                FileNotFoundError   : If the file does not exist in the specified path.
-                ValueError          : If the start index is greater than or equal to the end index.
-                TypeError           : If the file is not a CSV file.
-        """
-        dataFrame       =   dp.pd.read_csv(fileName,header = None)
-        dataFrame       =   dataFrame.iloc[startIndex:endIndex]
-        array           =   dataFrame.T.to_numpy().tolist()
-        return array
-
-    def csv_col_merge(self,dir,filename):
-        """
-        Combines multiple CSV files in a directory into a single CSV file with columns.
-
-        Args:
-            dir (str)           : The directory path containing the CSV files.
-            filename (str)      : The path and name of the file to save the merged CSV to.
-
-        Returns:
-            None
-
-        Raises:
-            FileNotFoundError   : If the directory specified does not exist.
-            TypeError           : If the directory does not contain any CSV files.
-        """
-        dp.os.chdir(dir)
-        extension = 'csv'
-        all_filenames = [i for i in dp.glob.glob('*.{}'.format(extension))]
-        x=[]    #combine all files in the list
-        for f in all_filenames:
-            df = dp.pd.read_csv(f,delimiter=',',index_col=None,header=None)
-            x.append(df)
-            for i in range(len(x)-1):
-                combined_csv = dp.pd.merge(x[i],right=x[i+1],left_index=True, right_index=True) # using merge function by setting how='inner'
-        combined_csv.to_csv( filename ,index=None,header=None, encoding='utf-8-sig') #export to csv
-
-    def csv_row_merge(self,dir,filename):
-        """
-        Combines multiple CSV files in a directory into a single CSV file.
-
-        Args:
-        - dir (str)             : Path to the directory containing CSV files.
-        - filename (str)        : Path and name of the merged CSV file to be saved.
-
-        Returns:
-        - None
-
-        Raises:
-        - FileNotFoundError     : If the specified directory does not exist.
-        - ValueError            : If the specified directory does not contain any CSV files.
-        - Exception             : If an error occurs while trying to merge and export the CSV files.
-
-        Description:
-        - The function takes in a directory path and a file name as arguments.
-        - It searches for all CSV files in the directory and combines them into a single CSV file.
-        - The merged CSV file is then saved with the specified file name in the specified directory.
-        - The function returns None.
-        """
-        dp.os.chdir(dir)
-        extension = 'csv'
-        all_filenames = [i for i in dp.glob.glob('*.{}'.format(extension))]
-        x=[] #combine all files in the list
-        for f in all_filenames:
-            df = dp.pd.read_csv(f,delimiter=',',index_col=None,header=None)
-            x.append(df)
-            combined_csv = dp.pd.concat(x)
-        combined_csv.to_csv( filename ,index=None,header=None, encoding='utf-8-sig',line_terminator=None) #export to csv
-
-    def norm_results(self,results):
-        """
-        Normalizes simulation results as a single nested array of time and values.
-
-        Args:
-            results (list)      : A list of nested dictionaries containing simulation results.
-
-        Returns:
-            list                : A nested list of lists containing the normalized simulation results.
-
-        This function takes in a list of nested dictionaries containing simulation results
-        and normalizes them into a single nested array of time and values. It finds the length
-        of the longest time vector in the input list, iterates through each nested dictionary
-        in the input list, and creates a new output list for each simulation, with the time
-        vector padded with NaN values to match the length. The function returns a nested list
-        of lists containing the normalized simulation results.
-
-        The input `results` list should contain nested dictionaries with the following structure:
-
-        [
-            {
-                'Time': [time vector],
-                'Values': [[value vector 1], [value vector 2], ...]
-            },
-            {
-                'Time': [time vector],
-                'Values': [[value vector 1], [value vector 2], ...]
-            },
-            ...
-        ]
-
-        The output of the function will be a nested list of lists with the following structure:
-
-        [
-            [normalized time vector 1, normalized value vector 1, normalized value vector 2, ...],
-            [normalized time vector 2, normalized value vector 1, normalized value vector 2, ...],
-            ...
-        ]
-        """
-        resultsvect     = []
-        longest_length = max(len(results[c]['Time']) for c in range(len(results)))
-        for i in range(len(results)):
-            timevector          = results[i]['Time']
-            difference_lengths  = longest_length - len(timevector)
-            NaNarray            = dp.np.empty((difference_lengths))
-            NaNarray[:]         = dp.nan
-            valuesvector        = results[i]['Values']
-            outputresults       = []
-            timevector = dp.np.append(NaNarray,timevector)
-            outputresults.append(timevector)
-            for j in range(len(valuesvector)):
-                valuesvector[j] = dp.np.append(NaNarray,valuesvector[j])
-                outputresults.append(valuesvector[j])
-            resultsvect.append(outputresults)
-        return resultsvect
 
     def norm_results_csv(self,results):
         """
@@ -251,101 +79,24 @@ class Processing:
         Raises:
         ValueError: If the input is not a list of lists.
         """
+        # Initialize a list to store the normalized results vectors.  
+        # Determine the length of the longest sublist in results.  
+
         resultsvect             = []
-        longest_length          = max(map(len, results))  # Find the longest sublist
+        longest_length          = max(map(len, results))
+
+        # Loop through each sublist in results to pad shorter items with NaNs.  
+        # Return the list of normalized results vectors with equal lengths. 
+        # Create an array of NaNs
+        # Prepend NaNs to each item in the sublist so all items have the same length. 
+
         for sublist in results:
             difference_lengths  = longest_length - len(sublist)
-            NaNarray            = dp.np.full(difference_lengths, dp.np.nan)  # Create an array of NaNs
+            NaNarray            = dp.np.full(difference_lengths, dp.np.nan)  
             outputresults       = [dp.np.append(NaNarray, dp.np.array(item)).tolist() for item in sublist]
             resultsvect.append(outputresults)
+         
         return resultsvect
-
-    def simResultsSlice(self,Nresult,ibegin,iend):
-        """
-        Slices a nested list between two indices.
-
-        Args:
-            Nresult (list)          : A nested list of simulation results.
-            ibegin (int)            : The starting index for the slice.
-            iend (int)              : The ending index for the slice.
-
-        Returns:
-            sliced_results (list)   : A nested list of simulation results sliced between the specified indices.
-
-        Examples:
-            >>> Nresult = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
-            >>> simResultsSlice(Nresult, 0, 2)
-            [[1, 2], [4, 5], [7, 8]]
-
-            >>> Nresult = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
-            >>> simResultsSlice(Nresult, 1, 3)
-            [[2, 3], [5, 6], [8, 9]]
-        """
-        sliced_results = Nresult
-        for i in range(len(sliced_results)):
-            sliced_results[i] = sliced_results[i][ibegin:iend]
-        return sliced_results
-
-    def sliceList(self,Nresult,ibegin,iend):
-        """
-        Slices a nested list between two indices.
-
-        Args:
-            Nresult (list)      : A nested list.
-            ibegin (int)        : The starting index of the slice.
-            iend (int)          : The ending index of the slice.
-
-        Returns:
-            list                : The sliced nested list.
-
-        The function takes a nested list as input along with the starting and ending indices for slicing the inner lists.
-        It returns the sliced nested list.
-
-        Example:
-        >>> sliceList([[1, 2, 3], [4, 5, 6], [7, 8, 9]], 0, 1)
-        [[1, 2], [4, 5], [7, 8]]
-
-        """
-        sliced_results = Nresult
-        for i in range(len(sliced_results)):
-            sliced_results[i] = Nresult[i][ibegin:iend+1]
-        return sliced_results
-
-    def csvrow2list(self,csvfile):
-        """
-        Reads a CSV file and converts its rows into a nested list.
-
-        Args:
-            csvfile (str)       : The path to the CSV file.
-
-        Returns:
-            List[List[str]]     : A nested list containing the rows of the CSV file.
-        """
-        df          = dp.pd.read_csv(csvfile, delimiter=',', header=None, index_col=False)
-        list_of_csv = [list(row) for row in df.values]
-        return list_of_csv
-
-    def csvcol2list(self,fileName):
-        """
-        Reads a CSV file and returns the columns between the specified start and end indices
-        as a nested list.
-
-        Args:
-            fileName (str)          : The path to the CSV file.
-            startIndex (int)        : The index of the first column to include.
-            endIndex (int)          : The index of the last column to include.
-
-        Returns:
-            List[List[str]]         : A nested list containing the CSV columns between startIndex and endIndex,
-            where each inner list represents a single column of the CSV file.
-        """
-        file    =   (fileName + '.csv').replace("\\","/")
-        dataFrame       =   dp.pd.read_csv(file,header = None).transpose()
-        listcols        =   dataFrame.to_numpy().tolist()
-        if len(listcols)>1:
-            return listcols
-        else:
-            return listcols[0]
 
     def extractArrays(self,fileName):
         """
@@ -375,49 +126,31 @@ class Processing:
 
             [[1.0, 4.0, 7.0], [2.0, 5.0, 8.0], [3.0, 6.0, 9.0]]
         """
+
+        # Set the base path to the current working directory and initialize an empty array to store column-wise data.  
         path    =   dp.os.getcwd() + '/'
         array   =   []
+
+        # Open the specified CSV file for reading.  
         with open(path + fileName + '.csv') as f:
+
+            # Read the first line to determine the number of columns.  
             line            =   f.readline()
             firstRow        =   line.split(",")
             columnsNumber   =   len(firstRow)
+
+            # Initialize a sublist for each column and append the first row's values as floats.  
             for i in range(columnsNumber):
                 array.append([])
                 array[i].append((float(firstRow[i])))
+
+            # Loop through the remaining rows and append each value to the corresponding column sublist.  
             for row in f:
                 for i in range(columnsNumber):
                     otherRows   =   row.split(",")
                     array[i].append((float(otherRows[i])))
-        return array
-
-    def parseArraysTo(self,Data,Point,Index):
-        """
-        Takes in a nested list of numerical data `Data`, an integer `Point`, and an integer `Index`
-        representing the index of the element array that is monotonically increasing. The function
-        returns a nested list that contains the same number of arrays as `Data`, but where each array
-        only contains the elements up to the index `idx` corresponding to the first element in the `Index`
-        array that is greater than or equal to `Point`.
-
-        Args:
-            Data (list)     : A nested list of numerical data where each element array corresponds to a different variable or feature.
-            Point (int)     : A desired endpoint up to where the nested arrays are to be returned.
-            Index (int)     : The index of the element array that is monotonically increasing.
-
-        Returns:
-            list: A nested list that contains the same number of arrays as `Data`, but where each array only
-            contains the elements up to the index `idx` corresponding to the first element in the `Index` array
-            that is greater than or equal to `Point`.
-        """
-        idx = 0
-        for i in range(len(Data[Index])):
-            if Data[Index][i] >= Point:
-                idx = i
-                break
-        array = []
-        for i in range(len(Data)):
-            array.append([])
-            for j in range(idx + 1):
-                array[i].append(Data[i][j])
+                    
+        # Return the column-wise array of floats.  
         return array
 
     def get_index(self,Data: list, Point: float, Index: int) -> int:
@@ -438,16 +171,21 @@ class Processing:
         - ValueError: If the specified sub-list is empty.
 
         Example:
-        >>> data = [[1.1, 2.2, 3.3], [-4.4, -5.5, -6.6], [7.7, 8.8, 9.9]]
-        >>> get_index(data, 2.0, 0)
+        data = [[1.1, 2.2, 3.3], [-4.4, -5.5, -6.6], [7.7, 8.8, 9.9]]
+        get_index(data, 2.0, 0)
         1
-        >>> get_index(data, -5.0, 1)
+        get_index(data, -5.0, 1)
         1
-        >>> get_index(data, 8.8, 2)
+        get_index(data, 8.8, 2)
         1
         """
+        # Convert the specified column (Data[Index]) to a NumPy array.  
+        # Find the index of the element closest to the given Point, ignoring NaNs.  
+        # Return the index of the closest value. 
+        
         array   =   dp.np.asarray(Data[Index])
         idx     =   dp.np.nanargmin(dp.np.abs(array - Point))
+         
         return idx
 
     def csv_append_rows(self, fileName: str, data: list, save_mode: str = 'a') -> None:
@@ -469,20 +207,23 @@ class Processing:
                 ValueError: If the provided data is an empty list.
 
         """
-        # Check if data is a list
+        # Validate that 'data' is a list; raise an error if not.  
         if not isinstance(data, list):
             raise TypeError("data should be a list.")
-        # Check if the data list is empty
+
+        # Validate that the list is not empty; raise an error if it is.  
         if len(data) == 0:
             raise ValueError("data list cannot be empty.")
-        # Check if all elements in the data list are lists
+
+        # Check if all elements in the data list are themselves lists.  
         if all(isinstance(i, list) for i in data):
-            # If yes, create a Pandas DataFrame from the list
+            # If so, create a DataFrame directly from the list of lists.  
             df = dp.pd.DataFrame(list(data))
         else:
-            # If not, create a Pandas DataFrame from the transposed list
+            # Otherwise, transpose the data to align it as columns in the DataFrame.  
             df = dp.pd.DataFrame(data).T
-        # Write the DataFrame to the specified CSV file
+
+        # Write the DataFrame to a CSV file with the specified mode, without headers or index.  
         df.to_csv(fileName, mode=save_mode, index=False, header=False)
 
     def findIndex(self,points,matrix,pattern=True):
@@ -506,20 +247,29 @@ class Processing:
         - Finds the index of the first point in the first row.
         - Returns an array filled with this index.
         """
+        # Initialize an empty list to store indices.  
         indices = []
+
         if pattern:
-            # Find the index of each point in its respective row
+            # If pattern mode is enabled, find the index of each point in its corresponding row.  
             indices = [matrix[i].index(points[i]) for i in range(len(points))]
-            # Compute the weighted sum dynamically instead of hardcoding
+
+            # Compute a weighted sum of indices to get a single iteration number dynamically.  
             itr = sum(
                 indices[i] * dp.np.prod([len(matrix[j]) for j in range(i + 1, len(matrix))])
                 for i in range(len(indices) - 1)
-            ) + indices[-1]  # Last index is added directly
-            indices.append(itr)  # Append computed index for reference
+            ) + indices[-1]  # Add the last index directly
+
+            # Append the computed iteration index to the indices list for reference.  
+            indices.append(itr)
         else:
-            # Find the index of the first point in the first row
+            # If pattern mode is disabled, find the index of the first point in the first row.  
             itr = matrix[0].index(points[0])
-            indices = dp.np.full(len(matrix) + 1, itr).tolist()  # Fill with the same value
+
+            # Fill a list with the same index for all rows plus one extra, for uniformity.  
+            indices = dp.np.full(len(matrix) + 1, itr).tolist() 
+
+        # Return the list of indices and the computed iteration number.  
         return indices, itr
 
     def findPoint(self,matrix,index,pattern=True):
@@ -533,26 +283,38 @@ class Processing:
         Returns:
             _type_: _description_
         """
-        if not pattern:
-            # Find the maximum row length in the matrix to standardize dimensions
-            max_len = max(len(row) for row in matrix)
-            # Pad shorter rows with zeros so that all rows are of equal length
-            padded_matrix = [row + [0] * (max_len - len(row)) for row in matrix]
-            padded_matrix = dp.np.array(padded_matrix).T
-            return padded_matrix, len(padded_matrix)  # Return matrix and the number of rows (length of first column)
 
-        # Compute the product of all sublist lengths to determine total number of rows
+        if not pattern:
+            # If pattern mode is disabled, standardize row lengths by padding shorter rows with zeros.  
+            max_len = max(len(row) for row in matrix)
+            padded_matrix = [row + [0] * (max_len - len(row)) for row in matrix]
+
+            # Convert to NumPy array and transpose so that columns become rows.  
+            padded_matrix = dp.np.array(padded_matrix).T
+
+            # Return the padded matrix and the number of rows (length of first column).  
+            return padded_matrix, len(padded_matrix)
+
+        # If pattern mode is enabled, compute the total number of rows from the product of sublist lengths.  
         lengths = [len(sublist) for sublist in matrix]
         totalLengths = dp.np.prod(lengths)
-        ParametersMap = dp.np.zeros((totalLengths, len(matrix)))  # Initialize empty matrix of correct shape
 
-        step_size = totalLengths  # Start with total length
+        # Initialize an empty ParametersMap matrix with shape (totalLengths, number of columns).  
+        ParametersMap = dp.np.zeros((totalLengths, len(matrix)))
+
+        # Fill each column by repeating and tiling sublist values according to the pattern.
+        # Determine step size for repetition  
+        # Determine how many times to repeat the sequence
+        # Fill the column
+        
+        step_size = totalLengths
         for col, sublist in enumerate(matrix):
-            step_size //= lengths[col]  # Reduce step size for each column
-            repeat_factor = totalLengths // (step_size * lengths[col])  # Compute how often values should repeat
-            ParametersMap[:, col] = dp.np.tile(dp.np.repeat(sublist, step_size), repeat_factor)  # Fill column efficiently
+            step_size //= lengths[col]  
+            repeat_factor = totalLengths // (step_size * lengths[col])  
+            ParametersMap[:, col] = dp.np.tile(dp.np.repeat(sublist, step_size), repeat_factor)  
 
-        return ParametersMap[index[-1]:], len(ParametersMap[index[-1]:])  # Slice according to index and return
+        # Return the sliced ParametersMap starting from the provided index and its number of rows.  
+        return ParametersMap[index[-1]:], len(ParametersMap[index[-1]:])
 
     def findStart(self,matrix,index,pattern=True):
         """_summary_
@@ -566,9 +328,11 @@ class Processing:
             _type_: _description_
         """
         if pattern:
-            return [row[:] for row in matrix]  # Create a shallow copy of each row and return
+            # If pattern mode is enabled, return a shallow copy of each row to avoid modifying the original matrix.  
+            return [row[:] for row in matrix]
 
-        # Convert the selected portion of matrix to a numpy array, transpose it, and convert it back to a list
+        # Otherwise, take the portion of the matrix starting from the specified index, convert to a NumPy array, transpose it,  
+        # and convert back to a list so that columns become rows.  
         ParametersMap = dp.np.array(matrix[index[-1]:]).T.tolist()
         return ParametersMap
 
@@ -581,10 +345,19 @@ class Processing:
         Returns:
             _type_: _description_
         """
+        # Construct the full path to the JSON file in the assets folder.  
         path = dp.os.getcwd().replace("\\","/")+"/Script/assets/"+json_file
-        file = open(path,encoding='utf-8')   # Opening JSON file
-        data = dp.json.load(file)   # returns JSON object as a dictionary
+
+        # Open the JSON file with UTF-8 encoding.  
+        file = open(path, encoding='utf-8')  
+
+        # Load the JSON content into a Python dictionary.  
+        data = dp.json.load(file)  
+
+        # Close the file to free resources.  
         file.close()
+
+        # Return the dictionary containing the JSON data.  
         return data
 
     def rms_avg(self, Op, nested_list, time_values):
@@ -608,26 +381,49 @@ class Processing:
             ZeroDivisionError : If the time range (`delta_T = time_values[-1] - time_values[0]`) is zero.
             ValueError       : If input data is invalid (e.g., non-numeric).
         """
-        result          =   dp.np.array([])                     # Initialize an empty numpy array to store the results.                                                  
-        delta_T         =   time_values[-1] - time_values[0]    # Calculate the time interval (delta_T) based on the first and last time values. 
-        for sublist in nested_list:     # Iterate through each sublist in the nested list.                    
-            match Op:   #   Match the operation type to determine the calculation method.                       
-                case 'RMS': # If the operation is 'RMS', calculate the Root Mean Square value.                          
-                    try:    # Try to perform the RMS calculation.
-                        squared_values  = (dp.np.array(sublist))**2 # Square each value in the sublist.                                                 
-                        res_value       = dp.np.sqrt(dp.np.trapz(squared_values, x=time_values) / delta_T)  # Integrate the squared values and divide by delta_T, then take the square root.       
-                    except ZeroDivisionError:   # If a division by zero occurs, handle the exception.                                                 
-                        print("Error: Division by zero is not allowed.")    # Print an error message if division by zero occurs.             
-                case 'AVG': # If the operation is 'AVG', calculate the Average value.
-                    try:    #   Try to perform the Average calculation.
-                        res_value  = dp.np.trapz(dp.np.array(sublist), x=time_values) / delta_T # Integrate the values in the sublist and divide by delta_T to get the average.
-                    except ZeroDivisionError:   #  If a division by zero occurs, handle the exception.
-                        print("Error: Division by zero is not allowed.")    # Print an error message if division by zero occurs.          
-            try:    # Try to append the calculated result to the result array.
-                result = dp.np.append(result, res_value)    # Append the calculated result to the result array.                                     
-            except ValueError:  # If a ValueError occurs while appending, handle the exception. 
-                print("Error: Invalid input. Please enter valid numbers.")  # Print an error message if the input is invalid.                    
-        return result   # Return the result array containing the calculated RMS or AVG values for each sublist in the nested list.
+
+        # Initialize an empty NumPy array to store the results. 
+        # Calculate the time interval (delta_T) based on the first and last time values.  
+         
+        result          =   dp.np.array([])                                                                       
+        delta_T         =   time_values[-1] - time_values[0]    
+
+        # Iterate through each sublist in the nested list.  
+        for sublist in nested_list:                      
+            match Op:  
+
+                # If the operation is 'RMS', calculate the Root Mean Square value. 
+                # Square each value in the sublist.  
+                # Integrate the squared values, divide by delta_T, and take the square root. 
+                # Handle division by zero exception.  
+                
+                case 'RMS':   
+                    try:    
+                        squared_values  = (dp.np.array(sublist))**2                                               
+                        res_value       = dp.np.sqrt(dp.np.trapz(squared_values, x=time_values) / delta_T)       
+                    except ZeroDivisionError:                                                     
+                        print("Error: Division by zero is not allowed.")     
+                
+                # If the operation is 'AVG', calculate the average value.
+                # Integrate the values in the sublist and divide by delta_T to get the average.
+                # Handle division by zero exception.
+                
+                case 'AVG':    
+                    try:      
+                        res_value  = dp.np.trapz(dp.np.array(sublist), x=time_values) / delta_T 
+                    except ZeroDivisionError:    
+                        print("Error: Division by zero is not allowed.")     
+            
+            # Append the calculated result to the result array.   
+            # Handle invalid input errors. 
+            
+            try:   
+                result = dp.np.append(result, res_value)    
+            except ValueError:   
+                print("Error: Invalid input. Please enter valid numbers.")          
+
+        # Return the array containing the RMS or AVG values for each sublist.  
+        return result    
 
     def natsorted_list(self,dir):
 
@@ -641,11 +437,22 @@ class Processing:
             list: A list of file paths sorted naturally.
 
         """
+
+        # Initialize an empty list to store CSV file paths.  
         file_list      =   []
+
+        # Iterate through all entries in the specified directory.  
         for filename in dp.os.scandir(dir):
-            if filename.is_file() and filename.path.endswith('.csv') and not filename.path.endswith('_Map.csv') and not filename.endswith('_Standalone.csv'):
+
+            # Check if the entry is a file, ends with '.csv', and does not end with '_Map.csv' or '_Standalone.csv'.  
+            # Append the file path (with forward slashes) to the list. 
+            if filename.is_file() and filename.path.endswith('.csv') and not filename.path.endswith('_Map.csv') and not filename.path.endswith('_Standalone.csv'): 
                 file_list.append(str(filename.path.replace("\\","/")))
+
+        # Sort the file list naturally (numerical order for numbers in filenames).  
         file_list      =   dp.natsorted(file_list)
+
+        # Return the sorted list of CSV file paths.  
         return file_list
 
     def magnetic_loss(self, nestedresults, FFT_current, l, trafo_inputs, choke_inputs):
@@ -663,16 +470,32 @@ class Processing:
             tuple: Tuple containing core losses, primary copper losses, secondary copper losses, and choke losses.
 
         """
+        # Initialize lists to store losses for transformers and chokes.  
         core_loss   , pri_copper_loss , sec_copper_loss ,choke_core_loss    ,choke_copper_loss , Choke_loss= [],[],[],[],[],[]
+        
+        # Loop over each transformer in the system.  
         for i in range(len(trafo_inputs)):
-            #! core losses:
+            
+            #? ----- Core losses for transformer -----  
+            # Generate 3D lookup table for core loss using transformer parameters.  
+            # Extract flux linkage results for this transformer.  
+            # Compute the peak flux value (half of the peak-to-peak range, rounded).  
+            # Determine the maximum voltage point from results.  
+            # Interpolate core loss from 3D lookup table using the calculated flux and voltage.  
+            # Multiply interpolated core loss by transformer volume/weight factor and append to the list.  
+
             LuT3D         = self.LuT_3D(trafo_inputs[i][0] ,trafo_inputs[i][1],trafo_inputs[i][2],trafo_inputs[i][3])
             flux_link     = nestedresults[trafo_inputs[i][4]]
             point_flux    = dp.np.round((dp.np.max(flux_link)-dp.np.min(flux_link))/2 , decimals=12 )
             point_in_volt = dp.np.max(nestedresults[trafo_inputs[i][5]],axis=0)
             interp        = LuT3D([trafo_inputs[i][6],point_flux ,point_in_volt])
             core_loss.append(interp[0] * trafo_inputs[i][7] )
-            #! primary losses:
+           
+            #? ----- Primary copper losses for transformer -----  
+            # Generate 2D lookup table for primary winding resistance.  
+            # Interpolate resistance for each harmonic.  
+            # Calculate primary copper losses: sum of 0.5 * R * I^2 over all harmonics.  
+         
             LuT2D         = self.LuT_2D(trafo_inputs[i][8],trafo_inputs[i][9],trafo_inputs[i][10])
             rvec_pri      = []
             for j in range(len(dp.harmonics)):
@@ -680,22 +503,43 @@ class Processing:
                 rvec_pri.append(interpolated_rpri[0])
 
             pri_copper_loss.append(dp.np.sum(dp.np.array(rvec_pri) * (1/2) * dp.np.square( FFT_current[l*len(dp.harmonics):l*len(dp.harmonics)+len(dp.harmonics),trafo_inputs[i][16]-1] )))
-            #! secondary losses:
+            
+            #? ----- Secondary copper losses for transformer -----  
+            # Generate 2D lookup table for secondary winding resistance.  
+            # Interpolate resistance for each harmonic.  
+            # Calculate secondary copper losses: sum of 0.5 * R * I^2 over all harmonics.  
+          
             LuT2D         = self.LuT_2D(trafo_inputs[i][12],trafo_inputs[i][13],trafo_inputs[i][14])
             rvec_sec      = []
             for j in range(len(dp.harmonics)):
                 interpolated_rsec = LuT2D([(dp.np.array(dp.harmonics)*dp.F_Fund)[j],(trafo_inputs[i][15]*len(dp.harmonics))[j]])
                 rvec_sec.append(interpolated_rsec[0])
             sec_copper_loss.append(dp.np.sum(dp.np.array(rvec_sec) * (1/2) * dp.np.square( FFT_current[l*len(dp.harmonics):l*len(dp.harmonics)+len(dp.harmonics),trafo_inputs[i][17]-1] )))
-        for i in range(len(choke_inputs)):                                                                                 #? Go over each trafo you have in the system.
-            #! choke core losses:
-            LuT3D         = self.LuT_3D(choke_inputs[i][0] ,choke_inputs[i][1],choke_inputs[i][2],choke_inputs[i][3])      # Create the 3DLut.
-            flux_link     = nestedresults[choke_inputs[i][4]]                                                          # flux linkage .
-            point_flux    = (dp.np.max(flux_link)-dp.np.min(flux_link))/2                                                  # Peak value of flux linkage.
-            point_in_volt = dp.np.max(nestedresults[choke_inputs[i][5]])                                                # get the voltage.
-            interp        = LuT3D([choke_inputs[i][6],point_flux ,point_in_volt])                                          # interplated value.
-            choke_core_loss.append(interp[0] * choke_inputs[i][7] )                                                        # append choke_inputs[i][7]*Gain (Factor)
-            #! choke copper losses:
+        
+        # Go over each trafo you have in the system.
+        for i in range(len(choke_inputs)):
+
+            #? ----- Choke core losses -----  
+            # Generate 3D lookup table for choke core loss using choke parameters.  
+            # Extract flux linkage results for this choke.  
+            # Compute the peak flux value (half of peak-to-peak range).  
+            # Determine the maximum voltage point from results.  
+            # Interpolate core loss from 3D lookup table using calculated flux and voltage.  
+            # Multiply interpolated core loss by choke volume/weight factor and append to the list.  
+
+            LuT3D         = self.LuT_3D(choke_inputs[i][0] ,choke_inputs[i][1],choke_inputs[i][2],choke_inputs[i][3]) 
+            flux_link     = nestedresults[choke_inputs[i][4]]                                                         
+            point_flux    = (dp.np.max(flux_link)-dp.np.min(flux_link))/2                                             
+            point_in_volt = dp.np.max(nestedresults[choke_inputs[i][5]])                                              
+            interp        = LuT3D([choke_inputs[i][6],point_flux ,point_in_volt])                                     
+            choke_core_loss.append(interp[0] * choke_inputs[i][7] ) 
+
+            #? ----- Choke copper losses -----  
+            # Generate 2D lookup table for choke winding resistance.  
+            # Interpolate resistance for each harmonic index defined in choke_inputs.  
+            # Calculate choke copper losses: sum of R * I^2 over specified harmonics.  
+            # Total choke losses (core + copper).  
+
             LuT2D         = self.LuT_2D(choke_inputs[i][8],choke_inputs[i][9],choke_inputs[i][10])
             rvec          = []
             for j in range(len(choke_inputs[i][13])):
@@ -703,6 +547,8 @@ class Processing:
                 rvec.append(interpolated_rpri[0])
             choke_copper_loss.append(dp.np.sum( dp.np.array(rvec)   * dp.np.square(FFT_current[l*len(dp.harmonics):l*len(dp.harmonics)+len(dp.harmonics),choke_inputs[i][12]-1][choke_inputs[i][13]])) )
             Choke_loss =  [dp.np.sum(choke_core_loss + choke_copper_loss)]
+        
+        # Return arrays of calculated losses for transformers and chokes.
         return dp.np.array(core_loss) , dp.np.array(pri_copper_loss) , dp.np.array(sec_copper_loss) , dp.np.array(Choke_loss)
 
     def analytical_magnetic_loss(self, nestedresults, FFT_current, l):
@@ -718,11 +564,21 @@ class Processing:
             tuple: Tuple containing core losses, primary copper losses, secondary copper losses, choke core and copper losses.
 
         """
+        
+        # Initialize empty lists to store transformer and choke losses  
+        # Initialize empty lists to store interpolated resistances for primary, secondary, and inductor windings  
+
         core_loss, pri_copper_loss, sec_copper_loss, choke_core_loss, choke_copper_loss = [], [], [], [], []
-        R_pri, R_sec, R_ind = [],[],[]
-        #! core losses:
-        flux_link     = nestedresults[dp.pmapping['Transformer Flux']]
-        point_flux    = dp.np.round((dp.np.max(flux_link)-dp.np.min(flux_link))/2 , decimals=12 )
+        R_pri, R_sec, R_ind                                                             = [],[],[]
+     
+        # ----- Core losses calculation -----  
+        # Extract transformer flux from nested results.  
+        # Calculate peak flux (half of peak-to-peak) rounded to 12 decimals.  
+        # Parameters for core loss calculation using IGSE method.  
+        # Compute core loss and append to the list.  
+
+        # flux_link     = nestedresults[dp.pmapping['Transformer Flux']]
+        # point_flux    = dp.np.round((dp.np.max(flux_link)-dp.np.min(flux_link))/2 , decimals=12 )
         # Bp            = point_flux/(dp.mdlVars['DCDC_Rail1']['Trafo']['Core']['Ae'] * dp.mdlVars['DCDC_Rail1']['Trafo']['Np'])
         # d             = [nestedresults[dp.pmapping['PWM Modulator Primary Modulator Duty Cycle'] + dp.Y_list[3] + 1]]
         # d             = self.rms_avg('AVG', d, nestedresults[0])
@@ -733,38 +589,53 @@ class Processing:
         Vc            = 468e-6 * 72.5e-3
         core_loss.append(self.IGSE('trap', SP_tfo, d, dp.F_Fund, Bp, Vc))
 
-        #! primary and secondary copper losses:
-        f_tfo         = [0] + dp.mdlVars['DCDC_Rail1']['Trafo']['Winding']['Harmonics']
-        pri_Rvec        = dp.mdlVars['DCDC_Rail1']['Trafo']['Winding']['Rpri']['Rvec']
-        pri_Rscale      = dp.mdlVars['DCDC_Rail1']['Trafo']['Winding']['Rpri']['Rscale']
-        sec_Rvec        = dp.mdlVars['DCDC_Rail1']['Trafo']['Winding']['Rsec']['Rvec']
-        sec_Rscale      = dp.mdlVars['DCDC_Rail1']['Trafo']['Winding']['Rsec']['Rscale']
-        for i in range(len(pri_Rvec)):
-            R_pri.append(pri_Rvec[i][-1])
-            R_sec.append(sec_Rvec[i][-1])
-        res_optimize_pri = self.rac_lac_values('min', dp.mdlVars['DCDC_Rail1']['Trafo']['Lm'], dp.np.array(f_tfo)* 1e5, dp.np.array(R_pri))
-        res_optimize_sec = self.rac_lac_values('min', dp.mdlVars['DCDC_Rail1']['Trafo']['Lm']/100, dp.np.array(f_tfo)* 1e5, dp.np.array(R_sec))   # Lm with respect to secondary, Lm' = Lm/(turns_ratio)^2
+        #? ----- Primary and secondary copper losses -----  
+        # Extract harmonic frequencies and winding resistances & scaling factors.  
+        f_tfo     = [0] + dp.mdlVars['DCDC_Rail1']['Trafo']['Winding']['Harmonics']  
+        pri_Rvec  = dp.mdlVars['DCDC_Rail1']['Trafo']['Winding']['Rpri']['Rvec']  
+        pri_Rscale = dp.mdlVars['DCDC_Rail1']['Trafo']['Winding']['Rpri']['Rscale']  
+        sec_Rvec  = dp.mdlVars['DCDC_Rail1']['Trafo']['Winding']['Rsec']['Rvec']  
+        sec_Rscale = dp.mdlVars['DCDC_Rail1']['Trafo']['Winding']['Rsec']['Rscale']  
 
-        pri_copper_loss.append(dp.np.sum(res_optimize_pri['Rac_calculated']*pri_Rscale * (1/2) * dp.np.square(FFT_current[l*len(dp.harmonics):l*len(dp.harmonics)+len(dp.harmonics), dp.pmapping['Transformer Primary Current']-1][f_tfo[1:]])))
-        sec_copper_loss.append(dp.np.sum(res_optimize_sec['Rac_calculated']*sec_Rscale * (1/2) * dp.np.square(FFT_current[l*len(dp.harmonics):l*len(dp.harmonics)+len(dp.harmonics), dp.pmapping['Transformer Secondary Current']-1][f_tfo[1:]])))
+        # Extract DC or fundamental resistances for primary and secondary.  
+        for i in range(len(pri_Rvec)):  
+            R_pri.append(pri_Rvec[i][-1])  
+            R_sec.append(sec_Rvec[i][-1])  
 
-        #! choke core losses:
-        Iind = nestedresults[dp.pmapping['DC Choke Current']]
-        Iindp = (dp.np.max(Iind)- dp.np.min(Iind))/2
-        Bpl           = (dp.mdlVars['DCDC_Rail1']['Lf']['L'] * Iindp) / ( dp.mdlVars['DCDC_Rail1']['Lf']['N']* dp.mdlVars['DCDC_Rail1']['Lf']['Core']['Ae'])
-        Sp_choke      = dp.mdlVars['DCDC_Rail1']['Lf']['Core']['SP_l']
-        Vcl           = dp.mdlVars['DCDC_Rail1']['Lf']['Core']['Vc']
-        choke_core_loss.append(self.IGSE('tri', Sp_choke, d, 2*dp.F_Fund, Bpl, Vcl))
+        # Compute optimized AC resistances using rac_lac_values method.  
+        res_optimize_pri = self.rac_lac_values('min', dp.mdlVars['DCDC_Rail1']['Trafo']['Lm'], dp.np.array(f_tfo) * 1e5, dp.np.array(R_pri))  
+        res_optimize_sec = self.rac_lac_values('min', dp.mdlVars['DCDC_Rail1']['Trafo']['Lm'] / 100, dp.np.array(f_tfo) * 1e5, dp.np.array(R_sec))  # Adjust Lm for secondary  
 
-        #! choke copper losses:
+        # Compute copper losses by summing I^2 * R for each harmonic, scaled appropriately.  
+        pri_copper_loss.append(dp.np.sum(res_optimize_pri['Rac_calculated'] * pri_Rscale * 0.5 * dp.np.square(FFT_current[l*len(dp.harmonics):(l+1)*len(dp.harmonics), dp.pmapping['Transformer Primary Current']-1][f_tfo[1:]])))  
+        sec_copper_loss.append(dp.np.sum(res_optimize_sec['Rac_calculated'] * sec_Rscale * 0.5 * dp.np.square(FFT_current[l*len(dp.harmonics):(l+1)*len(dp.harmonics), dp.pmapping['Transformer Secondary Current']-1][f_tfo[1:]])))  
+
+        #? ----- Choke core losses -----  
+        # Peak AC component of choke current 
+        # Calculate peak flux density in the choke core  
+        # Compute core loss using trapezoidal integration (IGSE method)  
+
+        Iind    = nestedresults[dp.pmapping['DC Choke Current']]  
+        Iindp   = (dp.np.max(Iind) - dp.np.min(Iind)) / 2   
+        Bpl     = (dp.mdlVars['DCDC_Rail1']['Lf']['L'] * Iindp) / (dp.mdlVars['DCDC_Rail1']['Lf']['N'] * dp.mdlVars['DCDC_Rail1']['Lf']['Core']['Ae'])  
+        Sp_choke = dp.mdlVars['DCDC_Rail1']['Lf']['Core']['SP_l']  
+        Vcl      = dp.mdlVars['DCDC_Rail1']['Lf']['Core']['Vc']  
+        choke_core_loss.append(self.IGSE('tri', Sp_choke, d, 2 * dp.F_Fund, Bpl, Vcl))  
+
+        #? ----- Choke copper losses -----
+        # Extract FFT of choke current for the current iteration
+        # Winding resistance vector and scaling
+        # Collect last element of each Rvec for use in calculation
+        # Compute copper loss: sum of (R_ac * scale * I²/2) over all harmonics
+     
         choke_current_fft = FFT_current[l*len(dp.harmonics):l*len(dp.harmonics)+len(dp.harmonics),dp.pmapping['DC Choke Current']-1]
         ind_Rvec          = dp.mdlVars['DCDC_Rail1']['Lf']['Winding']['Rwind']['Rvec']
         ind_Rscale        = dp.mdlVars['DCDC_Rail1']['Lf']['Winding']['Rwind']['Rscale']
         f_ind             = dp.mdlVars['DCDC_Rail1']['Lf']['Winding']['Harmonics']
-        for i in range(len(ind_Rvec)):
-            R_ind.append(ind_Rvec[i][-1])
+        for i in range(len(ind_Rvec)):R_ind.append(ind_Rvec[i][-1])
         choke_copper_loss.append(dp.np.sum(dp.np.array(R_ind[1:]) * ind_Rscale * (1/2) * dp.np.square(choke_current_fft[f_ind[1:]])) + (dp.np.array(R_ind[0]) * ind_Rscale * dp.np.square(choke_current_fft[0])))
 
+        # Return arrays of calculated losses for transformers and chokes.
         return dp.np.array(core_loss), dp.np.array(pri_copper_loss), dp.np.array(sec_copper_loss), dp.np.array(choke_core_loss), dp.np.array(choke_copper_loss)
 
     def dissipations(self, nestedresults_l, res_list, RMS_currents, thread, FFT_current): # trafo_inputs, choke_inputs):
