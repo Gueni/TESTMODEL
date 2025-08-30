@@ -173,18 +173,6 @@ class ParamProcess:
                 - Emos (list): 3D list of energy loss data (Joules), shaped as 
                             [voltage, current, gate voltage].
 
-        Notes:
-            - EmosData[0] corresponds to voltage values, EmosData[1:] to energy losses.
-            - Data reshaped into 3D using NumPy for efficient slicing.
-            - Energy values are converted from µJ to Joules using 1e-6 factor.
-            - NumPy library is used for array manipulation: https://numpy.org/doc/stable/
-
-        Math:
-            Energy conversion: E [J] = (EmosData_T - EmosData_T[0,0]) * 1e-6
-            3D reshaping: LuT_3D[i,j,k] corresponds to:
-                i = voltage index
-                j = current index
-                k = gate voltage index
         """
 
         # Construct full file path
@@ -239,13 +227,6 @@ class ParamProcess:
                 - Xvec: Corresponding independent variable values 
                         (typically voltage or current).
 
-        Notes:
-            - CSV files are expected to have alternating columns of independent variables and Rds_on values.
-            - Uses NumPy for array manipulation: https://numpy.org/doc/stable/
-
-        Example:
-            Xvec[i] corresponds to the independent variable (V or I) for the i-th dataset,
-            Rvec[i] contains the corresponding Rds_on values.
         """
         
         # Construct full file path
@@ -284,13 +265,6 @@ class ParamProcess:
                 - Vvec: Voltage values across the diode (V)
                 - Ivec: Corresponding current values through the diode (A)
 
-        Notes:
-            - CSV files are expected to have the first row/column as current and subsequent rows/columns as voltage points.
-            - Uses NumPy for array manipulation: https://numpy.org/doc/stable/
-
-        Example:
-            Vvec[i] corresponds to the voltage across the diode at the i-th data point,
-            Ivec[i] is the corresponding current through the diode.
         """
         
         # Construct full file path
@@ -323,17 +297,6 @@ class ParamProcess:
                 - loss (list): 3D list of core loss data (W/kg), shaped as 
                             [temperature, flux, voltage]
 
-        Notes:
-            - CSV files are expected to have the first column as flux data and
-            subsequent columns as core loss values at different voltages/temperatures.
-            - Flux values are converted from Weber to MegaWeber using 1e-6 factor.
-            - Uses NumPy for array manipulation: https://numpy.org/doc/stable/
-
-        Math:
-            3D reshaping: LuT_3D[i,j,k] corresponds to:
-                i = temperature index
-                j = flux index
-                k = voltage index
         """
 
         # Construct full file path
@@ -391,15 +354,6 @@ class ParamProcess:
                 - Fvec: Frequency values in kHz for each component
                 - Rvec: Corresponding resistance values in mOhm for each component
 
-        Notes:
-            - CSV files are expected to have the first column as frequency and subsequent columns as resistance values.
-            - Uses NumPy for array manipulation: https://numpy.org/doc/stable/
-            - Unit conversions:
-                - Resistance: Ohms -> mOhm (*1e3)
-                - Frequency: Hz -> kHz (*1e-3)
-
-        Example:
-            Fvec[i] and Rvec[i] contain the frequency and resistance arrays for the i-th magnetic component.
         """
 
         # Initialize lists for resistance and frequency vectors
@@ -439,14 +393,6 @@ class ParamProcess:
                 - Ivec: Current values (A)
                 - Lvec: Corresponding inductance values (H)
 
-        Notes:
-            - CSV files are expected to have the first column as current and subsequent columns as inductance values.
-            - Unit conversion: µH -> H (*1e-6)
-            - Uses NumPy for array manipulation: https://numpy.org/doc/stable/
-
-        Example:
-            Ivec[i] corresponds to the current for the i-th data point,
-            Lvec[i] is the corresponding inductance.
         """
 
         # Construct full file path
@@ -478,13 +424,6 @@ class ParamProcess:
         Returns:
             list: List of scaled arrays, transposed.
 
-        Notes:
-            - Handles both NumPy arrays and standard Python lists.
-            - Uses NumPy for efficient array operations: https://numpy.org/doc/stable/
-
-        Example:
-            scaled = scaledList([[1,2,3],[4,5,6]], scale=2)
-            # Returns [[2,8],[4,10],[6,12]]
         """
         
         # Convert all elements to lists for uniformity
@@ -531,15 +470,6 @@ class ParamProcess:
         Returns:
             float: Effective output capacitance (Coss) in Farads.
 
-        Notes:
-            - ΔV = V_blocking - V_min
-            - Time-effective formula: Coss_eff = Qoss / (V_blocking - V_min)
-            - Energy-effective formula: Coss_eff = 2 * Eoss / (V_blocking² - V_min²)
-            - Result is rounded to 2 decimal places in pF and converted back to F.
-            - Uses NumPy for array operations: https://numpy.org/doc/stable/
-
-        Example:
-            Coss = getCoss(mosfet_data, 600, True)
         """
 
         # Extract voltage and capacitance arrays from dictionary
@@ -575,38 +505,25 @@ class ParamProcess:
         inductances, and snubber constraints.
 
         Args:
-            V_snub (float): Snubber circuit voltage (V)
-            V_LV_OP (float): Low-voltage operational voltage (V)
-            Np (int): Primary winding turns
-            Ns (int): Secondary winding turns
-            fs (float): Switching frequency (Hz)
-            Lfilter (float): Filter inductance (H)
-            Lks (float): Secondary leakage inductance (H)
-            Lkp (float): Primary leakage inductance (H)
-            I_C_max (float): Maximum allowable snubber capacitor current (A)
-            ILVmax (int): Maximum low-voltage current index
-            tonsnubmin (float): Minimum allowable snubber turn-on time (s)
-            Points (int): Number of points for voltage/current vector calculation
+            V_snub (float)      : Snubber circuit voltage (V)
+            V_LV_OP (float)     : Low-voltage operational voltage (V)
+            Np (int)            : Primary winding turns
+            Ns (int)            : Secondary winding turns
+            fs (float)          : Switching frequency (Hz)
+            Lfilter (float)     : Filter inductance (H)
+            Lks (float)         : Secondary leakage inductance (H)
+            Lkp (float)         : Primary leakage inductance (H)
+            I_C_max (float)     : Maximum allowable snubber capacitor current (A)
+            ILVmax (int)        : Maximum low-voltage current index
+            tonsnubmin (float)  : Minimum allowable snubber turn-on time (s)
+            Points (int)        : Number of points for voltage/current vector calculation
 
         Returns:
             tuple: Contains three elements:
-                - Vvec (list): Voltage vector (V)
-                - Ivec (list): Precharge current reference vector (A)
+                - Vvec (list)           : Voltage vector (V)
+                - Ivec (list)           : Precharge current reference vector (A)
                 - ton_snub_final (float): Final snubber turn-on time (s)
 
-        Notes:
-            - ntr = Np/Ns is the turns ratio
-            - L_leak_lv = (Lks + Lkp) / ntr^2 is the low-voltage referred leakage inductance
-            - Duty cycle: Duty = (V_snub - V_LV_OP) / (V_snub - V_HV / ntr)
-            - Snubber on-time: ton_snub = sqrt(2 * L_leak_lv * ILV * toff / (V_snub - V_HV/ntr))
-            - Low-voltage ripple: dI_LV = (V_snub - V_LV_OP) * toff / Lfilter
-            - Snubber peak current: Ipeak_snub = (V_snub - V_HV/ntr) * ton_snub / L_leak_lv
-            - RMS snubber capacitor current: IC_snub_RMS = sqrt(IC_snub_P^2 + IC_snub_N^2)
-            - Uses NumPy for array and linspace operations: https://numpy.org/doc/stable/
-
-        References:
-            - Standard snubber design for leakage inductance energy dissipation
-            - Equations based on power electronics transformer precharge design
         """
         
         # Compute turns ratio and low-voltage referred leakage inductance
@@ -668,16 +585,6 @@ class ParamProcess:
                 - Equivalent resistances for converter model: R_d, R_eq
                 - Forward voltage of rectifier diode: Vd
 
-        Notes:
-            - N_Tr = Turns ratio of transformer: Np / Ns
-            - Lk = Lkp + Lks * N_Tr^2: total referred leakage inductance
-            - Duty cycle: d = N_Tr * Vout_target / Vin_input
-            - Ap2, A_dL, B_dL, C_dL, D_dL are derived from small-signal modeling equations
-            - Rp, Rs, Rs2 are equivalent series resistances used in average model
-            - Uses NumPy implicitly via dp.np if needed for array operations: https://numpy.org/doc/stable/
-
-        Example:
-            avg_params = dcdcAverageModelCalculate(ModelVars)
         """
 
         # Extract MOSFET and rectifier resistances (divide by parallel count)
@@ -760,15 +667,6 @@ class ParamProcess:
                 - cat (str): MATLAB-style 3D concatenation string for reconstructing 3D arrays.
                 - Param (list): 3D list of battery parameters with shape (temp_length, curr_length, soc_length).
 
-        Notes:
-            - The first column of the CSV is assumed to contain current values.
-            - The remaining columns represent parameters across different SOC or voltage points.
-            - The function uses NumPy for array operations: https://numpy.org/doc/stable/
-            - 3D reshaping is done such that the first dimension is temperature/measurement points,
-            the second dimension is current, and the third dimension is SOC or parameter index.
-
-        Example:
-            current, cat, Param = batteryParams("data/", "BatteryTypeA")
         """
 
         # Construct full path to battery data file
@@ -823,13 +721,6 @@ class ParamProcess:
                 - OCV (list): Open-circuit voltage values for each SOC point.
                 - OCV_soc (list): Corresponding state-of-charge values (fraction or percentage).
 
-        Notes:
-            - The first column of the CSV is assumed to contain SOC values.
-            - Remaining columns contain OCV data corresponding to those SOC points.
-            - Uses NumPy for array manipulation: https://numpy.org/doc/stable/
-
-        Example:
-            OCV, OCV_soc = Battery_OCV("data/", "LiIonModuleA")
         """
 
         # Construct full path to OCV data file
@@ -867,17 +758,6 @@ class ParamProcess:
                 - cat (str): MATLAB-style 3D concatenation string for reconstructing 3D arrays.
                 - LuT_3D (list): 3D list of scaled Z-values with shape (Z_length, X_length, Y_length).
 
-        Notes:
-            - The first column of the input file is assumed to contain X-axis values.
-            - Remaining columns contain Z-values (dependent variables).
-            - Uses NumPy for array manipulation: https://numpy.org/doc/stable/
-            - 3D reshaping is done such that:
-                - First dimension = repeated Z-values (rows per measurement)
-                - Second dimension = X-axis
-                - Third dimension = columns (Y-axis, typically voltage/current)
-
-        Example:
-            X_axis, cat, LuT_3D = LuT3D_Generator("data/simulation.csv", Xscale=1e3, Zscale=1e-6)
         """
 
         # Load the input file and convert to NumPy array
@@ -930,14 +810,6 @@ class ParamProcess:
                 - Xvec (list): X-axis values after scaling.
                 - Fvec (list): Corresponding function values after scaling and transposing.
 
-        Notes:
-            - The first row/column of the input file is assumed to contain X-axis values.
-            - Remaining rows/columns contain the function values.
-            - Uses NumPy for array manipulation: https://numpy.org/doc/stable/
-            - Transposition ensures that each row of Fvec corresponds to a single X value.
-
-        Example:
-            Xvec, Fvec = LuT2D_Generator("data/simulation.csv", Xscale=1e3, Fscale=1e-6)
         """
 
         # Load the input file and extract arrays
@@ -970,13 +842,6 @@ class ParamProcess:
                 - Xvec (list): X-axis values after scaling.
                 - Fvec (list): Corresponding function values after scaling.
 
-        Notes:
-            - The first row/column of the input file is assumed to contain X-axis values.
-            - The second row/column contains the function values.
-            - Uses NumPy for array manipulation: https://numpy.org/doc/stable/
-
-        Example:
-            Xvec, Fvec = LuT1D_Generator("data/simulation.csv", Xscale=1e3, Fscale=1e-6)
         """
 
         # Load the input file and extract arrays
@@ -1007,10 +872,6 @@ class ParamProcess:
         Returns:
             dict: Dictionary (or nested collection) with numeric values truncated to the specified precision.
 
-        Notes:
-            - Handles floats, integers, complex numbers, and numeric strings.
-            - Preserves non-numeric values unchanged.
-            - Maintains the structure and nesting of all collections.
         """
 
         def truncate_value(value):
@@ -1046,7 +907,7 @@ class ParamProcess:
         def traverse(obj):
 
             """Recursively traverse and truncate values in nested collections."""
-            
+
             if isinstance(obj, dict):
                 return {key: traverse(value) for key, value in obj.items()}
             elif isinstance(obj, list):
