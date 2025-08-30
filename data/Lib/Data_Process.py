@@ -913,7 +913,6 @@ class Processing:
         # Return amplitude, phase, and frequency arrays
         return amplitude, pahse, frequency
 
-
     def safe_get(self,my_list, index):
 
         """
