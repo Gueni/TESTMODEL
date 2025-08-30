@@ -273,17 +273,24 @@ class Processing:
         return indices, itr
 
     def findPoint(self,matrix,index,pattern=True):
-        """_summary_
+
+        """
+        Generate a structured matrix from a list of lists with optional pattern repetition.
+
+        This function either standardizes row lengths by padding (pattern=False) or
+        generates a full parameter map by repeating and tiling sublists according to a pattern (pattern=True).
 
         Args:
-            matrix (_type_): _description_
-            index (_type_): _description_
-            pattern (bool, optional): _description_. Defaults to True.
+            matrix (list of lists): Input data, each sublist represents a column.
+            index (list or array): Index used to slice the final output (applies only for pattern mode).
+            pattern (bool, optional): If True, generate repeated/tiled pattern. 
+                                    If False, pad shorter rows with zeros. Default is True.
 
         Returns:
-            _type_: _description_
+            tuple: (Processed matrix, number of rows)
+                - Processed matrix: Either padded/transposed matrix or pattern-expanded matrix.
+                - Number of rows: Number of rows in the returned matrix.
         """
-
         if not pattern:
             # If pattern mode is disabled, standardize row lengths by padding shorter rows with zeros.  
             max_len = max(len(row) for row in matrix)
@@ -316,17 +323,24 @@ class Processing:
         # Return the sliced ParametersMap starting from the provided index and its number of rows.  
         return ParametersMap[index[-1]:], len(ParametersMap[index[-1]:])
 
-    def findStart(self,matrix,index,pattern=True):
-        """_summary_
+    def findStart(self, matrix, index, pattern=True):
+        """
+        Generate a starting matrix for parameter processing.
+
+        Depending on the pattern flag, this function either returns a shallow copy
+        of the original matrix (pattern=True) or slices and transposes the matrix
+        to convert columns into rows (pattern=False).
 
         Args:
-            matrix (_type_): _description_
-            index (_type_): _description_
-            pattern (bool, optional): _description_. Defaults to True.
+            matrix (list of lists): Input data matrix.
+            index (list or array): Index used to slice the matrix when pattern=False.
+            pattern (bool, optional): If True, return a copy of the original matrix.
+                                    If False, return sliced/transposed matrix. Default is True.
 
         Returns:
-            _type_: _description_
+            list: Processed matrix ready for further computations.
         """
+
         if pattern:
             # If pattern mode is enabled, return a shallow copy of each row to avoid modifying the original matrix.  
             return [row[:] for row in matrix]
@@ -337,13 +351,17 @@ class Processing:
         return ParametersMap
 
     def dump_json_data(self,json_file):
-        """_summary_
+        """
+        Load JSON data from a file in the assets folder.
+
+        This function constructs the full path to the JSON file within the
+        'Script/assets' folder, reads its content, and returns it as a Python dictionary.
 
         Args:
-            json_file (_type_): _description_
+            json_file (str): Name of the JSON file to load (e.g., 'data.json').
 
         Returns:
-            _type_: _description_
+            dict: Dictionary containing the contents of the JSON file.
         """
         # Construct the full path to the JSON file in the assets folder.  
         path = dp.os.getcwd().replace("\\","/")+"/Script/assets/"+json_file
@@ -655,13 +673,16 @@ class Processing:
             numpy.ndarray: Dissipation matrix including magnetic losses and resistive losses.
 
         """
-        dissip                                                       = self.rms_avg('AVG',nestedresults_l[sum(dp.Y_list[0:3]):sum(dp.Y_list[0:4]),:],nestedresults_l[0])
-        res_dissip                                                   = (dp.np.square(RMS_currents[thread,0:dp.current_idx]))*res_list
-        # core_loss, pri_copper_loss, sec_copper_loss,\
-        # choke_core_loss, choke_copper_loss                           = self.analytical_magnetic_loss(nestedresults_l, FFT_current, thread)
+        #* Compute total power dissipation:
+            # 1. Calculate average RMS-related dissipation from simulation results (dissip).
+            # 2. Compute resistive dissipation as squared RMS currents multiplied by resistance values (res_dissip).
+            # 3. Concatenate both into Dissipation_matrix, representing the overall power losses.
 
-        # Dissipation_matrix                                           = dp.np.concatenate((dissip, core_loss, pri_copper_loss, sec_copper_loss, choke_core_loss, choke_copper_loss, res_dissip))
-        Dissipation_matrix                                           = dp.np.concatenate((dissip, res_dissip))
+        dissip                    = self.rms_avg('AVG',nestedresults_l[sum(dp.Y_list[0:3]):sum(dp.Y_list[0:4]),:],nestedresults_l[0])
+        res_dissip                = (dp.np.square(RMS_currents[thread,0:dp.current_idx]))*res_list
+        # Dissipation_matrix        = dp.np.concatenate((dissip, *self.analytical_magnetic_loss(nestedresults_l, FFT_current, thread), res_dissip))
+        Dissipation_matrix        = dp.np.concatenate((dissip, res_dissip))
+
         return Dissipation_matrix
 
     def therm_stats(self,MAT_list,thread,P_aux):
@@ -676,39 +697,35 @@ class Processing:
             numpy.ndarray: Thermal matrix including total dissipation, efficiency, and input power.
 
         """
-        P_rail      =   dp.np.sum(MAT_list[8][thread , dp.Rail_idx:dp.Common_idx+1])                            # get total loss of each rail
-        P_common    =   dp.np.sum(MAT_list[8][thread , dp.Common_idx+1:])                                       # get total losses of common parts
-        Pout        =   dp.np.mean(MAT_list[9][thread, dp.Pout_idx])                                            # get output power
-        # Calculate eff for each factorial value in the list using list comprehension
+        # Get total loss of each rail
+        P_rail      =   dp.np.sum(MAT_list[8][thread , dp.Rail_idx:dp.Common_idx+1])
+
+        # Get total losses of common/shared parts
+        P_common    =   dp.np.sum(MAT_list[8][thread , dp.Common_idx+1:])
+
+        # Get average output power
+        Pout        =   dp.np.mean(MAT_list[9][thread, dp.Pout_idx])
+
+        # Calculate efficiency for each factorial value (phase scaling)
         Eff         =   dp.np.array([(((Pout / ( Pout + P_rail + (factorial * P_common))*100.0) if ( Pout + P_rail + (factorial * P_common)) != 0 else 0.0)) for factorial in list(range(1, dp.phase + 1))])
+
+        # Calculate efficiency including auxiliary power losses
         Eff_Aux     =   dp.np.array([(((Pout / ( Pout + (P_rail + (factorial * P_common))+P_aux)*100.0) if ( Pout + P_rail + (factorial * P_common)) != 0 else 0.0)) for factorial in list(range(1, dp.phase + 1))])
-        # Calc Total dissipation
+
+        # Calculate total dissipation as function of rail and common losses
         Ptot        =   dp.np.array([(P_rail*factorial + P_common*factorial**2) for factorial in list(range(1, dp.phase + 1))])
-        # Input Power
+
+        # Calculate input power as sum of Pout and losses
         Pin         =   dp.np.array([((P_rail + Pout)*factorial + P_common*factorial**2) for factorial in list(range(1, dp.phase + 1))])
+       
+        # Concatenate all results into final thermal matrix
         Th_mat      =   dp.np.concatenate((Ptot , Eff , Eff_Aux , Pin))
+      
+        # Return empty array if results invalid, else return matrix
         if MAT_list[11].shape == (1, 1):
             return dp.np.empty((1,))
         else:
             return Th_mat
-
-    def insert_array(self, file_path, index, data_to_insert):
-        """
-        Insert a list of lists into a specific index of a CSV file.
-
-        Parameters:
-            file_path (str)         : Path to the CSV file.
-            index (int)             : Index at which the data should be inserted.
-            data_to_insert (list)   : List of lists to be inserted.
-
-        Returns:
-            None
-
-        """
-        df = dp.pd.read_csv(file_path, header=None)                                                     # Read the CSV file into a Pandas DataFrame
-        data_to_insert_df = dp.pd.DataFrame(data_to_insert)                                             # Create a DataFrame from the list of lists
-        df = dp.pd.concat([df.iloc[:index], data_to_insert_df, df.iloc[index:]], ignore_index=True)     # Insert into the main DataFrame at the specified index
-        df.to_csv(file_path, header=False, index=False)                                                 # Write the updated DataFrame back to the CSV file
 
     def drop_Extra_Cols(self, filename, idx_start, idx_end):
         """
@@ -723,8 +740,12 @@ class Processing:
             None
 
         """
-        df                  = dp.pd.read_csv(filename, header=None)                                    # Read the CSV file into a DataFrame.
-        df.drop(df.columns[idx_start:idx_end], axis=1, inplace=True)                              # Drop the columns specified by dissip_start and dissip_end from the DataFrame
+        # Read the CSV file into a DataFrame
+        # Drop the columns between idx_start and idx_end
+        # Overwrite the original CSV with the updated DataFrame
+
+        df                  = dp.pd.read_csv(filename, header=None)
+        df.drop(df.columns[idx_start:idx_end], axis=1, inplace=True)
         df.to_csv(filename, index=False, header=None)
 
     def LuT_2D(self, x, y, z):
@@ -740,6 +761,10 @@ class Processing:
             RegularGridInterpolator: Interpolation function for the LuT.
 
         """
+
+        # Create a 2D linear interpolator over the grid defined by (x, y) with values z
+        # Return the interpolation function for later evaluation
+
         interp_func     = dp.RegularGridInterpolator((x, y), z, method='linear', bounds_error=False, fill_value=None)
         return interp_func
 
@@ -757,6 +782,10 @@ class Processing:
             RegularGridInterpolator: Interpolation function for the LuT.
 
         """
+
+        # Create a 3D linear interpolator over the grid defined by (x, y, z) with values in 'data'
+        # Return the interpolation function for later evaluation
+
         interp_func     = dp.RegularGridInterpolator((x,y,z), data, method='linear', bounds_error=False, fill_value=None)
         return interp_func
 
@@ -772,6 +801,11 @@ class Processing:
             tuple: Tuple containing the resampled time values and the corresponding resampled signal values.
 
         """
+
+        # Resample the signal onto a uniformly spaced time grid
+        # Interpolate the original signal values onto the new time grid
+        # Return the resampled time and signal
+
         new_t       = dp.np.linspace(time.min(), time.max(), len(signal))
         new_signal  = dp.np.interp(new_t,time,signal)
         return new_t,new_signal
@@ -801,14 +835,22 @@ class Processing:
 
         """
 
-        dt                  =   Time[1] - Time[0]                                                                                   # Calculate time step
-        Fs                  =   1.0/dt                                                                                             # Calculate sampling frequency
-        Fn                  =   min(Fs/2-1, Cutoff)                                                                                # Calculate Nyquist frequency
+        # Calculate the time step and sampling frequency for signal processing. The sampling frequency is determined 
+        # as the inverse of the time step, which establishes the Nyquist frequency (half the sampling rate) as the 
+        # maximum frequency that can be accurately represented. To prevent aliasing and ensure filter stability, 
+        # the cutoff frequency must not exceed this Nyquist limit. 
 
-        b,a                 =   dp.scipy.signal.iirfilter(Order, Wn=Fn, fs=Fs, btype=BType, ftype=FType)                           # Design IIR filter
-        Signal_Filtered     =   dp.scipy.signal.filtfilt(b, a, Signal)                                                             # Apply zero-phase filtering
+        dt                  =   Time[1] - Time[0]                                                      
+        Fs                  =   1.0/dt                                            
+        Fn                  =   min(Fs/2-1, Cutoff) 
 
-        return Signal_Filtered                                                                                                     # Return filtered signal
+        # An IIR filter is then designed with the specified cutoff frequency, and finally, zero-phase filtering 
+        # is applied to eliminate phase distortion in the filtered signal.
+
+        b,a                 =   dp.scipy.signal.iirfilter(Order, Wn=Fn, fs=Fs, btype=BType, ftype=FType)                
+        Signal_Filtered     =   dp.scipy.signal.filtfilt(b, a, Signal)                                                     
+
+        return Signal_Filtered                                                                                           
 
     def pyFFT(self, signal, fs):
         """
@@ -838,20 +880,58 @@ class Processing:
             3. Only positive frequencies are returned
             4. Phase values are wrapped in the range [-180, 180] degrees
         """
-        N               = len(signal)                                                   # Get length of signal
-        f               = dp.fftfreq(N,1/fs)                                            # Calculate frequency bins
-        f               = f[f >= 0]                                                     # Keep only positive frequencies
-        useful          = dp.np.arange(0, len(f)/2, dtype=int)                          # Select useful indices and corresponding frequency values
-        fft             = dp.fft(x=signal,workers=dp.multiprocessing.cpu_count())       # Compute FFT using all available CPUs
-        amplitude       = dp.np.abs(fft)                                                # Calculate magnitude of FFT result
-        amplitude[0]    = (1/N) * amplitude[0]                                          # Scale DC component
-        amplitude[1:N]  = (2/N) * amplitude[1:N]                                        # Scale other components
-        amplitude       = amplitude[useful]                                             # Select useful frequency components
-        pahse           = dp.np.angle(fft[useful],deg=True)                             # Calculate phase angles in degrees
-        frequency       = f[useful]                                                     # Select useful frequencies
-        return amplitude, pahse, frequency                                              # Return amplitude, phase and frequency
+        
+        # Get the length of the signal
+        N               = len(signal)
+
+        # Calculate frequency bins for the FFT and keep only positive frequencies
+        f               = dp.fftfreq(N, 1/fs)
+        f               = f[f >= 0]
+
+        # Select useful indices corresponding to positive frequencies
+        useful          = dp.np.arange(0, len(f)/2, dtype=int)
+
+        # Compute FFT using all available CPU cores
+        fft             = dp.fft(x=signal, workers=dp.multiprocessing.cpu_count())
+
+        # Calculate magnitude of FFT
+        amplitude       = dp.np.abs(fft)
+
+        # Scale DC component and other components
+        amplitude[0]    = (1/N) * amplitude[0]
+        amplitude[1:N]  = (2/N) * amplitude[1:N]
+
+        # Keep only useful frequency components
+        amplitude       = amplitude[useful]
+
+        # Calculate phase angles in degrees for the useful components
+        pahse           = dp.np.angle(fft[useful], deg=True)
+
+        # Select corresponding frequencies
+        frequency       = f[useful]
+
+        # Return amplitude, phase, and frequency arrays
+        return amplitude, pahse, frequency
+
 
     def safe_get(self,my_list, index):
+
+        """
+
+        Safely retrieve an element from a list by index.
+
+        Parameters:
+
+            my_list (list): The list from which to retrieve the element.
+            index (int)   : The index of the element to retrieve.
+
+        Returns:            The element at the specified index, or None if the index is out of range.
+
+        """
+
+        # Safely retrieve an element from a list by index
+        # Returns None if the index is out of range instead of raising an error
+
         try:
             return my_list[index]
         except IndexError:
@@ -866,41 +946,35 @@ class Processing:
             nestedresults (numpy.ndarray)   : Nested results array.
 
         Returns:
-            numpy.ndarray: Transposed FFT matrix.
-
+            numpy.ndarray: Transposed FFT matrix (harmonics x signals).
         """
-        fft_mat     =   dp.np.zeros((len(nestedresults),len(dp.harmonics)))
+        fft_mat = dp.np.zeros((len(nestedresults), len(dp.harmonics)))
 
         for x in range(len(nestedresults)):
-            if dp.mdlVars['Common']['ToFile']['Ts'] == 0:                               # var sampling
-                time_vec,signal_vec  = self.resample(T_vec, nestedresults[x])
-            else :                                                                      # fixed sampling
-                time_vec,signal_vec  = T_vec, nestedresults[x]
+            # Resample signal if variable sampling is used
+            if dp.mdlVars['Common']['ToFile']['Ts'] == 0:
+                time_vec, signal_vec = self.resample(T_vec, nestedresults[x])
+            else:  # Use fixed sampling
+                time_vec, signal_vec = T_vec, nestedresults[x]
 
-            dt                   = time_vec[-1]-time_vec[0]
-            fs                   = 1/((dp.np.round(dt,decimals=6)))
-            Magnitude , _ ,_     = self.pyFFT(signal_vec , dp.F_Fund)
-            idx                  = [int(c) for c in (((dp.np.array(dp.harmonics,dtype=int)*dp.F_Fund).tolist())/fs).tolist()]
-            Mag_array            = [self.safe_get(Magnitude, index) for index in idx if self.safe_get(Magnitude, index) is not None]
-            fft_mat[x, :]        = dp.np.pad(Mag_array, (0, len(dp.harmonics) - len(Mag_array)), 'constant')
+            # Calculate sampling frequency
+            dt = time_vec[-1] - time_vec[0]
+            fs = 1 / dp.np.round(dt, decimals=6)
 
+            # Compute FFT magnitude
+            Magnitude, _, _ = self.pyFFT(signal_vec, dp.F_Fund)
+
+            # Determine indices of harmonics in FFT array
+            idx = [int(c) for c in ((dp.np.array(dp.harmonics, dtype=int) * dp.F_Fund).tolist() / fs).tolist()]
+
+            # Safely extract magnitudes at harmonic indices
+            Mag_array = [self.safe_get(Magnitude, index) for index in idx if self.safe_get(Magnitude, index) is not None]
+
+            # Pad with zeros if some harmonics are missing
+            fft_mat[x, :] = dp.np.pad(Mag_array, (0, len(dp.harmonics) - len(Mag_array)), 'constant')
+
+        # Return harmonics x signals matrix
         return dp.np.transpose(fft_mat)
-
-    def remove_duplicates(self, nested_array):
-        """
-        Remove duplicates from a nested array.
-
-        Parameters:
-            nested_array (list): Nested array containing subarrays.
-
-        Returns:
-            list: Modified nested array without duplicate values.
-
-        """
-        seen_values         = set()                                                                                             # Define set for duplicates.
-        indexes_to_remove   = {i for i, value in enumerate(nested_array[0]) if value in seen_values or seen_values.add(value)}  # Find duplicate values at index 0.
-        nested_array[:]     = [[value for j, value in enumerate(row) if j not in indexes_to_remove] for row in nested_array[:]] # Remove corresponding elements from the arrays.
-        return nested_array
 
     def findMissingResults(self,path,itr,threads_vector,Threads):
         """
@@ -916,127 +990,152 @@ class Processing:
         Returns        :        Missing  :               List
                                                          List of missing data.
         """
-        file_list           =   []
-        Iters               =   []
-        if dp.JSON['hierarchical']:
-            iteration_range     =   list(range(1,sum(threads_vector[0:itr+1])+1))
-        else:
-            iteration_range     =   list(range(1,Threads*(itr+1)+1))
-        for filename in dp.os.scandir(path):
-            file_list.append(str(filename.path.replace("\\","/")))
+        # Initialize lists to store filenames and extracted iteration numbers
+        file_list   = []
+        Iters       = []
 
+        # Determine expected iteration range based on hierarchical setting
+        if dp.JSON['hierarchical']:
+            iteration_range = list(range(1, sum(threads_vector[0:itr+1]) + 1))
+        else:
+            iteration_range = list(range(1, Threads * (itr + 1) + 1))
+
+        # Gather all result filenames in the path
+        for filename in dp.os.scandir(path):
+            file_list.append(str(filename.path.replace("\\", "/")))
+
+        # Extract iteration numbers from filenames
         for i in range(len(file_list)):
-            x               =   file_list[i].split("s_")[-1]
-            x               =   x.split(".")[0]
-            x               =   x.split("_")[-1]
+            x = file_list[i].split("s_")[-1]
+            x = x.split(".")[0]
+            x = x.split("_")[-1]
             Iters.append(int(x))
             Iters.sort()
 
-        Set                 =   set(Iters)
-        Missing             =   [x for x in iteration_range if x not in Set]
+        # Identify missing iterations by comparing with expected range
+        Set = set(Iters)
+        Missing = [x for x in iteration_range if x not in Set]
 
         return Missing
 
     def last_filled_X(self):
+        
+        """
+        Determine the length of the last non-zero input list from JSON data.
+        
+        Returns:    int: Length of the last non-zero input list, or 0 if all are [0].
+        
+        """
 
-        lists = [dp.JSON[f'X{i}']for i in range(1,11)]  # Construct the list of X input lists from the json file.
-        for lst in reversed(lists):                     # Iterate through the list of lists from last to first
-            lst     = dp.ast.literal_eval(lst)          # Evaluate expression of the list coming from json.
-            if lst != [0]:                              # Check if the list is not [0]
-                return len(lst)                         # Return the length of the first non-zero list
-        return 0                                        # Return 0 if all lists are [0]
+        # Construct a list of X input lists from the JSON file
+        lists = [dp.JSON[f'X{i}'] for i in range(1, 11)]
 
-    def hierarchicalSims(self,Map):
-            thread_vector                                       =   []
-            iter_continous ,    iter_10s        , iter_2s       =   []               , []    , []
-            Vmin           ,    Vnom            , Vmax          =   6                , 13.5  , 15.5
-            Twater_nom     ,    Twater_max                      =   35               , 75
-            Pmax_2s_35     ,    Pmax_2s_75                      =   2600             , 1950
-            Pmax_10s_35    ,    Pmax_10s_75                     =   2160             , 1822
-            Pcont_35       ,    Pcont_75                        =   1800             , 1505
-            Imax_2s_35     ,    Imax_2s_75                      =   Pmax_2s_35/Vnom  , Pmax_2s_75/Vnom
-            Imax_10s_35    ,    Imax_10s_75                     =   Pmax_10s_35/Vnom , Pmax_10s_75/Vnom
-            Icont_35       ,    Icont_75                        =   Pcont_35/Vnom    , Pcont_75/Vnom
+        # Iterate from the last list to the first
+        # Convert string representation to actual list
+        # and return the length of the first non-zero list encountered
 
-            for i in range(len(Map)):
+        for lst in reversed(lists):
+            lst = dp.ast.literal_eval(lst)
+            if lst != [0]:
+                return len(lst)
 
-                Pcont_Tw                                        =   self.linearDerating(Twater_nom,Twater_max,
-                                                                                        Pcont_35,Pcont_75,
-                                                                                        Pcont_75,Pcont_35,
-                                                                                        Map[i][1])
-                P10s_Tw                                         =   self.linearDerating(Twater_nom,Twater_max,
-                                                                                        Pmax_10s_35,Pmax_10s_75,
-                                                                                        Pmax_10s_75,Pmax_10s_35,
-                                                                                        Map[i][1])
-                P2s_Tw                                          =   self.linearDerating(Twater_nom,Twater_max,
-                                                                                        Pmax_2s_35,Pmax_2s_75,
-                                                                                        Pmax_2s_75,Pmax_2s_35,
-                                                                                        Map[i][1])
-                Icont_Tw                                        =   self.linearDerating(Twater_nom,Twater_max,
-                                                                                        Icont_35,Icont_75,
-                                                                                        Icont_75,Icont_35,
-                                                                                        Map[i][1])
-                I10s_Tw                                         =   self.linearDerating(Twater_nom,Twater_max,
-                                                                                        Imax_10s_35,Imax_10s_75,
-                                                                                        Imax_10s_75,Imax_10s_35,
-                                                                                        Map[i][1])
-                I2s_Tw                                          =   self.linearDerating(Twater_nom,Twater_max,
-                                                                                        Imax_2s_35,Imax_2s_75,
-                                                                                        Imax_2s_75,Imax_2s_35,
-                                                                                        Map[i][1])
-                I2s_Vo                                          =   self.linearDerating(Vnom,Vmax,
-                                                                                        P2s_Tw/Vnom,P2s_Tw/Vmax,
-                                                                                        P2s_Tw/Vmax,P2s_Tw/Vnom,
-                                                                                        Map[i][3])
-                I10s_Vo                                         =   self.linearDerating(Vnom,Vmax,
-                                                                                        P10s_Tw/Vnom,P10s_Tw/Vmax,
-                                                                                        P10s_Tw/Vmax,P10s_Tw/Vnom,
-                                                                                        Map[i][3])
-                Icont_Vo                                        =   self.linearDerating(Vnom,Vmax,
-                                                                                        Pcont_Tw/Vnom,Pcont_Tw/Vmax,
-                                                                                        Pcont_Tw/Vmax,Pcont_Tw/Vnom,
-                                                                                        Map[i][3])
-                Pmax_Vo                                         =   self.linearDerating(Vmin,Vnom,
-                                                                                        Vmin*P2s_Tw/Vnom,Vnom*P2s_Tw/Vnom,
-                                                                                        Vmin*P2s_Tw/Vnom,Vnom*P2s_Tw/Vnom,
-                                                                                        Map[i][3])
-                Pmax                                            =   min(P2s_Tw,Pmax_Vo)
-                Pmax                                            =   min(Map[i][4],Pmax)
-                I2s                                             =   round(min(I2s_Tw,I2s_Vo),4)
-                I10s                                            =   round(min(I10s_Tw,I10s_Vo),4)
-                Icont                                           =   round(min(Icont_Tw,Icont_Vo),4)
-                I_L                                             =   round(Pmax/Map[i][3],4)
+        # Return 0 if all lists are [0]
+        return 0
 
-                if (I_L <= I2s and I_L > I10s):
-                    iter_2s.append(iter_10s_1)
+    def hierarchicalSims(self, Map):
+        
+        """
+        Determine the hierarchical simulation indices based on the provided map.
 
-                elif (I_L <= I10s and I_L > Icont):
-                    iter_10s.append(iter_continous)
-                    iter_10s_1 = i
+        Parameters:
+            Map (list): List of parameter sets for simulations.
 
-                else:
-                    iter_continous = i
+        Returns:
+            list: Flattened list of thread counts for continuous, 10s, and 2s simulations.
+        
+        """
 
-            iter_10s = dp.np.array(iter_10s)
-            iter_10s = list(dp.np.unique(iter_10s))
+        # Initialize lists to store thread counts and iteration indices
+        thread_vector                       = []
+        iter_continous, iter_10s, iter_2s   = [], [], []
 
-            iter_2s = dp.np.array(iter_2s)
-            iter_2s = list(dp.np.unique(iter_2s))
+        # Nominal and max/min values for voltage, water temperature, and power/current ratings
+        Vmin, Vnom, Vmax                    = 6, 13.5, 15.5
+        Twater_nom, Twater_max              = 35, 75
+        Pmax_2s_35, Pmax_2s_75              = 2600, 1950
+        Pmax_10s_35, Pmax_10s_75            = 2160, 1822
+        Pcont_35, Pcont_75                  = 1800, 1505
+        Imax_2s_35, Imax_2s_75              = Pmax_2s_35 / Vnom, Pmax_2s_75 / Vnom
+        Imax_10s_35, Imax_10s_75            = Pmax_10s_35 / Vnom, Pmax_10s_75 / Vnom
+        Icont_35, Icont_75                  = Pcont_35 / Vnom, Pcont_75 / Vnom
 
-            for i in range(len(iter_10s)):
-                thread_1 = iter_10s[i]+1-self.last_filled_X()*i
-                thread_2 = iter_2s[i]-iter_10s[i]
-                thread_3 = self.last_filled_X()-(thread_1+thread_2)
+        # Loop through each simulation parameter set
+        for i in range(len(Map)):
 
-                thread_vector.append(thread_1)
-                thread_vector.append(thread_2)
-                thread_vector.append(thread_3)
+            # Linear derating based on water temperature for powers
+            Pcont_Tw    = self.linearDerating(Twater_nom, Twater_max, Pcont_35, Pcont_75, Pcont_75, Pcont_35, Map[i][1])
+            P10s_Tw     = self.linearDerating(Twater_nom, Twater_max, Pmax_10s_35, Pmax_10s_75, Pmax_10s_75, Pmax_10s_35, Map[i][1])
+            P2s_Tw      = self.linearDerating(Twater_nom, Twater_max, Pmax_2s_35, Pmax_2s_75, Pmax_2s_75, Pmax_2s_35, Map[i][1])
 
-            return thread_vector
+            # Linear derating based on water temperature for currents
+            Icont_Tw    = self.linearDerating(Twater_nom, Twater_max, Icont_35, Icont_75, Icont_75, Icont_35, Map[i][1])
+            I10s_Tw     = self.linearDerating(Twater_nom, Twater_max, Imax_10s_35, Imax_10s_75, Imax_10s_75, Imax_10s_35, Map[i][1])
+            I2s_Tw      = self.linearDerating(Twater_nom, Twater_max, Imax_2s_35, Imax_2s_75, Imax_2s_75, Imax_2s_35, Map[i][1])
+
+            # Linear derating based on output voltage for currents
+            I2s_Vo      = self.linearDerating(Vnom, Vmax, P2s_Tw / Vnom, P2s_Tw / Vmax, P2s_Tw / Vmax, P2s_Tw / Vnom, Map[i][3])
+            I10s_Vo     = self.linearDerating(Vnom, Vmax, P10s_Tw / Vnom, P10s_Tw / Vmax, P10s_Tw / Vmax, P10s_Tw / Vnom, Map[i][3])
+            Icont_Vo    = self.linearDerating(Vnom, Vmax, Pcont_Tw / Vnom, Pcont_Tw / Vmax, Pcont_Tw / Vmax, Pcont_Tw / Vnom, Map[i][3])
+
+            # Max power constrained by voltage and map limits  
+            Pmax_Vo     = self.linearDerating(Vmin, Vnom, Vmin * P2s_Tw / Vnom, Vnom * P2s_Tw / Vnom, Vmin * P2s_Tw / Vnom, Vnom * P2s_Tw / Vnom, Map[i][3])
+            Pmax        = min(P2s_Tw, Pmax_Vo, Map[i][4])
+
+            # Determine current limits  
+            I2s         = round(min(I2s_Tw, I2s_Vo), 4)
+            I10s        = round(min(I10s_Tw, I10s_Vo), 4)
+            Icont       = round(min(Icont_Tw, Icont_Vo), 4)
+            I_L         = round(Pmax / Map[i][3], 4)
+
+            # Assign iteration to appropriate category
+            if I_L <= I2s and I_L > I10s:
+                iter_2s.append(iter_10s_1)
+            elif I_L <= I10s and I_L > Icont:
+                iter_10s.append(iter_continous)
+                iter_10s_1 = i
+            else:
+                iter_continous = i
+
+        # Remove duplicates from iteration lists
+        iter_10s        = list(dp.np.unique(dp.np.array(iter_10s)))
+        iter_2s         = list(dp.np.unique(dp.np.array(iter_2s)))
+
+        # Calculate thread counts for continuous, 10s, and 2s simulations
+        # and Append thread counts to the main list
+        for i in range(len(iter_10s)):
+            thread_1    = iter_10s[i] + 1 - self.last_filled_X() * i
+            thread_2    = iter_2s[i] - iter_10s[i]
+            thread_3    = self.last_filled_X() - (thread_1 + thread_2)
+
+            thread_vector.extend([thread_1, thread_2, thread_3])
+
+        # Return the flattened list of thread counts
+        return thread_vector
 
     def hierarchicalSimsEntry(self,Map):
+            
+            """
+            Determine the hierarchical simulation indices based on the provided map.
+            Parameters:
+                Map (list): List of parameter sets for simulations.
+            Returns:
+                list: Flattened list of thread counts for continuous, 10s, and 2s simulations.
+            """
+            # Initialize lists to store thread counts and iteration indices
             thread_vector                                       =   []
             iter_continous ,    iter_10s        , iter_2s       =   []               , []    , []
+
+            # Nominal and max/min values for voltage, water temperature, and power/current ratings
             Vmin           ,    Vnom            , Vmax          =   6                , 13.5  , 15.5
             Twater_nom     ,    Twater_max                      =   35               , 75
             Pmax_2s_35     ,    Pmax_2s_75                      =   2295             , 1500
@@ -1046,48 +1145,29 @@ class Processing:
             Imax_10s_35    ,    Imax_10s_75                     =   Pmax_10s_35/Vnom , Pmax_10s_75/Vnom
             Icont_35       ,    Icont_75                        =   Pcont_35/Vnom    , Pcont_75/Vnom
 
+            # Loop through each simulation parameter set
             for i in range(len(Map)):
+                
+                # Linear derating based on water temperature for powers
+                Pcont_Tw    = self.linearDerating(Twater_nom, Twater_max, Pcont_35, Pcont_75, Pcont_75, Pcont_35, Map[i][1])
+                P10s_Tw     = self.linearDerating(Twater_nom, Twater_max, Pmax_10s_35, Pmax_10s_75, Pmax_10s_75, Pmax_10s_35, Map[i][1])
+                P2s_Tw      = self.linearDerating(Twater_nom, Twater_max, Pmax_2s_35, Pmax_2s_75, Pmax_2s_75, Pmax_2s_35, Map[i][1])
+                
+                # Linear derating based on water temperature for currents
+                Icont_Tw    = self.linearDerating(Twater_nom, Twater_max, Icont_35, Icont_75, Icont_75, Icont_35, Map[i][1])
+                I10s_Tw     = self.linearDerating(Twater_nom, Twater_max, Imax_10s_35, Imax_10s_75, Imax_10s_75, Imax_10s_35, Map[i][1])
+                I2s_Tw      = self.linearDerating(Twater_nom, Twater_max, Imax_2s_35, Imax_2s_75, Imax_2s_75, Imax_2s_35, Map[i][1])
 
-                Pcont_Tw                                        =   self.linearDerating(Twater_nom,Twater_max,
-                                                                                        Pcont_35,Pcont_75,
-                                                                                        Pcont_75,Pcont_35,
-                                                                                        Map[i][1])
-                P10s_Tw                                         =   self.linearDerating(Twater_nom,Twater_max,
-                                                                                        Pmax_10s_35,Pmax_10s_75,
-                                                                                        Pmax_10s_75,Pmax_10s_35,
-                                                                                        Map[i][1])
-                P2s_Tw                                          =   self.linearDerating(Twater_nom,Twater_max,
-                                                                                        Pmax_2s_35,Pmax_2s_75,
-                                                                                        Pmax_2s_75,Pmax_2s_35,
-                                                                                        Map[i][1])
-                Icont_Tw                                        =   self.linearDerating(Twater_nom,Twater_max,
-                                                                                        Icont_35,Icont_75,
-                                                                                        Icont_75,Icont_35,
-                                                                                        Map[i][1])
-                I10s_Tw                                         =   self.linearDerating(Twater_nom,Twater_max,
-                                                                                        Imax_10s_35,Imax_10s_75,
-                                                                                        Imax_10s_75,Imax_10s_35,
-                                                                                        Map[i][1])
-                I2s_Tw                                          =   self.linearDerating(Twater_nom,Twater_max,
-                                                                                        Imax_2s_35,Imax_2s_75,
-                                                                                        Imax_2s_75,Imax_2s_35,
-                                                                                        Map[i][1])
-                I2s_Vo                                          =   self.linearDerating(Vnom,Vmax,
-                                                                                        P2s_Tw/Vnom,P2s_Tw/Vmax,
-                                                                                        P2s_Tw/Vmax,P2s_Tw/Vnom,
-                                                                                        Map[i][3])
-                I10s_Vo                                         =   self.linearDerating(Vnom,Vmax,
-                                                                                        P10s_Tw/Vnom,P10s_Tw/Vmax,
-                                                                                        P10s_Tw/Vmax,P10s_Tw/Vnom,
-                                                                                        Map[i][3])
-                Icont_Vo                                        =   self.linearDerating(Vnom,Vmax,
-                                                                                        Pcont_Tw/Vnom,Pcont_Tw/Vmax,
-                                                                                        Pcont_Tw/Vmax,Pcont_Tw/Vnom,
-                                                                                        Map[i][3])
-                Pmax_Vo                                         =   self.linearDerating(Vmin,Vnom,
-                                                                                        Vmin*P2s_Tw/Vnom,Vnom*P2s_Tw/Vnom,
-                                                                                        Vmin*P2s_Tw/Vnom,Vnom*P2s_Tw/Vnom,
-                                                                                        Map[i][3])
+                # Linear derating based on output voltage for currents
+                I2s_Vo      = self.linearDerating(Vnom, Vmax, P2s_Tw / Vnom, P2s_Tw / Vmax, P2s_Tw / Vmax, P2s_Tw / Vnom, Map[i][3])
+                I10s_Vo     = self.linearDerating(Vnom, Vmax, P10s_Tw / Vnom, P10s_Tw / Vmax, P10s_Tw / Vmax, P10s_Tw / Vnom, Map[i][3])
+                Icont_Vo    = self.linearDerating(Vnom, Vmax, Pcont_Tw / Vnom, Pcont_Tw / Vmax, Pcont_Tw / Vmax, Pcont_Tw / Vnom, Map[i][3])
+
+                # Max power constrained by voltage and map limits 
+                Pmax_Vo     = self.linearDerating(Vmin, Vnom, Vmin * P2s_Tw / Vnom, Vnom * P2s_Tw / Vnom, Vmin * P2s_Tw / Vnom, Vnom * P2s_Tw / Vnom, Map[i][3])
+                Pmax        = min(P2s_Tw, Pmax_Vo, Map[i][4])
+                
+                # Determine current limits 
                 Pmax                                            =   min(P2s_Tw,Pmax_Vo)
                 Pmax                                            =   min(Map[i][4],Pmax)
                 I2s                                             =   round(min(I2s_Tw,I2s_Vo),4)
@@ -1095,9 +1175,11 @@ class Processing:
                 Icont                                           =   round(min(Icont_Tw,Icont_Vo),4)
                 I_L                                             =   round(Pmax/Map[i][3],4)
 
+                # Assign iteration to appropriate category
+                # and append to respective lists
                 if (I_L <= I2s and I_L > I10s):
                     iter_2s.append(iter_10s_1)
-
+                
                 elif (I_L <= I10s and I_L > Icont):
                     iter_10s.append(iter_continous)
                     iter_10s_1 = i
@@ -1105,12 +1187,14 @@ class Processing:
                 else:
                     iter_continous = i
 
+            # Remove duplicates from iteration lists
             iter_10s = dp.np.array(iter_10s)
             iter_10s = list(dp.np.unique(iter_10s))
-
             iter_2s = dp.np.array(iter_2s)
             iter_2s = list(dp.np.unique(iter_2s))
 
+            # Calculate thread counts for continuous, 10s, and 2s simulations
+            # and Append thread counts to the main list
             for i in range(len(iter_10s)):
                 thread_1 = iter_10s[i]+1-self.last_filled_X()*i
                 thread_2 = iter_2s[i]-iter_10s[i]
@@ -1120,6 +1204,7 @@ class Processing:
                 thread_vector.append(thread_2)
                 thread_vector.append(thread_3)
 
+            # Return the flattened list of thread counts
             return thread_vector
 
     def linearDerating(self,X1,X2,Y1,Y2,Ymin,Ymax,X):
@@ -1141,20 +1226,20 @@ class Processing:
         Raises:
             ValueError: If X2 is equal to X1, which would result in a division by zero error.
 
-        Example:
-            # Calculate the derating factor for X=7, given X1=2, X2=10, Y1=0.5, Y2=1.0, Ymin=0.0, Ymax=1.0.
-            derating_factor = linearDerating(2, 10, 0.5, 1.0, 0.0, 1.0, 7)
-            print(derating_factor)
-            # Output: 0.8
         """
-        m   =   (Y2 - Y1)/(X2 - X1)
-        b   =   Y1 - m*X1
+   
+        # Calculate slope and intercept for linear relation
+        m = (Y2 - Y1) / (X2 - X1)
+        b = Y1 - m * X1
 
-        Y   =   m*X + b
+        # Linear interpolation
+        Y = m * X + b
 
-        Y   =   min(Y,Ymax)
-        Y   =   max(Y,Ymin)
-
+        # Clamp to Ymin and Ymax
+        Y = min(Y, Ymax)
+        Y = max(Y, Ymin)
+        
+        # return the derating factor
         return Y
 
     def IGSE(self, Wf, SP, d, f_s, Bp, Vc):
@@ -1171,108 +1256,283 @@ class Processing:
         Returns:
             Pave_core(W) : Average core losses
         """
+        # Helper function to compute ki based on Steinmetz parameters
 
         def ki(k,a,b):
             f = lambda theta, a: (abs(dp.np.cos(theta)))**SP[1]
             integral, error = quad(f, 0, 2* dp.np.pi, args=(SP[1]))
             ki = SP[0]/((2*dp.np.pi)**(SP[1]-1) * 2**(SP[2]-SP[1]) * integral)
             return ki
+        
+        # Compute average core loss density based on waveform type
+        # and Multiply by core volume to get total average core loss
 
         match Wf:
             case 'trap':
-                 Pave_density = ki(SP[0], SP[1], SP[2]) * f_s**SP[1] * Bp**SP[2] * 2**(SP[1]+SP[2]) * d**(1-SP[1])                        # Average core losses density (W/m3)
-                 Pave_core = Pave_density * Vc                                                                                              # Average core losses (W)
+                 Pave_density = ki(SP[0], SP[1], SP[2]) * f_s**SP[1] * Bp**SP[2] * 2**(SP[1]+SP[2]) * d**(1-SP[1])  
+                 Pave_core = Pave_density * Vc                                                                                     
             case 'tri':
-                Pave_density = ki(SP[0], SP[1], SP[2]) * f_s**SP[1] * Bp**SP[2] * 2**SP[2] * (d**(1-SP[1]) + (1-d)**(1-SP[1]))            # Average core losses density (W/m3)
-                Pave_core = Pave_density * Vc                                                                                               # Average core losses (W)
-
+                Pave_density = ki(SP[0], SP[1], SP[2]) * f_s**SP[1] * Bp**SP[2] * 2**SP[2] * (d**(1-SP[1]) + (1-d)**(1-SP[1]))      
+                Pave_core = Pave_density * Vc  
+        
+        # return average core losses
         return Pave_core
 
-    def rac_lac_values(self, method, L_primary,frequencies, Z_real_csv):
+    def rac_lac_values(self, method, L_primary, frequencies, Z_real_csv):
+
         """
-        Calculate Rac and Lac values from the measured real resistance values of the transformer
+        Calculate AC resistance (Rac) and AC inductance (Lac) values from measured 
+        real resistance values of a transformer using either a minimize or least-squares method.
+
         Args:
-            method (str)    : optimization method selection - 'min' for minimize method, 'ls' for least squares method
-            L_primary (H)   : Magnetizing inductance
-            frequencies (Hz): Harmonic frequency spectrum
-            Z_real_csv (Ω)  : Measured real resistance values from csv
+            method (str)    : Optimization method selection
+                                - 'min' for minimize method
+                                - 'ls'  for least squares method
+            L_primary (H)   : Magnetizing inductance of the transformer
+            frequencies (Hz): Array of harmonic frequency spectrum
+            Z_real_csv (Ω)  : Array of measured real resistance values corresponding to frequencies
+
         Returns:
-            res_optimize : Dictionary of calculated Rac, Lac, Rac_calculated, Z_real_residual, Z_real_calculated and percentage_difference
+            dict: Dictionary containing optimized/calculated parameters:
+                - 'Rac'                  : Optimized AC resistance vector
+                - 'Lac'                  : Optimized AC inductance vector
+                - 'Rac_calculated'       : AC resistance including DC component
+                - 'Z_real_residual'      : Residual AC resistance
+                - 'Z_real_calculated'    : Reconstructed real resistance
+                - 'Percentage_difference': Percentage difference between measured and calculated
         """
-        R_dc = Z_real_csv[frequencies == 0][0] #/ 1000                                                                                      # Extract R_dc
-        valid_index = frequencies != 0                                                                                                      # Remove the frequency = 0 row
-        frequencies = dp.np.array(frequencies[valid_index])
-        Z_real_csv = dp.np.array(Z_real_csv[valid_index]) #/1000
-        num_frequency = len(frequencies)
-        #initial guess
-        R_ac = dp.np.ones(len(frequencies))*1e-3                                                                                            # initialize Rac with small positive value (1 mΩ)
-        L_ac = dp.np.full(len(frequencies), L_primary/len(frequencies))                                                                     # initialize Lac value by dividing Lm equally
-        initial = dp.np.concatenate([R_ac,L_ac])
-        omega = 2 * dp.np.pi * frequencies
-        Z_real_residual_csv = Z_real_csv - R_dc                                                                                             # Real residual resistance
+
+        #* -------------------------------
+        #* Step 1: Preprocess input data
+        #* -------------------------------
+
+        # Extract DC resistance (frequency == 0)
+        R_dc                = Z_real_csv[frequencies == 0][0]
+
+        # Remove DC component from frequency and resistance arrays
+        valid_index         = frequencies != 0
+        frequencies         = dp.np.array(frequencies[valid_index])
+        Z_real_csv          = dp.np.array(Z_real_csv[valid_index])
+
+        #* -------------------------------
+        #* Step 2: Initialize parameters
+        #* -------------------------------
+
+        # Initial AC resistance (small positive values) and AC inductance (evenly split)
+        R_ac                = dp.np.ones(len(frequencies)) * 1e-3
+        L_ac                = dp.np.full(len(frequencies), L_primary / len(frequencies))
+
+        # Concatenate into a single initial guess vector for optimization
+        initial             = dp.np.concatenate([R_ac, L_ac])
+
+        # Compute angular frequencies and AC residuals
+        omega               = 2 * dp.np.pi * frequencies
+        Z_real_residual_csv = Z_real_csv - R_dc
+
+        #* -------------------------------
+        #* Step 3: Select optimization method
+        #* -------------------------------
         match method:
-            case 'min':                                                                                                                     # minimize method
-                #cost function
-                def cost_minimize(params, omega, Z_real_residual_csv):                                                                      # cost function of minimize method
-                    R_ac = params[:len(frequencies)]
-                    L_ac = params[len(frequencies):]
-                    X_lac = omega * L_ac
-                    num = R_ac * X_lac**2
-                    den = R_ac**2 + X_lac**2
-                    Z_real_residual = num/den
-                    error = Z_real_residual_csv - Z_real_residual
+
+            case 'min':
+
+                #* -----------------------------------
+                #* Define cost function for minimize
+                #* -----------------------------------
+
+                def cost_minimize(params, omega, Z_real_residual_csv):
+                    """
+                    Cost function for the 'minimize' optimization method.
+
+                    Computes the squared error between measured residual AC resistance
+                    and the modeled AC resistance using the Rac/Lac parameterization.
+
+                    Args:
+                        params (array): Concatenated array of AC resistances (R_ac) and
+                                        AC inductances (L_ac) for each frequency.
+                        omega (array): Angular frequencies (2 * pi * f) of the harmonics.
+                        Z_real_residual_csv (array): Measured AC resistance (real part) with DC removed.
+
+                    Returns:
+                        float: Sum of squared errors between measured and modeled AC resistance.
+                    """
+
+                    # Split parameters
+                    # First half is AC resistance values and Second half is AC inductance values
+                    R_ac            = params[:len(frequencies)]
+                    L_ac            = params[len(frequencies):]
+
+                    # Compute inductive reactance (XL = ω * L)
+                    X_lac           = omega * L_ac
+
+                    # Compute modeled AC resistance (Z_real_residual = R_ac * (X_lac^2) / (R_ac^2 + X_lac^2))
+                    num             = R_ac * X_lac**2
+                    den             = R_ac**2 + X_lac**2
+                    Z_real_residual = num / den
+
+                    # Compute error vector
+                    error           = Z_real_residual_csv - Z_real_residual
+                    
+                    # Return sum of squared errors
                     return sum(error**2)
-                #constarints
-                def R_ac_constraint(params):                                                                                                 # Rac constraint for minimize method
-                    R_ac = params[:len(frequencies)]
-                    return [R_ac[4] - R_ac[3],                                                                                               # R5 > R4
-                            R_ac[3] - R_ac[2],                                                                                               # R4 > R3
-                            R_ac[2] - R_ac[1],                                                                                               # R3 > R2
-                            R_ac[1] - R_ac[0]]                                                                                               # R2 > R1
 
-                def L_ac_constraint(params):                                                                                                 # Lac constraint for minimize method
-                    L_ac = params[len(frequencies):]
-                    return L_primary - sum(L_ac)                                                                                             # sum(Lac) < Lm
+                #* -----------------------------------
+                #* Define inequality constraints
+                #* -----------------------------------
 
-                constraints = [{'type':'ineq', 'fun': R_ac_constraint}, {'type':'ineq', 'fun': L_ac_constraint}]
-                #bounds
-                bounds = [(1e-6, 100e-3)]* len(frequencies) + [((L_primary/len(frequencies)), 1e-3)]* len(frequencies)                       # bounds for minimize method
+                def R_ac_constraint(params):
+                    """
+                    Inequality constraint for AC resistance (Rac) during optimization.
 
-                res = minimize(cost_minimize, initial, args=(omega, Z_real_residual_csv), bounds=bounds, constraints=constraints)
+                    Ensures that Rac is monotonically increasing with frequency,
+                    i.e., each successive Rac value must be greater than the previous one.
 
-            case 'ls':                                                                                                                       # cost function for least_squares method
-                #cost function
+                    Args:
+                        params (array): Concatenated array of AC resistances (R_ac) and
+                                        AC inductances (L_ac) for each frequency.
+
+                    Returns:
+                        list: Differences between consecutive Rac values. All values
+                            must be >= 0 to satisfy the monotonic increase constraint.
+                    """
+
+                    # Extract AC resistance values
+                    R_ac    = params[:len(frequencies)]
+
+                    # Return differences between consecutive Rac values
+                    # Positive values satisfy the monotonic increase constraint
+                    return [
+                                R_ac[4] - R_ac[3],  # R5 > R4
+                                R_ac[3] - R_ac[2],  # R4 > R3
+                                R_ac[2] - R_ac[1],  # R3 > R2
+                                R_ac[1] - R_ac[0]   # R2 > R1
+                            ]
+
+                def L_ac_constraint(params):
+                    """
+                    Inequality constraint for AC inductance (Lac) during optimization.
+
+                    Ensures that the sum of all AC inductances does not exceed
+                    the primary magnetizing inductance of the transformer.
+
+                    Args:
+                        params (array): Concatenated array of AC resistances (R_ac) and
+                                        AC inductances (L_ac) for each frequency.
+
+                    Returns:
+                        float: Difference between total primary inductance and sum of Lac.
+                            Must be >= 0 to satisfy the constraint.
+                    """
+
+                    # Extract AC inductance values
+                    L_ac    = params[len(frequencies):]
+
+                    # Compute constraint Positive value ensures sum(Lac) <= L_primary
+                    return L_primary - sum(L_ac)
+
+                # Constraints for the 'minimize' method:
+                    # - Rac must be monotonically increasing with frequency
+                    # - Sum of Lac values must not exceed the primary inductance
+                constraints = [
+                                {'type': 'ineq', 'fun': R_ac_constraint},  # Rac monotonic increase constraint
+                                {'type': 'ineq', 'fun': L_ac_constraint}   # Total Lac <= L_primary constraint
+                            ]
+
+                #* -----------------------------------
+                #* Define bounds for optimization
+                #* -----------------------------------
+
+                bounds      = (
+
+                                [(1e-6, 100e-3)] * len(frequencies) +                           # Bounds for Rac
+                                [((L_primary / len(frequencies)), 1e-3)] * len(frequencies)     # Bounds for Lac
+                            )
+
+                # Perform constrained minimization
+                res         = minimize(cost_minimize, initial, args=(omega, Z_real_residual_csv), bounds=bounds, constraints=constraints)
+
+            case 'ls':
+
+                #* -----------------------------------
+                #* Define cost function for least squares
+                #* -----------------------------------
+                
                 def cost_leastsquares(params, omega, Z_real_residual_csv):
-                    R_ac = params[:len(frequencies)]
-                    L_ac = params[len(frequencies):]
-                    X_lac = omega * L_ac
-                    num = R_ac * X_lac**2
-                    den = R_ac**2 + X_lac**2
-                    Z_real_residual = num/den
-                    error = Z_real_residual_csv - Z_real_residual
+                    """
+                    Cost function for the 'least_squares' optimization method.
+
+                    Computes the residual error between measured AC resistance and the modeled
+                    AC resistance using the Rac/Lac parameterization. Unlike the 'minimize' method,
+                    it returns the error vector instead of the sum of squared errors.
+
+                    Args:
+                        params (array): Concatenated array of AC resistances (R_ac) and
+                                        AC inductances (L_ac) for each frequency.
+                        omega (array): Angular frequencies (2 * pi * f) of the harmonics.
+                        Z_real_residual_csv (array): Measured AC resistance (real part) with DC removed.
+
+                    Returns:
+                        array: Residual error vector (Z_real_residual_csv - Z_real_residual)
+                            for use in least squares fitting.
+                    """
+
+                    # Split parameters
+                    R_ac            = params[:len(frequencies)]      # AC resistance vector
+                    L_ac            = params[len(frequencies):]      # AC inductance vector
+
+                    # Compute inductive reactance
+                    X_lac           = omega * L_ac                   # XL = ω * L
+
+                    # Compute modeled AC resistance
+                    num             = R_ac * X_lac**2
+                    den             = R_ac**2 + X_lac**2
+                    Z_real_residual = num / den
+
+                    # Compute residual error vector
+                    error           = Z_real_residual_csv - Z_real_residual
+
                     return error
-                #bounds
-                lb = [1e-6]* len(frequencies) + [L_primary/len(frequencies)]* len(frequencies)                                               # lower bound for least_squares
-                ub = [100e-3]* len(frequencies) + [1e-3]* len(frequencies)                                                                   # upper bound for least_squares
 
-                res = least_squares(cost_leastsquares, initial, args= (omega, Z_real_residual_csv), bounds=(lb,ub))
+                #* -----------------------------------
+                #* Define bounds for least squares
+                #* -----------------------------------
 
-        fitted_param            = res.x
-        R_fit                   = fitted_param[:len(frequencies)]
-        L_fit                   = fitted_param[len(frequencies):]
-        Xl_fit                  = omega * L_fit
-        Z_real_residual         = ((R_fit * Xl_fit**2)/(R_fit**2 + Xl_fit**2))
-        Z_real_calculated       = Z_real_residual + R_dc
-        percentage_difference   = ((Z_real_calculated - Z_real_csv)/Z_real_csv) * 100
-        res_optimize = {
-        'Rac'                   : R_fit,
-        'Lac'                   : L_fit,
-        'Rac_calculated'        : R_fit + R_dc,
-        'Z_real_residual'       : Z_real_residual,
-        'Z_real_calculated'     : Z_real_calculated,
-        'Percentage_difference' : percentage_difference
-        }
+                lb      = [1e-6] * len(frequencies) + [L_primary / len(frequencies)] * len(frequencies)
+                ub      = [100e-3] * len(frequencies) + [1e-3] * len(frequencies)
 
+                # Perform least squares fitting
+                res     = least_squares(cost_leastsquares, initial, args=(omega, Z_real_residual_csv), bounds=(lb, ub))
+
+        #* -------------------------------
+        #* Step 4: Extract fitted parameters
+        #* -------------------------------
+
+        fitted_param        = res.x
+        R_fit               = fitted_param[:len(frequencies)]
+        L_fit               = fitted_param[len(frequencies):]
+
+        # Compute residual AC resistance
+        Xl_fit              = omega * L_fit
+        Z_real_residual     = (R_fit * Xl_fit**2) / (R_fit**2 + Xl_fit**2)
+
+        # Reconstruct total real resistance
+        Z_real_calculated   = Z_real_residual + R_dc
+
+        # Compute percentage difference between measured and calculated values
+        percentage_difference = ((Z_real_calculated - Z_real_csv) / Z_real_csv) * 100
+
+        #* -------------------------------
+        #* Step 5: Prepare output dictionary
+        #* -------------------------------
+        
+        res_optimize        = {
+                                'Rac': R_fit,
+                                'Lac': L_fit,
+                                'Rac_calculated': R_fit + R_dc,
+                                'Z_real_residual': Z_real_residual,
+                                'Z_real_calculated': Z_real_calculated,
+                                'Percentage_difference': percentage_difference
+                            }
+        
         return res_optimize
-
-#--------------------------------------------------------------------------------------------------------------------------------------------------------------
+#?-------------------------------------------------------------------------------------------------------------------------------------------------------------
