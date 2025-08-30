@@ -15,7 +15,7 @@ import Dependencies as dp
 
 class Misc :
     def __init__(self):
-
+        
         self.TicToc                 =   self.TicTocGenerator()          # create an instance of the TicToc generator
         self.mode                   =   ''                              # mode of operation
         self.map_index              =   ''                              # map index
