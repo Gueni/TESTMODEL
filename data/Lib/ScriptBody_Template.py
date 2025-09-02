@@ -2,59 +2,48 @@ from collections import OrderedDict, abc
 from contextlib import contextmanager
 
 class TrackableDict(OrderedDict):
-    def __init__(self, *args, _parent=None, _parent_path=None, **kwargs):
+    def __init__(self, *args, _parent=None, _parent_path=None, _init_mode=True, **kwargs):
         super().__init__()
         self._assignments = OrderedDict()
-        self._tracking_enabled = True
+        self._tracking_enabled = False  # always disable tracking during init
         self._parent = _parent
         self._parent_path = _parent_path or []
 
-        # Convert all nested mappings recursively
+        # recursively convert all nested mappings without tracking
         data = dict(*args, **kwargs)
         for key, value in data.items():
-            super().__setitem__(key, self._deep_convert(value, path=self._parent_path + [key]))
+            super().__setitem__(key, self._deep_convert(value, path=self._parent_path + [key], _init_mode=True))
 
-    def _deep_convert(self, obj, path):
-        """Recursively convert any mapping into TrackableDict"""
+        # initialization done, enable tracking
+        self._tracking_enabled = True
+
+    def _deep_convert(self, obj, path, _init_mode=False):
         if isinstance(obj, abc.Mapping) and not isinstance(obj, TrackableDict):
-            td = TrackableDict(_parent=self, _parent_path=path)
+            td = TrackableDict(_parent=self, _parent_path=path, _init_mode=True)
             for k, v in obj.items():
-                td[k] = self._deep_convert(v, path + [k])
-            td._tracking_enabled = self._tracking_enabled
+                td[k] = self._deep_convert(v, path + [k], _init_mode=True)
+            td._tracking_enabled = False  # disable tracking for children during init
             return td
         return obj
 
     def __setitem__(self, key, value):
         value = self._deep_convert(value, path=self._parent_path + [key])
+        old_value = self.get(key, object())
+        if old_value == value:
+            super().__setitem__(key, value)
+            return
+
         super().__setitem__(key, value)
 
-        if self._tracking_enabled:
-            self._track_assignment(key, value)
-            if self._parent is not None:
-                # Notify parent recursively
-                self._parent._track_assignment(
-                    self._parent_path[-1] if self._parent_path else key,
-                    self
-                )
-
-    def _track_assignment(self, key, value, path=None):
-        if path is None:
-            path = self._parent_path.copy()
-        current_path = path + [key]
-
-        # Only track leaf values (non-TrackableDict)
-        if not isinstance(value, TrackableDict):
-            path_str = ''.join(f"['{p}']" for p in current_path)
+        # record assignment only if tracking enabled
+        if self._tracking_enabled and not isinstance(value, TrackableDict):
+            path_str = ''.join(f"['{p}']" for p in self._parent_path + [key])
             self._assignments[path_str] = value
 
     @property
     def assignments(self):
-        """Return all leaf assignments in ['key']['subkey'] style"""
-        result = OrderedDict(self._assignments)
-        for value in self.values():
-            if isinstance(value, TrackableDict):
-                result.update(value.assignments)
-        return result
+        """Return only the assignments made directly to this dict."""
+        return OrderedDict(self._assignments)
 
     def clear_assignments(self):
         self._assignments.clear()
@@ -76,7 +65,7 @@ class TrackableDict(OrderedDict):
 
     @contextmanager
     def track_scope(self):
-        """Track assignments only within a scoped block"""
+        """Track only assignments made within the context."""
         original = self.assignments.copy()
         self.clear_assignments()
         self.enable_tracking()
@@ -87,6 +76,11 @@ class TrackableDict(OrderedDict):
             self._assignments = OrderedDict(original)
             self._assignments.update(scope_assignments)
 
+
+
+
+
+from collections import OrderedDict
 
 nested_od = OrderedDict({
     'Common': OrderedDict({
@@ -100,8 +94,6 @@ nested_od = OrderedDict({
 t2 = TrackableDict(nested_od)
 
 with t2.track_scope():
-    t2['Common']['ToFile']['VoltageExport'] = 5
-    t2['Common']['Settings']['Timeout'] = 60
     t2['name'] = 'Alice'
     t2['new_field'] = 'added0'
 
