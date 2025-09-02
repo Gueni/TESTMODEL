@@ -56,11 +56,13 @@ class TrackableDict(OrderedDict):
         # Convert the value if needed
         value = self._convert_value(value, self._parent_path + [key])
         
-        if old_value == value:
-            super().__setitem__(key, value)
-            return
-        
+        # Always set the item, even if values are equal
         super().__setitem__(key, value)
+        
+        # Record assignment if tracking is enabled and it's not a TrackableDict
+        if self._tracking_enabled and not isinstance(value, TrackableDict):
+            path_str = self._get_path_string(self._parent_path + [key])
+            self._assignments[path_str] = value
         
         # Record assignment if tracking is enabled
         if self._tracking_enabled and not isinstance(value, TrackableDict):
@@ -183,6 +185,6 @@ trackable_model = create_trackable_model_vars(nested_od)
 
 for i in range(4):
     with trackable_model.track_scope():
-        trackable_model['Common']['Settings']['Mode']['CurrentExport'] = 0+i
+        trackable_model['Common']['Settings']['Mode']['CurrentExport'] = 1+i
 
     print("Assignments:", trackable_model.assignments)
