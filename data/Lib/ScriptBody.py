@@ -42,5 +42,3 @@ def simScript(RunScript,OptStruct,Thread,Map,iterNumber,ResultsPath,misc,crash=F
     # Add the changed parameters for the current iteration to a dictionary for logging
     dp.updated_params_dict = dp.DeepDiff(OptStruct[0]['ModelVars'], OptStruct[Thread]['ModelVars'], verbose_level=2).get("values_changed", {})
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-https://www.youtube.com/watch?v=bwzoDuAnMy8

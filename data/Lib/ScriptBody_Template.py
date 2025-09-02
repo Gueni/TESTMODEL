@@ -1,45 +1,67 @@
-import os,sys
-sys.path.insert(1,os.getcwd() + '/Script/assets')
-import Dependencies as dp
-paramProcess            =	dp.PM.ParamProcess()
-dataProcess             =   dp.PP.Processing()
-
-#--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-def simScript(RunScript,OptStruct,Thread,Map,iterNumber,ResultsPath,misc,crash=False):
-    """This function is used to write scripts for automated simulations. Multiple simulations with parameters or conditions variations can be programmed here.
-       Please make a copy of this file and rename it to 'ScriptBody.py' and place it in the same directory as this file.
-       Please don't delete or make changes to this file.
-
-    Args:
-        OptStruct (list)        : nested list that contains simulation parameters
-        Thread (int)            : current working thread number
-        Map (list)              : nested list containing all simulation sweep parameters
-        iterNumber (int)        : current working iteration number
-        ResultsPath (string)    : current results folder location
-        misc (class)            : miscellaneous class object for simulation data handling
-        crash (bool)            : a boolean to determine if a simulation crash happened in the previous iteration
-    """
-
-    mdlVars                                                                        =   OptStruct[Thread]['ModelVars']
-    mapVars                                                                        =   Map[iterNumber]
-    mdlVars['Common']['ToFile']['FileName']                                        =   ResultsPath + str(iterNumber+1)
-
-    #! -------------------------------------------------------------------------------------Don't change above this line-------------------------------------------------------------------------------------
-
-    #?  to change a simulation parameter use the following command:
-        #*  mdlVars['Common']['DesiredParameter']           =   DesiredValue
-        #*  mdlVars['DCDC_Rail1']['DesiredParameter']       =   DesiredValue
-        #*  mdlVars['DCDC_Rail2']['DesiredParameter']       =   DesiredValue
-            #   DesiredParameter can be a variable, list or dictionary
-
-    #?  to assign a sweep parameter to a simulation parameter use the following command:
-        #*  mdlVars['DesiredParameter']                     =   mapVars[x]
-            #   x is the parameter index as created in the 'Input_vars.json' file, ranging from 0 to 9.
-
-    #! -------------------------------------------------------------------------------------Don't change under this line-------------------------------------------------------------------------------------
+class TrackableDict(dict):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.assignments = {}
+        # Convert all nested dictionaries to TrackableDict during initialization
+        self._convert_nested_dicts()
     
-    # Add the changed parameters for the current iteration to a dictionary for logging
-    dp.updated_params_dict = dp.DeepDiff(OptStruct[0]['ModelVars'], OptStruct[Thread]['ModelVars'], verbose_level=2).get("values_changed", {})
+    def _convert_nested_dicts(self):
+        """Convert all nested dictionaries to TrackableDict"""
+        for key, value in list(self.items()):
+            if isinstance(value, dict) and not isinstance(value, TrackableDict):
+                trackable_value = TrackableDict(value)
+                super().__setitem__(key, trackable_value)
+                # Record this initial assignment
+                path = f"dict['{key}']"
+                self.assignments[path] = trackable_value
+    
+    def __setitem__(self, key, value):
+        # Handle nested dictionaries - convert them to TrackableDict
+        if isinstance(value, dict) and not isinstance(value, TrackableDict):
+            value = TrackableDict(value)
+        
+        # Store the assignment with full path as key
+        path = f"dict['{key}']"
+        self.assignments[path] = value
+        
+        # If it's a nested TrackableDict, merge its assignments with updated paths
+        if isinstance(value, TrackableDict):
+            for nested_path, nested_value in value.assignments.items():
+                # Update the path to include the current key
+                full_nested_path = f"dict['{key}']{nested_path[4:]}"
+                self.assignments[full_nested_path] = nested_value
+        
+        super().__setitem__(key, value)
+    
+    def get_assignments(self):
+        return self.assignments
 
-#---------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Usage
+t2 = TrackableDict({
+    "Common": {
+        "ToFile": {
+            "VoltageExport": 0,
+            "CurrentExport": 1
+        },
+        "Settings": {
+            "Mode": "manual",
+            "Timeout": 30
+        }
+    },
+    "name": "John",
+    "age": 31
+})
+
+# Make assignments
+t2['Common']['ToFile']['VoltageExport'] = 0
+t2['Common']['Settings']['Timeout'] = 30
+t2['name'] = 'John'
+t2['age'] = 30
+t2['new_field'] = 'added'
+
+# Get all assignments as a dictionary
+assignments = t2.get_assignments()
+print(assignments)
+
+
