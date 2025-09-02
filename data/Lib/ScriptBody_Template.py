@@ -63,11 +63,7 @@ class TrackableDict(OrderedDict):
         if self._tracking_enabled and not isinstance(value, TrackableDict):
             path_str = self._get_path_string(self._parent_path + [key])
             self._assignments[path_str] = value
-        
-        # Record assignment if tracking is enabled
-        if self._tracking_enabled and not isinstance(value, TrackableDict):
-            path_str = self._get_path_string(self._parent_path + [key])
-            self._assignments[path_str] = value
+    
     
     def _convert_value(self, value, path):
         """Convert a value to TrackableDict if it's a mapping"""
@@ -102,7 +98,7 @@ class TrackableDict(OrderedDict):
     
     @property
     def assignments(self):
-        """Return all assignments including nested ones"""
+        """Return all assignments including nested ones as a simple dict"""
         all_assignments = OrderedDict(self._assignments)
         
         # Recursively collect assignments from nested TrackableDicts
@@ -110,7 +106,16 @@ class TrackableDict(OrderedDict):
             if isinstance(value, TrackableDict):
                 nested_assignments = value.assignments
                 for nested_path, nested_value in nested_assignments.items():
+                    # Convert nested_value to basic type if it's a TrackableDict
+                    if isinstance(nested_value, TrackableDict):
+                        # Convert TrackableDict to regular dict
+                        nested_value = dict(nested_value)
                     all_assignments[nested_path] = nested_value
+        
+        # Convert any remaining TrackableDict values to regular dicts
+        for path, value in all_assignments.items():
+            if isinstance(value, TrackableDict):
+                all_assignments[path] = dict(value)
         
         return all_assignments
     
