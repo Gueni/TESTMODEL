@@ -133,17 +133,27 @@ class TrackableDict(OrderedDict):
     @contextmanager
     def track_scope(self):
         """Track only assignments made within the context"""
-        original_assignments = self.assignments.copy()  # Copy current assignments
-        self.clear_assignments()  # Clear assignments for the scope
-        self.enable_tracking()  # Enable tracking
+        # Store current state
+        original_assignments = copy.deepcopy(self._assignments)
+        original_tracking_state = self._tracking_enabled
+        
+        # Clear assignments and enable tracking for the scope
+        self.clear_assignments()
+        self.enable_tracking()
+        
         try:
             yield self
         finally:
-            # Merge new assignments with original ones
-            current_assignments = self.assignments  # Get assignments made in the scope
-            self.clear_assignments()  # Clear again to avoid duplicates
-            self._assignments.update(original_assignments)  # Restore original assignments
-            self._assignments.update(current_assignments)  # Add new assignments
+            # Get assignments made during the scope
+            scope_assignments = copy.deepcopy(self.assignments)
+            
+            # Restore original state
+            self.disable_tracking()
+            self._assignments = original_assignments
+            self._tracking_enabled = original_tracking_state
+            
+            # Merge scope assignments with original ones
+            self._assignments.update(scope_assignments)
 
 
 
@@ -153,7 +163,7 @@ from collections import OrderedDict
 nested_od = OrderedDict({
     'Common': OrderedDict({
         'ToFile': OrderedDict({'VoltageExport': 0, 'CurrentExport': 1}),
-        'Settings': OrderedDict({'Mode': 'manual', 'Timeout': 30})
+        'Settings': OrderedDict({'Mode': OrderedDict({'VoltageExport': 0, 'CurrentExport': 1}), 'Timeout': 30})
     }),
     'name': 'John',
     'age': 31
@@ -162,16 +172,17 @@ nested_od = OrderedDict({
 
 
 # Usage with your ModelVars
-def create_trackable_model_vars():
+def create_trackable_model_vars(dictt):
     """Convert your ModelVars to a TrackableDict"""
     # First make a deep copy to avoid modifying the original
-    model_vars_copy = copy.deepcopy(nested_od)
+    model_vars_copy = copy.deepcopy(dictt)
     return TrackableDict(model_vars_copy)
 
 # Test it
-trackable_model = create_trackable_model_vars()
+trackable_model = create_trackable_model_vars(nested_od)
 
-with trackable_model.track_scope():
-    trackable_model['Common']['Settings'] =363636
+for i in range(4):
+    with trackable_model.track_scope():
+        trackable_model['Common']['Settings']['Mode']['CurrentExport'] = 0+i
 
-print("Assignments:", trackable_model.assignments)
+    print("Assignments:", trackable_model.assignments)
