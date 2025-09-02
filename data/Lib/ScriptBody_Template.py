@@ -133,17 +133,17 @@ class TrackableDict(OrderedDict):
     @contextmanager
     def track_scope(self):
         """Track only assignments made within the context"""
-        original_assignments = self.assignments.copy()
-        self.clear_assignments()
-        self.enable_tracking()
+        original_assignments = self.assignments.copy()  # Copy current assignments
+        self.clear_assignments()  # Clear assignments for the scope
+        self.enable_tracking()  # Enable tracking
         try:
             yield self
         finally:
-            # Restore original assignments but keep new ones
-            current_assignments = self.assignments
-            self.clear_assignments()
-            self._assignments.update(original_assignments)
-            self._assignments.update(current_assignments)
+            # Merge new assignments with original ones
+            current_assignments = self.assignments  # Get assignments made in the scope
+            self.clear_assignments()  # Clear again to avoid duplicates
+            self._assignments.update(original_assignments)  # Restore original assignments
+            self._assignments.update(current_assignments)  # Add new assignments
 
 
 
@@ -172,6 +172,6 @@ def create_trackable_model_vars():
 trackable_model = create_trackable_model_vars()
 
 with trackable_model.track_scope():
-    trackable_model['Common']['Settings'] = {'NewSetting': 'value'}
+    trackable_model['Common']['Settings'] =363636
 
 print("Assignments:", trackable_model.assignments)
