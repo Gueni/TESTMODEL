@@ -9,39 +9,47 @@ class TrackableDict(OrderedDict):
         self._parent = _parent
         self._parent_path = _parent_path or []
 
-        # Convert input mapping to dict for iteration
+        # Convert all nested mappings recursively
         data = dict(*args, **kwargs)
         for key, value in data.items():
-            value = self._convert_nested(value, key)
-            super().__setitem__(key, value)
+            super().__setitem__(key, self._deep_convert(value, path=self._parent_path + [key]))
 
-    def _convert_nested(self, value, key):
-        # Recursively convert any mapping (dict, OrderedDict, etc.) into TrackableDict
-        if isinstance(value, abc.Mapping) and not isinstance(value, TrackableDict):
-            value = TrackableDict(value, _parent=self, _parent_path=self._parent_path + [key])
-            value._tracking_enabled = self._tracking_enabled
-        return value
+    def _deep_convert(self, obj, path):
+        """Recursively convert any mapping into TrackableDict"""
+        if isinstance(obj, abc.Mapping) and not isinstance(obj, TrackableDict):
+            td = TrackableDict(_parent=self, _parent_path=path)
+            for k, v in obj.items():
+                td[k] = self._deep_convert(v, path + [k])
+            td._tracking_enabled = self._tracking_enabled
+            return td
+        return obj
 
     def __setitem__(self, key, value):
-        value = self._convert_nested(value, key)
+        value = self._deep_convert(value, path=self._parent_path + [key])
         super().__setitem__(key, value)
-        
+
         if self._tracking_enabled:
             self._track_assignment(key, value)
             if self._parent is not None:
-                self._parent._track_assignment(self._parent_path[-1] if self._parent_path else key, self)
+                # Notify parent recursively
+                self._parent._track_assignment(
+                    self._parent_path[-1] if self._parent_path else key,
+                    self
+                )
 
     def _track_assignment(self, key, value, path=None):
         if path is None:
             path = self._parent_path.copy()
         current_path = path + [key]
-        # Track only leaf values
+
+        # Only track leaf values (non-TrackableDict)
         if not isinstance(value, TrackableDict):
             path_str = ''.join(f"['{p}']" for p in current_path)
             self._assignments[path_str] = value
 
     @property
     def assignments(self):
+        """Return all leaf assignments in ['key']['subkey'] style"""
         result = OrderedDict(self._assignments)
         for value in self.values():
             if isinstance(value, TrackableDict):
@@ -53,13 +61,13 @@ class TrackableDict(OrderedDict):
         for value in self.values():
             if isinstance(value, TrackableDict):
                 value.clear_assignments()
-    
+
     def enable_tracking(self):
         self._tracking_enabled = True
         for value in self.values():
             if isinstance(value, TrackableDict):
                 value.enable_tracking()
-    
+
     def disable_tracking(self):
         self._tracking_enabled = False
         for value in self.values():
@@ -68,6 +76,7 @@ class TrackableDict(OrderedDict):
 
     @contextmanager
     def track_scope(self):
+        """Track assignments only within a scoped block"""
         original = self.assignments.copy()
         self.clear_assignments()
         self.enable_tracking()
@@ -77,6 +86,7 @@ class TrackableDict(OrderedDict):
             scope_assignments = self.assignments
             self._assignments = OrderedDict(original)
             self._assignments.update(scope_assignments)
+
 
 nested_od = OrderedDict({
     'Common': OrderedDict({
