@@ -43,16 +43,13 @@ class Processing:
 
         # Construct the path to the CSV file for the given iteration using the directory path, UTC timestamp, and iteration number.  
         # Read the CSV file into a pandas DataFrame with no headers, treat all data as strings, and transpose it.  
-
         file            = directory_path + f"/results_{utc}_{str(itr+1)}.csv"
         dataFrame       = dp.pd.read_csv(file, header=None, dtype=str).transpose()
         
         # Attempt to convert all elements of the DataFrame to Decimal for precise numerical operations.  
         # If conversion fails for any reason, catch the exception, print a warning, and continue without interruption.  
-       
         try:
             listcols   = (dataFrame.apply(lambda col: col.map(Decimal))).values.tolist()
-
         except Exception:
             print("Could not apply Decimal.")
             pass
@@ -60,7 +57,6 @@ class Processing:
         # Convert the list of columns back into a pandas DataFrame with object dtype, transpose it, and drop any NaN values.  
         # Overwrite the original CSV file with the cleaned DataFrame, without headers or index.  
         # Return the list of columns as a list of lists.  
-
         df              = (dp.pd.DataFrame(listcols, dtype=object).transpose()).dropna()
         df.to_csv(file, index=False, header=None, mode='w')
 
@@ -81,7 +77,6 @@ class Processing:
         """
         # Initialize a list to store the normalized results vectors.  
         # Determine the length of the longest sublist in results.  
-
         resultsvect             = []
         longest_length          = max(map(len, results))
 
@@ -89,7 +84,6 @@ class Processing:
         # Return the list of normalized results vectors with equal lengths. 
         # Create an array of NaNs
         # Prepend NaNs to each item in the sublist so all items have the same length. 
-
         for sublist in results:
             difference_lengths  = longest_length - len(sublist)
             NaNarray            = dp.np.full(difference_lengths, dp.np.nan)  
@@ -179,10 +173,10 @@ class Processing:
         get_index(data, 8.8, 2)
         1
         """
+
         # Convert the specified column (Data[Index]) to a NumPy array.  
         # Find the index of the element closest to the given Point, ignoring NaNs.  
         # Return the index of the closest value. 
-        
         array   =   dp.np.asarray(Data[Index])
         idx     =   dp.np.nanargmin(dp.np.abs(array - Point))
          
@@ -313,7 +307,6 @@ class Processing:
         # Determine step size for repetition  
         # Determine how many times to repeat the sequence
         # Fill the column
-        
         step_size = totalLengths
         for col, sublist in enumerate(matrix):
             step_size //= lengths[col]  
@@ -402,7 +395,6 @@ class Processing:
 
         # Initialize an empty NumPy array to store the results. 
         # Calculate the time interval (delta_T) based on the first and last time values.  
-         
         result          =   dp.np.array([])                                                                       
         delta_T         =   time_values[-1] - time_values[0]    
 
@@ -414,7 +406,6 @@ class Processing:
                 # Square each value in the sublist.  
                 # Integrate the squared values, divide by delta_T, and take the square root. 
                 # Handle division by zero exception.  
-                
                 case 'RMS':   
                     try:    
                         squared_values  = (dp.np.array(sublist))**2                                               
@@ -425,7 +416,6 @@ class Processing:
                 # If the operation is 'AVG', calculate the average value.
                 # Integrate the values in the sublist and divide by delta_T to get the average.
                 # Handle division by zero exception.
-                
                 case 'AVG':    
                     try:      
                         res_value  = dp.np.trapz(dp.np.array(sublist), x=time_values) / delta_T 
@@ -434,7 +424,6 @@ class Processing:
             
             # Append the calculated result to the result array.   
             # Handle invalid input errors. 
-            
             try:   
                 result = dp.np.append(result, res_value)    
             except ValueError:   
@@ -501,7 +490,6 @@ class Processing:
             # Determine the maximum voltage point from results.  
             # Interpolate core loss from 3D lookup table using the calculated flux and voltage.  
             # Multiply interpolated core loss by transformer volume/weight factor and append to the list.  
-
             LuT3D         = self.LuT_3D(trafo_inputs[i][0] ,trafo_inputs[i][1],trafo_inputs[i][2],trafo_inputs[i][3])
             flux_link     = nestedresults[trafo_inputs[i][4]]
             point_flux    = dp.np.round((dp.np.max(flux_link)-dp.np.min(flux_link))/2 , decimals=12 )
@@ -513,7 +501,6 @@ class Processing:
             # Generate 2D lookup table for primary winding resistance.  
             # Interpolate resistance for each harmonic.  
             # Calculate primary copper losses: sum of 0.5 * R * I^2 over all harmonics.  
-         
             LuT2D         = self.LuT_2D(trafo_inputs[i][8],trafo_inputs[i][9],trafo_inputs[i][10])
             rvec_pri      = []
             for j in range(len(dp.harmonics)):
@@ -526,7 +513,6 @@ class Processing:
             # Generate 2D lookup table for secondary winding resistance.  
             # Interpolate resistance for each harmonic.  
             # Calculate secondary copper losses: sum of 0.5 * R * I^2 over all harmonics.  
-          
             LuT2D         = self.LuT_2D(trafo_inputs[i][12],trafo_inputs[i][13],trafo_inputs[i][14])
             rvec_sec      = []
             for j in range(len(dp.harmonics)):
@@ -544,7 +530,6 @@ class Processing:
             # Determine the maximum voltage point from results.  
             # Interpolate core loss from 3D lookup table using calculated flux and voltage.  
             # Multiply interpolated core loss by choke volume/weight factor and append to the list.  
-
             LuT3D         = self.LuT_3D(choke_inputs[i][0] ,choke_inputs[i][1],choke_inputs[i][2],choke_inputs[i][3]) 
             flux_link     = nestedresults[choke_inputs[i][4]]                                                         
             point_flux    = (dp.np.max(flux_link)-dp.np.min(flux_link))/2                                             
@@ -557,7 +542,6 @@ class Processing:
             # Interpolate resistance for each harmonic index defined in choke_inputs.  
             # Calculate choke copper losses: sum of R * I^2 over specified harmonics.  
             # Total choke losses (core + copper).  
-
             LuT2D         = self.LuT_2D(choke_inputs[i][8],choke_inputs[i][9],choke_inputs[i][10])
             rvec          = []
             for j in range(len(choke_inputs[i][13])):
@@ -585,7 +569,6 @@ class Processing:
         
         # Initialize empty lists to store transformer and choke losses  
         # Initialize empty lists to store interpolated resistances for primary, secondary, and inductor windings  
-
         core_loss, pri_copper_loss, sec_copper_loss, choke_core_loss, choke_copper_loss = [], [], [], [], []
         R_pri, R_sec, R_ind                                                             = [],[],[]
      
@@ -594,7 +577,6 @@ class Processing:
         # Calculate peak flux (half of peak-to-peak) rounded to 12 decimals.  
         # Parameters for core loss calculation using IGSE method.  
         # Compute core loss and append to the list.  
-
         # flux_link     = nestedresults[dp.pmapping['Transformer Flux']]
         # point_flux    = dp.np.round((dp.np.max(flux_link)-dp.np.min(flux_link))/2 , decimals=12 )
         # Bp            = point_flux/(dp.mdlVars['DCDC_Rail1']['Trafo']['Core']['Ae'] * dp.mdlVars['DCDC_Rail1']['Trafo']['Np'])
@@ -632,7 +614,6 @@ class Processing:
         # Peak AC component of choke current 
         # Calculate peak flux density in the choke core  
         # Compute core loss using trapezoidal integration (IGSE method)  
-
         Iind    = nestedresults[dp.pmapping['DC Choke Current']]  
         Iindp   = (dp.np.max(Iind) - dp.np.min(Iind)) / 2   
         Bpl     = (dp.mdlVars['DCDC_Rail1']['Lf']['L'] * Iindp) / (dp.mdlVars['DCDC_Rail1']['Lf']['N'] * dp.mdlVars['DCDC_Rail1']['Lf']['Core']['Ae'])  
@@ -645,7 +626,6 @@ class Processing:
         # Winding resistance vector and scaling
         # Collect last element of each Rvec for use in calculation
         # Compute copper loss: sum of (R_ac * scale * I²/2) over all harmonics
-     
         choke_current_fft = FFT_current[l*len(dp.harmonics):l*len(dp.harmonics)+len(dp.harmonics),dp.pmapping['DC Choke Current']-1]
         ind_Rvec          = dp.mdlVars['DCDC_Rail1']['Lf']['Winding']['Rwind']['Rvec']
         ind_Rscale        = dp.mdlVars['DCDC_Rail1']['Lf']['Winding']['Rwind']['Rscale']
@@ -677,7 +657,6 @@ class Processing:
             # 1. Calculate average RMS-related dissipation from simulation results (dissip).
             # 2. Compute resistive dissipation as squared RMS currents multiplied by resistance values (res_dissip).
             # 3. Concatenate both into Dissipation_matrix, representing the overall power losses.
-
         dissip                    = self.rms_avg('AVG',nestedresults_l[sum(dp.Y_list[0:3]):sum(dp.Y_list[0:4]),:],nestedresults_l[0])
         res_dissip                = (dp.np.square(RMS_currents[thread,0:dp.current_idx]))*res_list
         # Dissipation_matrix        = dp.np.concatenate((dissip, *self.analytical_magnetic_loss(nestedresults_l, FFT_current, thread), res_dissip))
@@ -743,7 +722,6 @@ class Processing:
         # Read the CSV file into a DataFrame
         # Drop the columns between idx_start and idx_end
         # Overwrite the original CSV with the updated DataFrame
-
         df                  = dp.pd.read_csv(filename, header=None)
         df.drop(df.columns[idx_start:idx_end], axis=1, inplace=True)
         df.to_csv(filename, index=False, header=None)
@@ -764,7 +742,6 @@ class Processing:
 
         # Create a 2D linear interpolator over the grid defined by (x, y) with values z
         # Return the interpolation function for later evaluation
-
         interp_func     = dp.RegularGridInterpolator((x, y), z, method='linear', bounds_error=False, fill_value=None)
         return interp_func
 
@@ -785,7 +762,6 @@ class Processing:
 
         # Create a 3D linear interpolator over the grid defined by (x, y, z) with values in 'data'
         # Return the interpolation function for later evaluation
-
         interp_func     = dp.RegularGridInterpolator((x,y,z), data, method='linear', bounds_error=False, fill_value=None)
         return interp_func
 
@@ -805,7 +781,6 @@ class Processing:
         # Resample the signal onto a uniformly spaced time grid
         # Interpolate the original signal values onto the new time grid
         # Return the resampled time and signal
-
         new_t       = dp.np.linspace(time.min(), time.max(), len(signal))
         new_signal  = dp.np.interp(new_t,time,signal)
         return new_t,new_signal
@@ -839,14 +814,12 @@ class Processing:
         # as the inverse of the time step, which establishes the Nyquist frequency (half the sampling rate) as the 
         # maximum frequency that can be accurately represented. To prevent aliasing and ensure filter stability, 
         # the cutoff frequency must not exceed this Nyquist limit. 
-
         dt                  =   Time[1] - Time[0]                                                      
         Fs                  =   1.0/dt                                            
         Fn                  =   min(Fs/2-1, Cutoff) 
 
         # An IIR filter is then designed with the specified cutoff frequency, and finally, zero-phase filtering 
         # is applied to eliminate phase distortion in the filtered signal.
-
         b,a                 =   dp.scipy.signal.iirfilter(Order, Wn=Fn, fs=Fs, btype=BType, ftype=FType)                
         Signal_Filtered     =   dp.scipy.signal.filtfilt(b, a, Signal)                                                     
 
@@ -930,7 +903,6 @@ class Processing:
 
         # Safely retrieve an element from a list by index
         # Returns None if the index is out of range instead of raising an error
-
         try:
             return my_list[index]
         except IndexError:
@@ -1032,7 +1004,6 @@ class Processing:
         # Iterate from the last list to the first
         # Convert string representation to actual list
         # and return the length of the first non-zero list encountered
-
         for lst in reversed(lists):
             lst = dp.ast.literal_eval(lst)
             if lst != [0]:
@@ -1256,7 +1227,6 @@ class Processing:
             Pave_core(W) : Average core losses
         """
         # Helper function to compute ki based on Steinmetz parameters
-
         def ki(k,a,b):
             f = lambda theta, a: (abs(dp.np.cos(theta)))**SP[1]
             integral, error = quad(f, 0, 2* dp.np.pi, args=(SP[1]))
@@ -1265,7 +1235,6 @@ class Processing:
         
         # Compute average core loss density based on waveform type
         # and Multiply by core volume to get total average core loss
-
         match Wf:
             case 'trap':
                  Pave_density = ki(SP[0], SP[1], SP[2]) * f_s**SP[1] * Bp**SP[2] * 2**(SP[1]+SP[2]) * d**(1-SP[1])  
@@ -1338,7 +1307,6 @@ class Processing:
                 #* -----------------------------------
                 #* Define cost function for minimize
                 #* -----------------------------------
-
                 def cost_minimize(params, omega, Z_real_residual_csv):
                     """
                     Cost function for the 'minimize' optimization method.
@@ -1378,7 +1346,6 @@ class Processing:
                 #* -----------------------------------
                 #* Define inequality constraints
                 #* -----------------------------------
-
                 def R_ac_constraint(params):
                     """
                     Inequality constraint for AC resistance (Rac) during optimization.
@@ -1440,7 +1407,6 @@ class Processing:
                 #* -----------------------------------
                 #* Define bounds for optimization
                 #* -----------------------------------
-
                 bounds      = (
 
                                 [(1e-6, 100e-3)] * len(frequencies) +                           # Bounds for Rac
@@ -1455,7 +1421,6 @@ class Processing:
                 #* -----------------------------------
                 #* Define cost function for least squares
                 #* -----------------------------------
-                
                 def cost_leastsquares(params, omega, Z_real_residual_csv):
                     """
                     Cost function for the 'least_squares' optimization method.
@@ -1495,7 +1460,6 @@ class Processing:
                 #* -----------------------------------
                 #* Define bounds for least squares
                 #* -----------------------------------
-
                 lb      = [1e-6] * len(frequencies) + [L_primary / len(frequencies)] * len(frequencies)
                 ub      = [100e-3] * len(frequencies) + [1e-3] * len(frequencies)
 
@@ -1505,7 +1469,6 @@ class Processing:
         #* -------------------------------
         #* Step 4: Extract fitted parameters
         #* -------------------------------
-
         fitted_param        = res.x
         R_fit               = fitted_param[:len(frequencies)]
         L_fit               = fitted_param[len(frequencies):]
@@ -1523,7 +1486,6 @@ class Processing:
         #* -------------------------------
         #* Step 5: Prepare output dictionary
         #* -------------------------------
-        
         res_optimize        = {
                                 'Rac': R_fit,
                                 'Lac': L_fit,

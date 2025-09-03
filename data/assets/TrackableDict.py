@@ -318,14 +318,3 @@ if __name__ == "__main__":
 
 # Serialization: The assignments property returns a clean dictionary with basic data types that can be easily serialized and used elsewhere
 
-
-
-
-
-import re
-
-key = "[['Common']['Settings']['Mode']['CurrentExport']]"
-clean_key = key[1:-1]
-
-
-print(clean_key)  # Output: ['Common']['Settings']['Mode']['CurrentExport']
