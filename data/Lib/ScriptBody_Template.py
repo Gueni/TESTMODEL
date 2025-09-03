@@ -327,5 +327,5 @@ import re
 key = "[['Common']['Settings']['Mode']['CurrentExport']]"
 clean_key = key[1:-1]
 
-
+my_dict = {key[2:-2]: value for key, value in my_dict.items()}
 print(clean_key)  # Output: ['Common']['Settings']['Mode']['CurrentExport']
