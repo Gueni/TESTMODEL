@@ -49,8 +49,7 @@ header_folder = r"D:\WORKSPACE\BJT-MODEL\HEADER_FILES"
 
 headers = ["CT Trafo Primary Current AVG", "CT Trafo Secondary Current AVG", 
            "Choke RC Snubber Capacitor Current AVG", 
-           "CT Trafo Primary Current AVG", "CT Trafo Secondary Current AVG", 
-           "Choke RC Snubber Capacitor Current AVG"]
+           "CT Trafo Primary voltage AVG", "CT Trafo Secondary voltage AVG"]
 
 componentNames = [str(h) for h in headers]
 
@@ -60,7 +59,12 @@ componentNames = [str(h) for h in headers]
 csv_files = sorted(os.listdir(csv_folder))
 combinedMap = [np.atleast_1d(np.loadtxt(os.path.join(csv_folder, f), delimiter=',')).flatten()
                for f in csv_files]
-combinedMap = np.column_stack(combinedMap).T  # shape: (n_components, n_points)
+max_len = max(len(arr) for arr in combinedMap)
+combinedMap_padded = [np.pad(arr, (0, max_len - len(arr)), constant_values=np.nan) 
+                      for arr in combinedMap]
+combinedMap = np.vstack(combinedMap_padded)  # shape: (n_components, max_len)
+
+
 
 # -------------------------------
 # Load JSON
