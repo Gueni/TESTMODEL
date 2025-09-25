@@ -54,16 +54,24 @@ headers = ["CT Trafo Primary Current AVG", "CT Trafo Secondary Current AVG",
 componentNames = [str(h) for h in headers]
 
 # -------------------------------
-# Load CSVs
+# Load CSVs and split into columns
 # -------------------------------
-csv_files = sorted(os.listdir(csv_folder))
-combinedMap = [np.atleast_1d(np.loadtxt(os.path.join(csv_folder, f), delimiter=',')).flatten()
-               for f in csv_files]
-max_len = max(len(arr) for arr in combinedMap)
-combinedMap_padded = [np.pad(arr, (0, max_len - len(arr)), constant_values=np.nan) 
-                      for arr in combinedMap]
-combinedMap = np.vstack(combinedMap_padded)  # shape: (n_components, max_len)
+combinedMap = []
 
+for f in sorted(os.listdir(csv_folder)):
+    csv_path = os.path.join(csv_folder, f)
+    data = np.loadtxt(csv_path, delimiter=',')  # shape: (n_rows, n_cols)
+    
+    # Ensure 2D even if CSV has only one column
+    if data.ndim == 1:
+        data = data[:, np.newaxis]
+    
+    # Append each column separately
+    for col in range(data.shape[1]):
+        combinedMap.append(data[:, col])
+
+# Now combinedMap[i] = 1D array for a single column (component)
+print(f"Total components loaded: {len(combinedMap)}")
 
 
 # -------------------------------
@@ -91,7 +99,10 @@ Constant_3 = 10.5
 # -------------------------------
 # Choose component to plot
 # -------------------------------
-Component = componentNames.index("CT Trafo Secondary Current AVG")
+# Component = componentNames.index("CT Trafo Secondary Current AVG")
+# Component = componentNames.index("CT Trafo Primary Current AVG")
+# Component = componentNames.index("Choke RC Snubber Capacitor Current AVG")
+Component = componentNames.index("CT Trafo Primary voltage AVG")
 
 # -------------------------------
 # Build data for surface
@@ -102,9 +113,10 @@ for v1 in Variable_1:
         indices, idx = findIndex(
             [Constant_1, Constant_2, v1, Constant_3, v2, 0, 0, 0, 0, 0],
             X,
-            pattern=True
+            pattern=False
         )
-        x_vals.append(combinedMap[Component, idx])
+        x_vals.append(combinedMap[Component][idx])
+
 
 x_vals = np.array(x_vals)
 # -------------------------------
