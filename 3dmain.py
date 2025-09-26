@@ -23,9 +23,9 @@ j_files     = natsorted([f for f in all_files if f not in {'header.json', 'FFT_C
 j_array     = []
 [j_array.extend(data) if isinstance((data := json.load(open(os.path.join(f_path, f)))), list) else j_array.append(data) for f in j_files]
 
-#! print(f"Processed {len(j_files)} files")
-#! print(f"Combined array length: {len(j_array)}")
-#! print("Array contents:", j_array)
+# print(f"Processed {len(j_files)} files")
+# print(f"Combined array length: {len(j_array)}")
+# print("Array contents:", j_array)
 
 #?-------------------------------------------------------------------------------------------------------------------------------
 #?  Combine CSV Files into a Single Matrix
@@ -119,11 +119,90 @@ for fixed_values in fixed_combos:
 
 # print("Selected Rows:", rows)
 
+
+#?-------------------------------------------------------------------------------------------------------------------------------
+#?  Plotting the 3D Surface
+#?-------------------------------------------------------------------------------------------------------------------------------
+
+list_of_plots = []  # to store plot references if needed
+# Loop over each fixed combination to create plots
+for component in j_array:
+    for fixed_values in fixed_combos:
+        # Create fixed dictionary for this plot
+        fixed = dict(zip(fixed_keys, fixed_values))
+        z_axis = component  #! change as needed
+        # Extract Z values
+        z_column = j_array.index(z_axis)  # change as needed
+        x_vals = rows[:, 1]
+        y_vals = rows[:, 2]
+        z_vals = combined_matrix[rows[:, 0], z_column]
+        
+        # Build meshgrid
+        x_unique = np.unique(x_vals)
+        y_unique = np.unique(y_vals)
+        X, Y = np.meshgrid(x_unique, y_unique)
+        Z = np.full_like(X, fill_value=np.nan, dtype=float)
+        xi = np.searchsorted(x_unique, x_vals)
+        yi = np.searchsorted(y_unique, y_vals)
+        Z[yi, xi] = z_vals
+        
+        # Dynamic axis titles and plot title
+        var1_name = config["sweepNames"][int(re.search(r'\d+', config["Var1"]).group())-1]
+        var2_name = config["sweepNames"][int(re.search(r'\d+', config["Var2"]).group())-1]
+        fixed_title = " | ".join(f"{config['sweepNames'][int(re.search(r'\d+', k).group())-1]} = {v}" 
+                                for k, v in fixed.items())
+        
+        # Decide 2D or 3D
+        num_sweep_vars = sum(1 for vals in sweep_vars.values() if len(vals) > 1)
+        plot_type = "2D" if num_sweep_vars < 3 else "3D"
+
+        match plot_type:
+            case "2D":
+                fig = go.Figure()
+                fig.add_trace(go.Scatter(
+                    x=x_vals,
+                    y=z_vals,
+                    mode='lines',
+                    fill='tozeroy',
+                    line=dict(color='royalblue'),
+                    name=z_axis
+                ))
+                fig.update_layout(
+                    title=f"{z_axis}  @ {fixed_title}",
+                    xaxis_title=var1_name,
+                    yaxis_title=z_axis,
+                )
+                fig.show()
+            case "3D":
+                fig = go.Figure(data=[go.Surface(
+                    x=X,
+                    y=Y,
+                    z=Z,
+                    colorscale='Viridis',
+                    colorbar=dict(title=z_axis)
+                )])
+                fig.update_layout(
+                    title=f'{z_axis} @ {fixed_title}',
+                    scene=dict(
+                        xaxis_title=var1_name,
+                        yaxis_title=var2_name,
+                        zaxis_title=z_axis
+                    )
+                )
+                # fig.show()
+        list_of_plots.append(fig)  # store reference if needed
+
+
+#?-------------------------------------------------------------------------------------------------------------------------------
+#?  Append Plotly Figures to HTML (2 columns layout)
+#?-------------------------------------------------------------------------------------------------------------------------------
+
+from plotly.io import to_html
 #?-------------------------------------------------------------------------------------------------------------------------------
 #?  Generate HTML Report 
 #?-------------------------------------------------------------------------------------------------------------------------------
 base64_file = r"D:\WORKSPACE\BJT-MODEL\assets\BMW_Base64_Logo.txt"
-html_file   = r"D:\WORKSPACE\BJT-MODEL\result.html"
+html_file   = r"D:\WORKSPACE\BJT-MODEL\results\result.html"
 script_name = os.path.basename(__file__)
 UTC         = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
 date        = str(datetime.datetime.now().replace(microsecond=0))
@@ -167,98 +246,15 @@ with open(html_file, 'w', encoding='utf-8') as f:
     </div>
     ''')
 
-#?-------------------------------------------------------------------------------------------------------------------------------
-#?  Plotting the 3D Surface
-#?-------------------------------------------------------------------------------------------------------------------------------
-
-list_of_plots = []  # to store plot references if needed
-# Loop over each fixed combination to create plots
-for fixed_values in fixed_combos:
-    # Create fixed dictionary for this plot
-    fixed = dict(zip(fixed_keys, fixed_values))
-    
-    z_axis = 'Target LV Voltage'  #! change as needed
-    # Extract Z values
-    z_column = j_array.index(z_axis)  # change as needed
-    x_vals = rows[:, 1]
-    y_vals = rows[:, 2]
-    z_vals = combined_matrix[rows[:, 0], z_column]
-    
-    # Build meshgrid
-    x_unique = np.unique(x_vals)
-    y_unique = np.unique(y_vals)
-    X, Y = np.meshgrid(x_unique, y_unique)
-    Z = np.full_like(X, fill_value=np.nan, dtype=float)
-    xi = np.searchsorted(x_unique, x_vals)
-    yi = np.searchsorted(y_unique, y_vals)
-    Z[yi, xi] = z_vals
-    
-    # Dynamic axis titles and plot title
-    var1_name = config["sweepNames"][int(re.search(r'\d+', config["Var1"]).group())-1]
-    var2_name = config["sweepNames"][int(re.search(r'\d+', config["Var2"]).group())-1]
-    fixed_title = " | ".join(f"{config['sweepNames'][int(re.search(r'\d+', k).group())-1]} = {v}" 
-                             for k, v in fixed.items())
-    
-    # Decide 2D or 3D
-    num_sweep_vars = sum(1 for vals in sweep_vars.values() if len(vals) > 1)
-    plot_type = "2D" if num_sweep_vars < 3 else "3D"
-
-    match plot_type:
-        case "2D":
-            fig = go.Figure()
-            fig.add_trace(go.Scatter(
-                x=x_vals,
-                y=z_vals,
-                mode='lines',
-                fill='tozeroy',
-                line=dict(color='royalblue'),
-                name=z_axis
-            ))
-            fig.update_layout(
-                title=f"{z_axis}  @ {fixed_title}",
-                xaxis_title=var1_name,
-                yaxis_title=z_axis,
-            )
-            fig.show()
-        case "3D":
-            fig = go.Figure(data=[go.Surface(
-                x=X,
-                y=Y,
-                z=Z,
-                colorscale='Viridis',
-                colorbar=dict(title=z_axis)
-            )])
-            fig.update_layout(
-                title=f'{z_axis} @ {fixed_title}',
-                scene=dict(
-                    xaxis_title=var1_name,
-                    yaxis_title=var2_name,
-                    zaxis_title=z_axis
-                )
-            )
-            # fig.show()
-    list_of_plots.append(fig)  # store reference if needed
-
-
-#?-------------------------------------------------------------------------------------------------------------------------------
-#?  Append Plotly Figures to HTML (2 columns layout)
-#?-------------------------------------------------------------------------------------------------------------------------------
-
-from plotly.io import to_html
-
-with open(html_file, 'a', encoding='utf-8') as f:
     # Start a container for the plots
     f.write('<div style="display: flex; flex-wrap: wrap; gap: 20px; margin-top: 20px;">\n')
 
     for i, fig in enumerate(list_of_plots):
         # Convert figure to HTML div
         fig_html = to_html(fig, include_plotlyjs='cdn', full_html=False)
-        
         # Wrap each figure in a div with 50% width
         f.write(f'<div style="flex: 0 0 48%;">{fig_html}</div>\n')
-
     f.write('</div>\n')
-
     # Add Plotly.js library only once at the end
     f.write('<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>\n')
 
