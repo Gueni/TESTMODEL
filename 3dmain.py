@@ -22,6 +22,9 @@ j_array     = []
 # print(f"Processed {len(j_files)} files")
 # print(f"Combined array length: {len(j_array)}")
 # print("Array contents:", j_array)
+
+#?-------------------------------------------------------------------------------------------------------------------------------
+#?  Combine CSV Files into a Single Matrix
 #?-------------------------------------------------------------------------------------------------------------------------------
 
 # Define the folder containing CSV files and combine them into a single CSV file
@@ -35,3 +38,9 @@ combined_matrix = np.hstack([pd.read_csv(os.path.join(folder, f), header=None).v
                            if f.endswith('.csv') and f not in ['FFT_Voltage_Map.csv', 'FFT_Current_Map.csv']])
 
 # print(f"Combined matrix shape: {combined_matrix.shape}")
+print("Combined matrix contents:", combined_matrix)
+
+#?-------------------------------------------------------------------------------------------------------------------------------
+#?  
+#?-------------------------------------------------------------------------------------------------------------------------------
+
