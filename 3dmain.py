@@ -9,6 +9,8 @@ from itertools import product
 import re
 import plotly.graph_objects as go
 import datetime
+import plotly.io as pio
+from plotly.io import to_html
 
 #?-------------------------------------------------------------------------------------------------------------------------------
 #?  Header Files to JSON Array
@@ -135,7 +137,7 @@ for component in j_array:
         z_column = j_array.index(z_axis)  # change as needed
         x_vals = rows[:, 1]
         y_vals = rows[:, 2]
-        z_vals = combined_matrix[rows[:, 0], z_column]
+        z_vals = combined_matrix[rows[:, 0].astype(int), z_column]
         
         # Build meshgrid
         x_unique = np.unique(x_vals)
@@ -153,7 +155,7 @@ for component in j_array:
                                 for k, v in fixed.items())
         
         # Decide 2D or 3D
-        num_sweep_vars = sum(1 for vals in sweep_vars.values() if len(vals) > 1)
+        num_sweep_vars = sum(1 for vals in sweep_vars.values() if len(vals) > 1 and vals != [0])
         plot_type = "2D" if num_sweep_vars < 3 else "3D"
 
         match plot_type:
@@ -172,7 +174,6 @@ for component in j_array:
                     xaxis_title=var1_name,
                     yaxis_title=z_axis,
                 )
-                fig.show()
             case "3D":
                 fig = go.Figure(data=[go.Surface(
                     x=X,
@@ -189,20 +190,14 @@ for component in j_array:
                         zaxis_title=z_axis
                     )
                 )
-                # fig.show()
         list_of_plots.append(fig)  # store reference if needed
 
 
 
-from plotly.io import to_html
 #?-------------------------------------------------------------------------------------------------------------------------------
 #?  Generate HTML Report 
 #?-------------------------------------------------------------------------------------------------------------------------------
-#?-------------------------------------------------------------------------------------------------------------------------------
-#?  Append Plotly Figures to HTML with 3Dsplit option
-#?-------------------------------------------------------------------------------------------------------------------------------
 
-from plotly.io import to_html
 
 # Boolean to control splitting
 split_3D = False  # <-- change this as needed
