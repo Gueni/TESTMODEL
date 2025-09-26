@@ -193,69 +193,124 @@ for component in j_array:
         list_of_plots.append(fig)  # store reference if needed
 
 
-#?-------------------------------------------------------------------------------------------------------------------------------
-#?  Append Plotly Figures to HTML (2 columns layout)
-#?-------------------------------------------------------------------------------------------------------------------------------
 
 from plotly.io import to_html
 #?-------------------------------------------------------------------------------------------------------------------------------
 #?  Generate HTML Report 
 #?-------------------------------------------------------------------------------------------------------------------------------
+#?-------------------------------------------------------------------------------------------------------------------------------
+#?  Append Plotly Figures to HTML with 3Dsplit option
+#?-------------------------------------------------------------------------------------------------------------------------------
+
+from plotly.io import to_html
+
+# Boolean to control splitting
+split_3D = False  # <-- change this as needed
+
 base64_file = r"D:\WORKSPACE\BJT-MODEL\assets\BMW_Base64_Logo.txt"
-html_file   = r"D:\WORKSPACE\BJT-MODEL\results\result.html"
+html_base   = r"D:\WORKSPACE\BJT-MODEL\results\result"  # base path without extension
 script_name = os.path.basename(__file__)
 UTC         = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
 date        = str(datetime.datetime.now().replace(microsecond=0))
+
 # Read the base64 image
-with open(base64_file, 'r') as f:base64_img = ''.join(line.strip() for line in f)
+with open(base64_file, 'r') as f:
+    base64_img = ''.join(line.strip() for line in f)
 
-# Open HTML file and write content
-with open(html_file, 'w', encoding='utf-8') as f:
-    # Style for container and image positioning
-    f.write('''
-    <style>
-        .container {
-            position: relative;
-            width: 100%;
-            height: 150px; /* adjust height if needed */
-        }
-        .logo {
-            position: absolute;
-            top: 0;
-            right: 0;
-            height: 120px; /* adjust size if needed */
-        }
-        .info {
-            position: absolute;
-            left: 10px;
-            font-weight: bold;
-        }
-        .script_name { top: 10px; }
-        .date       { top: 50px; }
-        .utc        { top: 90px; }
-    </style>
-    ''')
+if split_3D:
+    # Generate one HTML per component
+    n_fixed = len(fixed_combos)  # number of figures per component
+    for idx, component in enumerate(j_array):
+        html_file = f"{html_base}_{UTC}_{component}.html"
 
-    # Container div with image and multiple info divs
-    f.write(f'''
-    <div class="container">
-        <img class="logo" src="data:image/png;base64,{base64_img}" alt="BMW Logo"/>
-        <div class="info script_name">Simulation: {script_name}</div>
-        <div class="info date">Date & Time: {date}</div>
-        <div class="info utc">Simulation ID: {UTC}</div>
-    </div>
-    ''')
+        # Extract only the figures corresponding to this component
+        start = idx * n_fixed
+        end   = start + n_fixed
+        component_plots = list_of_plots[start:end]
 
-    # Start a container for the plots
-    f.write('<div style="display: flex; flex-wrap: wrap; gap: 20px; margin-top: 20px;">\n')
+        with open(html_file, 'w', encoding='utf-8') as f:
+            # Write style and header
+            f.write('''
+            <style>
+                .container {
+                    position: relative;
+                    width: 100%;
+                    height: 150px;
+                }
+                .logo {
+                    position: absolute;
+                    top: 0;
+                    right: 0;
+                    height: 120px;
+                }
+                .info {
+                    position: absolute;
+                    left: 10px;
+                    font-weight: bold;
+                }
+                .script_name { top: 10px; }
+                .date       { top: 50px; }
+                .utc        { top: 90px; }
+            </style>
+            ''')
 
-    for i, fig in enumerate(list_of_plots):
-        # Convert figure to HTML div
-        fig_html = to_html(fig, include_plotlyjs='cdn', full_html=False)
-        # Wrap each figure in a div with 50% width
-        f.write(f'<div style="flex: 0 0 48%;">{fig_html}</div>\n')
-    f.write('</div>\n')
-    # Add Plotly.js library only once at the end
-    f.write('<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>\n')
+            # Container div with image and info
+            f.write(f'''
+            <div class="container">
+                <img class="logo" src="data:image/png;base64,{base64_img}" alt="BMW Logo"/>
+                <div class="info script_name">Simulation: {script_name}</div>
+                <div class="info date">Date & Time: {date}</div>
+                <div class="info utc">Simulation ID: {UTC}</div>
+            </div>
+            ''')
 
+            # Start plots container
+            f.write('<div style="display: flex; flex-wrap: wrap; gap: 20px; margin-top: 20px;">\n')
+            for fig in component_plots:
+                fig_html = to_html(fig, include_plotlyjs='cdn', full_html=False)
+                f.write(f'<div style="flex: 0 0 48%;">{fig_html}</div>\n')
+            f.write('</div>\n')
+            f.write('<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>\n')
 
+else:
+    # Existing behavior: single HTML with all components
+    html_file = f"{html_base}_{UTC}.html"
+    with open(html_file, 'w', encoding='utf-8') as f:
+        # Write style and header
+        f.write('''
+        <style>
+            .container {
+                position: relative;
+                width: 100%;
+                height: 150px;
+            }
+            .logo {
+                position: absolute;
+                top: 0;
+                right: 0;
+                height: 120px;
+            }
+            .info {
+                position: absolute;
+                left: 10px;
+                font-weight: bold;
+            }
+            .script_name { top: 10px; }
+            .date       { top: 50px; }
+            .utc        { top: 90px; }
+        </style>
+        ''')
+        f.write(f'''
+        <div class="container">
+            <img class="logo" src="data:image/png;base64,{base64_img}" alt="BMW Logo"/>
+            <div class="info script_name">Simulation: {script_name}</div>
+            <div class="info date">Date & Time: {date}</div>
+            <div class="info utc">Simulation ID: {UTC}</div>
+        </div>
+        ''')
+        f.write('<div style="display: flex; flex-wrap: wrap; gap: 20px; margin-top: 20px;">\n')
+        for fig in list_of_plots:
+            fig_html = to_html(fig, include_plotlyjs='cdn', full_html=False)
+            f.write(f'<div style="flex: 0 0 48%;">{fig_html}</div>\n')
+        f.write('</div>\n')
+        f.write('<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>\n')
