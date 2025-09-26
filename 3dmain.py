@@ -64,16 +64,57 @@ sweep_vars = {k: eval(v) for k, v in config.items() if re.fullmatch(r"X\d+", k) 
 all_combos  = list(product(*[vals for vals in sweep_vars.values() if vals != [0]]))  # each row = one simulation case
 
 # print("All Combinations:", all_combos)
-#?-------------------------------------------------------------------------------------------------------------------------------
-#?  Select Rows Based on Fixed Variables and Extract Desired Variables
-#?-------------------------------------------------------------------------------------------------------------------------------
-fixed       = {"X4": 10.5, "X5": 500}  # keep these constant
-var1, var2  = config["Var1"], config["Var2"]                     # variables for axes
-sweep_keys  = list(sweep_vars.keys())                          # corresponds to all_combos
 
-rows = np.array([(i, combo[sweep_keys.index(var1)], combo[sweep_keys.index(var2)])
-        for i, combo in enumerate(all_combos) 
-        if all(combo[sweep_keys.index(k)] == v for k, v in fixed.items())])
+#?-------------------------------------------------------------------------------------------------------------------
+#? Automatically determine fixed variables
+#?-------------------------------------------------------------------------------------------------------------------
+
+# Extract all sweep variables that are not Var1 or Var2 and not [0]
+other_vars = {k: eval(v) for k, v in config.items()
+              if re.fullmatch(r"X\d+", k)         # X variables only
+              and k not in [config["Var1"], config["Var2"]]
+              and eval(v) != [0]                  # ignore zero lists
+              and not config["sweepNames"][int(re.search(r'\d+', k).group())-1].startswith("X") # real name
+             }
+
+# Generate all combinations of these fixed variables
+fixed_combos = list(product(*other_vars.values()))
+
+# Generate a list of their keys in order
+fixed_keys = list(other_vars.keys())
+
+#?-------------------------------------------------------------------------------------------------------------------
+#? Select Rows Based on Automatically Determined Fixed Variables
+#?-------------------------------------------------------------------------------------------------------------------
+
+var1, var2 = config["Var1"], config["Var2"]                     # variables for axes
+sweep_keys = list(sweep_vars.keys())                             # all sweep variable keys
+
+# Identify other sweep variables that will act as "fixed" for plotting
+other_vars = {k: eval(v) for k, v in config.items()
+              if re.fullmatch(r"X\d+", k)                     # X variables only
+              and k not in [var1, var2]                       # exclude Var1 and Var2
+              and eval(v) != [0]                               # ignore zero lists
+              and not config["sweepNames"][int(re.search(r'\d+', k).group())-1].startswith("X") # real name
+             }
+
+# Generate all combinations of these fixed variables
+fixed_combos = list(product(*other_vars.values()))
+fixed_keys   = list(other_vars.keys())
+
+# Loop over each fixed combination to select rows for plotting
+for fixed_values in fixed_combos:
+    fixed = dict(zip(fixed_keys, fixed_values))  # create fixed dictionary for this iteration
+
+    # select rows matching this fixed combination
+    rows = np.array([
+        (i, combo[sweep_keys.index(var1)], combo[sweep_keys.index(var2)])
+        for i, combo in enumerate(all_combos)
+        if all(combo[sweep_keys.index(k)] == v for k, v in fixed.items())
+    ])
+    
+    if len(rows) == 0:
+        continue  # skip if no rows match
 
 # print("Selected Rows:", rows)
 
@@ -121,73 +162,75 @@ Z[yi, xi] = z_vals
 #?  Plotting the 3D Surface
 #?-------------------------------------------------------------------------------------------------------------------------------
 
-# Function to get sweep name from config
-def get_sweep_name(var_key):
-    idx = int(re.search(r'\d+', var_key).group()) - 1
-    return config["sweepNames"][idx]
+# Loop over each fixed combination to create plots
+for fixed_values in fixed_combos:
+    # Create fixed dictionary for this plot
+    fixed = dict(zip(fixed_keys, fixed_values))
+    
+    # Select rows matching fixed values
+    rows = np.array([(i, combo[sweep_keys.index(config["Var1"])], combo[sweep_keys.index(config["Var2"])])
+                     for i, combo in enumerate(all_combos)
+                     if all(combo[sweep_keys.index(k)] == v for k, v in fixed.items())])
+    
+    if len(rows) == 0:
+        continue  # skip if no matching rows
+    
+    # Extract Z values
+    z_column = j_array.index('Target LV Voltage')  # change as needed
+    x_vals = rows[:, 1]
+    y_vals = rows[:, 2]
+    z_vals = combined_matrix[rows[:, 0], z_column]
+    
+    # Build meshgrid
+    x_unique = np.unique(x_vals)
+    y_unique = np.unique(y_vals)
+    X, Y = np.meshgrid(x_unique, y_unique)
+    Z = np.full_like(X, fill_value=np.nan, dtype=float)
+    xi = np.searchsorted(x_unique, x_vals)
+    yi = np.searchsorted(y_unique, y_vals)
+    Z[yi, xi] = z_vals
+    
+    # Dynamic axis titles and plot title
+    var1_name = config["sweepNames"][int(re.search(r'\d+', config["Var1"]).group())-1]
+    var2_name = config["sweepNames"][int(re.search(r'\d+', config["Var2"]).group())-1]
+    fixed_title = " | ".join(f"{config['sweepNames'][int(re.search(r'\d+', k).group())-1]} = {v}" 
+                             for k, v in fixed.items())
+    
+    # Decide 2D or 3D
+    num_sweep_vars = sum(1 for vals in sweep_vars.values() if len(vals) > 1)
+    plot_type = "2D" if num_sweep_vars < 3 else "3D"
 
-# Dynamic axis titles and plot title
-var1_name           = get_sweep_name(config["Var1"])
-var2_name           = get_sweep_name(config["Var2"])
-fixed_names_values  = [f"{get_sweep_name(k)} = {v}" for k, v in fixed.items()]
-fixed_title         = " | ".join(fixed_names_values)    # e.g : "Input Voltage = 10.5 | Output Power = 500"
-
-# Count how many sweep variables have more than one value
-num_sweep_vars      = sum(1 for vals in sweep_vars.values() if len(vals) > 1)
-
-# Determine plot type
-plot_type = "2D" if num_sweep_vars < 3 else "3D"
-
-match plot_type:
-    case "2D":
-        # 2D filled area plot
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(
-            x=x_vals,
-            y=z_vals,
-            mode='lines',
-            fill='tozeroy',           # fill area under the line
-            line=dict(color='royalblue'),
-            name=z_axis
-        ))
-
-        fig.update_layout(
-            title=f"{z_axis} vs {var1_name}{' & ' + var2_name if num_sweep_vars == 2 else ''} @ {fixed_title}",
-            xaxis_title=var1_name,
-            yaxis_title=z_axis,
-            autosize=True,
-            margin=dict(l=0, r=0, t=50, b=0)
-        )
-
-        fig.show()
-
-    case "3D":
-        # 3D surface plot (same as your previous)
-        X_unique = np.unique(np.array(x_vals))
-        Y_unique = np.unique(np.array(y_vals))
-        X_grid, Y_grid = np.meshgrid(X_unique, Y_unique)
-        Z_grid = np.full_like(X_grid, np.nan, dtype=float)
-        xi = np.searchsorted(X_unique, x_vals)
-        yi = np.searchsorted(Y_unique, y_vals)
-        Z_grid[yi, xi] = z_vals
-
-        fig = go.Figure(data=[go.Surface(
-            x=X_grid,
-            y=Y_grid,
-            z=Z_grid,
-            colorscale='Viridis',
-            colorbar=dict(title=z_axis)
-        )])
-
-        fig.update_layout(
-            title=f'{z_axis} vs {var1_name} & {var2_name} @ {fixed_title}',
-            scene=dict(
+    match plot_type:
+        case "2D":
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(
+                x=x_vals,
+                y=z_vals,
+                mode='lines',
+                fill='tozeroy',
+                line=dict(color='royalblue'),
+                name=z_column
+            ))
+            fig.update_layout(
+                title=f"{z_column} vs {var1_name}{' & ' + var2_name if num_sweep_vars == 2 else ''} @ {fixed_title}",
                 xaxis_title=var1_name,
-                yaxis_title=var2_name,
-                zaxis_title=z_axis
-            ),
-            autosize=True,
-            margin=dict(l=0, r=0, t=50, b=0)
-        )
-
-        fig.show()
+                yaxis_title=z_column,
+            )
+            fig.show()
+        case "3D":
+            fig = go.Figure(data=[go.Surface(
+                x=X,
+                y=Y,
+                z=Z,
+                colorscale='Viridis',
+                colorbar=dict(title=z_column)
+            )])
+            fig.update_layout(
+                title=f'{z_column} vs {var1_name} & {var2_name} @ {fixed_title}',
+                scene=dict(
+                    xaxis_title=var1_name,
+                    yaxis_title=var2_name,
+                    zaxis_title=z_column
+                )
+            )
+            fig.show()
