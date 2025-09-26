@@ -8,6 +8,7 @@ import pandas as pd, numpy as np
 from itertools import product
 import re
 import plotly.graph_objects as go
+import datetime
 
 #?-------------------------------------------------------------------------------------------------------------------------------
 #?  Header Files to JSON Array
@@ -119,64 +120,66 @@ for fixed_values in fixed_combos:
 # print("Selected Rows:", rows)
 
 #?-------------------------------------------------------------------------------------------------------------------------------
-#?  Extract Z Values Based on Selected Rows
+#?  Generate HTML Report 
 #?-------------------------------------------------------------------------------------------------------------------------------
-z_axis                   = 'Target LV Voltage'                        # Change this to select different Z axis variable
-z_column                 = j_array.index(z_axis)
-x_vals, y_vals, z_vals   = [], [], []
+base64_file = r"D:\WORKSPACE\BJT-MODEL\assets\BMW_Base64_Logo.txt"
+html_file   = r"D:\WORKSPACE\BJT-MODEL\result.html"
+script_name = os.path.basename(__file__)
+UTC         = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
+date        = str(datetime.datetime.now().replace(microsecond=0))
+# Read the base64 image
+with open(base64_file, 'r') as f:base64_img = ''.join(line.strip() for line in f)
 
-# print(f"Using Z column index: {z_column} for 'CT Trafo Secondary Voltage AVG'")
+# Open HTML file and write content
+with open(html_file, 'w', encoding='utf-8') as f:
+    # Style for container and image positioning
+    f.write('''
+    <style>
+        .container {
+            position: relative;
+            width: 100%;
+            height: 150px; /* adjust height if needed */
+        }
+        .logo {
+            position: absolute;
+            top: 0;
+            right: 0;
+            height: 120px; /* adjust size if needed */
+        }
+        .info {
+            position: absolute;
+            left: 10px;
+            font-weight: bold;
+        }
+        .script_name { top: 10px; }
+        .date       { top: 50px; }
+        .utc        { top: 90px; }
+    </style>
+    ''')
 
-# Extract x, y, z values based on selected rows
-x_vals                   = rows[:, 1]                                   # x axis values 
-y_vals                   = rows[:, 2]                                   # y axis values
-z_vals                   = combined_matrix[rows[:, 0], z_column]        # Z axis values
-
-# print("X values:", x_vals)
-# print("Y values:", y_vals)
-# print("Z values:", z_vals)
-#?-------------------------------------------------------------------------------------------------------------------------------
-#?  Build Meshgrid for 3D Surface Plot
-#?-------------------------------------------------------------------------------------------------------------------------------
-
-# Get unique grid values
-x_unique    = np.unique(np.array(x_vals))
-y_unique    = np.unique(np.array(y_vals))
-
-# Create meshgrid and initialize Z 
-X, Y        = np.meshgrid(x_unique, y_unique)
-Z           = np.full_like(X, fill_value=np.nan, dtype=float)  # Use NaN for missing points
-
-# Find indices in the unique arrays for each x and y value
-xi          = np.searchsorted(x_unique, x_vals)
-yi          = np.searchsorted(y_unique, y_vals)
-
-# Assign Z values at the correct positions in the meshgrid
-Z[yi, xi] = z_vals
-
-# print("X grid:", X)
-# print("Y grid:", Y)
-# print("Z grid:", Z)
+    # Container div with image and multiple info divs
+    f.write(f'''
+    <div class="container">
+        <img class="logo" src="data:image/png;base64,{base64_img}" alt="BMW Logo"/>
+        <div class="info script_name">Simulation: {script_name}</div>
+        <div class="info date">Date & Time: {date}</div>
+        <div class="info utc">Simulation ID: {UTC}</div>
+    </div>
+    ''')
 
 #?-------------------------------------------------------------------------------------------------------------------------------
 #?  Plotting the 3D Surface
 #?-------------------------------------------------------------------------------------------------------------------------------
 
+list_of_plots = []  # to store plot references if needed
 # Loop over each fixed combination to create plots
 for fixed_values in fixed_combos:
     # Create fixed dictionary for this plot
     fixed = dict(zip(fixed_keys, fixed_values))
     
-    # Select rows matching fixed values
-    rows = np.array([(i, combo[sweep_keys.index(config["Var1"])], combo[sweep_keys.index(config["Var2"])])
-                     for i, combo in enumerate(all_combos)
-                     if all(combo[sweep_keys.index(k)] == v for k, v in fixed.items())])
-    
-    if len(rows) == 0:
-        continue  # skip if no matching rows
-    
+    z_axis = 'Target LV Voltage'  #! change as needed
     # Extract Z values
-    z_column = j_array.index('Target LV Voltage')  # change as needed
+    z_column = j_array.index(z_axis)  # change as needed
     x_vals = rows[:, 1]
     y_vals = rows[:, 2]
     z_vals = combined_matrix[rows[:, 0], z_column]
@@ -209,12 +212,12 @@ for fixed_values in fixed_combos:
                 mode='lines',
                 fill='tozeroy',
                 line=dict(color='royalblue'),
-                name=z_column
+                name=z_axis
             ))
             fig.update_layout(
-                title=f"{z_column} vs {var1_name}{' & ' + var2_name if num_sweep_vars == 2 else ''} @ {fixed_title}",
+                title=f"{z_axis}  @ {fixed_title}",
                 xaxis_title=var1_name,
-                yaxis_title=z_column,
+                yaxis_title=z_axis,
             )
             fig.show()
         case "3D":
@@ -223,14 +226,40 @@ for fixed_values in fixed_combos:
                 y=Y,
                 z=Z,
                 colorscale='Viridis',
-                colorbar=dict(title=z_column)
+                colorbar=dict(title=z_axis)
             )])
             fig.update_layout(
-                title=f'{z_column} vs {var1_name} & {var2_name} @ {fixed_title}',
+                title=f'{z_axis} @ {fixed_title}',
                 scene=dict(
                     xaxis_title=var1_name,
                     yaxis_title=var2_name,
-                    zaxis_title=z_column
+                    zaxis_title=z_axis
                 )
             )
-            fig.show()
+            # fig.show()
+    list_of_plots.append(fig)  # store reference if needed
+
+
+#?-------------------------------------------------------------------------------------------------------------------------------
+#?  Append Plotly Figures to HTML (2 columns layout)
+#?-------------------------------------------------------------------------------------------------------------------------------
+
+from plotly.io import to_html
+
+with open(html_file, 'a', encoding='utf-8') as f:
+    # Start a container for the plots
+    f.write('<div style="display: flex; flex-wrap: wrap; gap: 20px; margin-top: 20px;">\n')
+
+    for i, fig in enumerate(list_of_plots):
+        # Convert figure to HTML div
+        fig_html = to_html(fig, include_plotlyjs='cdn', full_html=False)
+        
+        # Wrap each figure in a div with 50% width
+        f.write(f'<div style="flex: 0 0 48%;">{fig_html}</div>\n')
+
+    f.write('</div>\n')
+
+    # Add Plotly.js library only once at the end
+    f.write('<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>\n')
+
+
