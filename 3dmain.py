@@ -118,56 +118,35 @@ for component, fixed_values in product(headers_array, fixed_combos):
 #?-------------------------------------------------------------------------------------------------------------------------------
 
 def fft_barchart3d(x_vals, y_vals, z_vals, title, z_title, colorscale='Viridis', opacity=0.8):
-
     fig = go.Figure()
     ann = []
 
-    # Compute dynamic bar thickness based on minimum spacing
-    if len(x_vals) > 1:
-        dx = np.min(np.diff(np.sort(np.unique(x_vals)))) * 0.4
-    else:
-        dx = 1.0
-    if len(y_vals) > 1:
-        dy = np.min(np.diff(np.sort(np.unique(y_vals)))) * 0.4
-    else:
-        dy = 1.0
+    dx = np.min(np.diff(np.sort(np.unique(x_vals)))) * 0.4 if len(x_vals)>1 else 1.0
+    dy = np.min(np.diff(np.sort(np.unique(y_vals)))) * 0.4 if len(y_vals)>1 else 1.0
 
     for i, z_max in enumerate(z_vals):
         x_cnt, y_cnt = x_vals[i], y_vals[i]
-        x_min, x_max = x_cnt - dx/2, x_cnt + dx/2
-        y_min, y_max = y_cnt - dy/2, y_cnt + dy/2
+        x_min, x_max = x_cnt-dx/2, x_cnt+dx/2
+        y_min, y_max = y_cnt-dy/2, y_cnt+dy/2
 
-        # Add Mesh3d bar
         fig.add_trace(go.Mesh3d(
             x=[x_min, x_min, x_max, x_max, x_min, x_min, x_max, x_max],
             y=[y_min, y_max, y_max, y_min, y_min, y_max, y_max, y_min],
-            z=[0, 0, 0, 0, z_max, z_max, z_max, z_max],
-            alphahull=0,
-            intensity=[0, 0, 0, 0, z_max, z_max, z_max, z_max],
-            coloraxis='coloraxis',
-            opacity=opacity
+            z=[0,0,0,0,z_max,z_max,z_max,z_max],
+            alphahull=0, intensity=[0,0,0,0,z_max,z_max,z_max,z_max],
+            coloraxis='coloraxis', opacity=opacity
         ))
 
-        # Annotation on top
-        ann.append(dict(
-            showarrow=False,
-            x=x_cnt, y=y_cnt, z=z_max,
-            text=f'{z_max:.2f}',
-            font=dict(color='white', size=10),
-            bgcolor='rgba(0,0,0,0.3)',
-            xanchor='center', yanchor='middle'
-        ))
+        ann.append(dict(showarrow=False, x=x_cnt, y=y_cnt, z=z_max,
+                        text=f'{z_max:.2f}', font=dict(color='white', size=10),
+                        bgcolor='rgba(0,0,0,0.3)', xanchor='center', yanchor='middle'))
 
-    fig.update_layout(
-        title=title,
-        scene=dict(
-            xaxis_title="Frequency [Hz]",
-            yaxis_title="Sweep Var",
-            zaxis_title=z_title,
-            annotations=ann
-        ),
-        coloraxis=dict(colorscale=colorscale)    )
-
+    fig.update_layout(title=title,
+                      scene=dict(xaxis_title="Frequency [Hz]",
+                                 yaxis_title="Sweep Var",
+                                 zaxis_title=z_title,
+                                 annotations=ann),
+                      coloraxis=dict(colorscale=colorscale))
     return fig
 
 for component, fixed_values in product(FFT_headers, fixed_combos):
