@@ -9,6 +9,7 @@ import re
 import plotly.graph_objects as go
 import datetime
 from plotly.io import to_html
+plot_type       = "2D" if sum(1 for vals in sweep_vars.values() if len(vals) > 1 and vals != [0]) < 3 else "3D"
 
 #?-------------------------------------------------------------------------------------------------------------------------------
 #?  Main Function
@@ -95,13 +96,13 @@ def generate_bjt_report(header_path: str,
 
     # 3D Surface plotting
     list_of_plots = []
-    for component, fixed_values, rows in product(headers_array, fixed_combos, rows_list):
-        if len(rows) == 0: continue
+    for component, fixed_values, row in product(headers_array, fixed_combos, rows_list):
+        if len(row) == 0: continue
         fixed = dict(zip(fixed_keys, fixed_values))
         z_column = headers_array.index(component)
-        x_vals = rows[:, 1]
-        y_vals = rows[:, 2]
-        z_vals = combined_matrix[rows[:, 0].astype(int), z_column]
+        x_vals = row[:, 1]
+        y_vals = row[:, 2]
+        z_vals = combined_matrix[row[:, 0].astype(int), z_column]
         fixed_title = " | ".join(f"{config['sweepNames'][int(re.search(r'\d+', k).group())-1]} = {v}" for k, v in fixed.items())
         x_unique, y_unique = np.unique(x_vals), np.unique(y_vals)
         X, Y = np.meshgrid(x_unique, y_unique)
@@ -145,14 +146,14 @@ def generate_bjt_report(header_path: str,
                           coloraxis=dict(colorscale=colorscale))
         return fig
 
-    for component, fixed_values, fft_rows in product(FFT_headers, fixed_combos, fft_rows_list):
-        if len(fft_rows) == 0: continue
+    for component, fixed_values, fft_row in product(FFT_headers, fixed_combos, fft_rows_list):
+        if len(fft_row) == 0: continue
         fixed = dict(zip(fixed_keys, fixed_values))
         z_column = FFT_headers.index(component)
-        y_vals = fft_rows[:, 2]
+        y_vals = fft_row[:, 2]
         harm_xval = np.array(harmonics) * F_fund
         x_vals = np.tile(harm_xval, int(np.ceil(len(y_vals) / len(harm_xval))))[:len(y_vals)]
-        z_vals = combined_fft_matrix[fft_rows[:, 0].astype(int), z_column]
+        z_vals = combined_fft_matrix[fft_row[:, 0].astype(int), z_column]
         fixed_title = " | ".join(f"{config['sweepNames'][int(re.search(r'\d+', k).group())-1]} = {v}" for k, v in fixed.items())
         fig = fft_barchart3d(x_vals, y_vals, z_vals, f"{component} @ {fixed_title}", component)
         fft_plots.append(fig)
@@ -206,8 +207,7 @@ html_base     = r"D:\WORKSPACE\BJT-MODEL\results\result"
 excluded      = ['FFT_Voltage_Map.csv', 'FFT_Current_Map.csv']
 excluded_headers = {'header.json', 'Peak_Losses.json'}
 
-with open(input_json) as f: config = json.load(f)
-var1, var2 = config["Var1"], config["Var2"]
+
 split_3D   = True  
 harmonics  = [1,2] 
 F_fund     = 1e5 

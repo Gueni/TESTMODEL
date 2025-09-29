@@ -99,7 +99,6 @@ for component, fixed_values in product(headers_array, fixed_combos):
         var1_name       = config["sweepNames"][int(re.search(r'\d+', config["Var1"]).group())-1]
         var2_name       = config["sweepNames"][int(re.search(r'\d+', config["Var2"]).group())-1]
         fixed_title     = " | ".join(f"{config['sweepNames'][int(re.search(r'\d+', k).group())-1]} = {v}" for k, v in fixed.items())
-        plot_type       = "2D" if sum(1 for vals in sweep_vars.values() if len(vals) > 1 and vals != [0]) < 3 else "3D"
 
         x_unique  = np.unique(x_vals)
         y_unique  = np.unique(y_vals)
@@ -114,7 +113,7 @@ for component, fixed_values in product(headers_array, fixed_combos):
                                 )
         list_of_plots.append(fig)
 #?-------------------------------------------------------------------------------------------------------------------------------
-#?  FFT Plotting the 2D/3D Bar Charts
+#?  FFT Plotting the 3D Bar Charts
 #?-------------------------------------------------------------------------------------------------------------------------------
 
 def fft_barchart3d(x_vals, y_vals, z_vals, title, z_title, colorscale='Viridis', opacity=0.8):
