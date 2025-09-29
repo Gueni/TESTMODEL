@@ -273,40 +273,13 @@ repo_3d()
 
 
 
-import re, os
+html_base = r"D:/WORKSPACE/REPORTS"   # can be / or \
+component = "VGS:1.2V"
+UTC = "20250929"
 
-def safe_filename(name: str) -> str:
-    """
-    Replace characters not allowed in Windows filenames with '_'.
-    """
-    return re.sub(r'[\\/:"*?<>|]+', "_", name)
+filename = f"{UTC}_{safe_filename(component)}.html"
+html_file = os.path.join(html_base, filename)
+html_file = os.path.normpath(html_file)
 
-def write_html_report(html_file, plots):
-    # Sanitize the filename part only (keep directory)
-    directory, filename = os.path.split(html_file)
-    safe_file = os.path.join(directory, safe_filename(filename))
+print(html_file)
 
-    # Make sure directory exists
-    os.makedirs(directory, exist_ok=True)
-
-    with open(safe_file, 'w', encoding='utf-8') as f:
-        f.write('''
-                    <style> .container      {position: relative;width: 100%;height: 150px;}
-                            .logo           {position: absolute;top: 0;right: 0;height: 120px;}
-                            .info           {position: absolute;left: 10px;font-weight: bold;}
-                            .script_name    { top: 10px; }
-                            .date           { top: 50px; }
-                            .utc            { top: 90px; }
-                    </style>''')
-        f.write(f'''<div class="container">
-                    <img class="logo" src="data:image/png;base64,{base64_img}" alt="BMW Logo"/>
-                    <div class="info script_name">Simulation: {script_name}</div>
-                    <div class="info date">Date & Time: {date}</div>
-                    <div class="info utc">Simulation ID: {UTC}</div>
-                </div>''')
-        f.write('<div style="display: flex; flex-wrap: wrap; gap: 20px; margin-top: 20px;">\n')
-        for fig in plots:
-            fig_html = to_html(fig, include_plotlyjs='cdn', full_html=False)
-            f.write(f'<div style="flex: 0 0 48%;">{fig_html}</div>\n')
-        f.write('</div>\n')
-        f.write('<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>\n')
