@@ -284,3 +284,6 @@ os.makedirs(os.path.dirname(file_path), exist_ok=True)
 if not os.path.isfile(file_path):
     with open(file_path, 'w', encoding='utf-8') as f:
         f.write("")  # write empty content
+
+
+voltages = list(map(lambda v: v + " FFT", voltages))
