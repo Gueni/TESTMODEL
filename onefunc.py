@@ -267,3 +267,11 @@ def repo_3d(header_path                                     = r"D:\WORKSPACE\BJT
 
 # Call the function to generate reports
 repo_3d()
+
+
+
+
+fixed_title = " | ".join(
+    f"{config['sweepNames'][int(''.join(filter(str.isdigit, k))) - 1]} = {v}"
+    for k, v in fixed.items()
+)
