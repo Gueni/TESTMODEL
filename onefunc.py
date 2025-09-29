@@ -273,13 +273,14 @@ repo_3d()
 
 
 
-html_base = r"D:/WORKSPACE/REPORTS"   # can be / or \
-component = "VGS:1.2V"
-UTC = "20250929"
+import os
 
-filename = f"{UTC}_{safe_filename(component)}.html"
-html_file = os.path.join(html_base, filename)
-html_file = os.path.normpath(html_file)
+file_path = r"D:/folder directory/filename.html"  # your full path
 
-print(html_file)
+# Ensure the parent directory exists
+os.makedirs(os.path.dirname(file_path), exist_ok=True)
 
+# Create the file if it doesn't exist
+if not os.path.isfile(file_path):
+    with open(file_path, 'w', encoding='utf-8') as f:
+        f.write("")  # write empty content
