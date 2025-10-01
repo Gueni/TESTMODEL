@@ -1,7 +1,27 @@
-# Non-FFT matrices
-excluded = [6, 7]  # zero-based indices for MAT7, MAT8
-combined_matrix = np.hstack([simutil.MAT_list[i] for i in range(13) if i not in excluded])
 
-# FFT matrices
-fft_indices = [6, 7]  # MAT7, MAT8
-combined_fft_matrix = np.hstack([simutil.MAT_list[i] for i in fft_indices])
+
+
+# --- Example usage ---
+# Mock matrices
+mat_dict = {f"MAT{i}": np.random.rand(5, i) for i in range(1, 14)}  # rows=5, cols=i
+
+
+import numpy as np
+
+# Example: all MAT1-MAT13 stored in a dictionary
+mat_dict = {f"MAT{i}": getattr(simutils, f"MAT{i}") for i in range(1, 14)}
+
+# Custom order for non-FFT matrices
+custom_order = ['MAT6', 'MAT3', 'MAT1', 'MAT12']
+
+# Separate FFT and non-FFT names
+fft_names = ['MAT7', 'MAT8']
+nonfft_names = [name for name in custom_order if name not in fft_names]
+
+# Combine matrices
+combined_nonfft = np.hstack([mat_dict[name] for name in nonfft_names])
+combined_fft    = np.hstack([mat_dict[name] for name in fft_names])
+
+# Optional: combine both into one final matrix (FFT first, then others)
+combined_final  = np.hstack([combined_fft, combined_nonfft])
+

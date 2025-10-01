@@ -289,6 +289,43 @@ class SimulationUtils:
         # Return the list of resistances and auxiliary power.
 
         return res_list,P_aux
+ def csv_append_rows(self, fileName: str, data: list, save_mode: str = 'a') -> None:
+
+        """
+            Append the provided ND data array as a row to the specified CSV file.
+
+            Args:
+                fileName (str)      : The name of the CSV file to which the data will be appended.
+                data (list)         : The ND data array to be appended.
+                save_mode (str)     : Optional argument specifying the file open mode. Default value is 'a'
+                which appends data to the end of the file. To overwrite the file, set save_mode to 'w'.
+
+            Returns:
+                None
+
+            Raises:
+                TypeError: If the provided data is not a list.
+                ValueError: If the provided data is an empty list.
+
+        """
+        # Validate that 'data' is a list; raise an error if not.  
+        if not isinstance(data, list):
+            raise TypeError("data should be a list.")
+
+        # Validate that the list is not empty; raise an error if it is.  
+        if len(data) == 0:
+            raise ValueError("data list cannot be empty.")
+
+        # Check if all elements in the data list are themselves lists.  
+        if all(isinstance(i, list) for i in data):
+            # If so, create a DataFrame directly from the list of lists.  
+            df = dp.pd.DataFrame(list(data))
+        else:
+            # Otherwise, transpose the data to align it as columns in the DataFrame.  
+            df = dp.pd.DataFrame(data).T
+
+        # Write the DataFrame to a CSV file with the specified mode, without headers or index.  
+        df.to_csv(fileName, mode=save_mode, index=False, header=False)
 
     def save_data(self,optstruct,simutil,fileLog,itr=0,saveMode='w',crash=False):
         """
