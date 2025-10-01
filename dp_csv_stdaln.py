@@ -107,7 +107,7 @@ def repo_3d(header_path=header_path, CSV_MAPS_folder=CSV_MAPS_folder,input_json=
 
     def format_fixed_title(fixed_dict, sweepNames):
         """Format the fixed title in the same way as dropdown case"""
-        return "<br>".join(" | ".join(f"{sweepNames[int(dp.re.search(r'\d+', k).group())-1]} = {v}"for k, v in list(fixed_dict.items())[j:j+2])for j in range(0, len(fixed_dict), 2))
+        return "<br>".join(" | ".join(f"{sweepNames[int(''.join(filter(str.isdigit, k)))-1]} = {v}" for k, v in list(fixed_dict.items())[j:j+2]) for j in range(0, len(fixed_dict), 2))
 
     def write_html_report(html_file, plots, base64_img, script_name, date, UTC, iterSplit=False):
         """Export interactive Plotly figures to a styled HTML report with logo, metadata, and optional multi-figure layout."""

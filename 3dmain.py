@@ -210,3 +210,7 @@ else:
     write_html_report(f"{html_base}_{UTC}.html", list_of_plots)
     write_html_report(f"{html_base}_FFT_{UTC}.html", fft_plots)
 #?-------------------------------------------------------------------------------------------------------------------------------
+
+    def format_fixed_title(fixed_dict, sweepNames):
+        """Format the fixed title in the same way as dropdown case"""
+        return "<br>".join(" | ".join(f"{sweepNames[int(''.join(filter(str.isdigit, k)))-1]} = {v}" for k, v in list(fixed_dict.items())[j:j+2]) for j in range(0, len(fixed_dict), 2))
