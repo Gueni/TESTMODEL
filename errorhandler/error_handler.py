@@ -83,12 +83,14 @@ def safe_function(func):
             # Stack trace
             stack_str = "".join(traceback.format_tb(tb))
 
-            # Rich panel
+            # Define label width for alignment
+            label_width = 15
+
             panel_text = (
-                f"[bold red]Error:[/bold red] {exc_name}: {exc_value}\n\n"
-                f"[yellow]Cause:[/yellow] {cause_msg}\n\n"
-                f"[green]Suggested fix:[/green] {suggestion_msg}\n\n"
-                f"[magenta]Stack trace:[/magenta]\n{stack_str}"
+                f"[bold red]{'Error         :'.ljust(label_width)}[/bold red] {exc_name}: {exc_value}\n"
+                f"[yellow]{'Cause         :'.ljust(label_width)}[/yellow] {cause_msg}\n"
+                f"[green]{'Suggested fix :'.ljust(label_width)}[/green] {suggestion_msg}\n"
+                f"[magenta]{'Stack trace   :'.ljust(label_width)}[/magenta]\n{stack_str}"
             )
 
             console.print(Panel.fit(
