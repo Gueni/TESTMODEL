@@ -162,16 +162,63 @@ def repo_3d(header_path=header_path, CSV_MAPS_folder=CSV_MAPS_folder,input_json=
     #?------------------------------------------------
     #?  Optional: Skip all-zero columns
     #?------------------------------------------------
+    from itertools import zip_longest
+    from rich.console import Console
+    from rich.table import Table
+
+    def format_removed_columns(removed_list, n_per_row=3):
+        """Return a string with n items per row, separated by commas."""
+        if not removed_list:
+            return "-"
+        rows = []
+        for group in zip_longest(*[iter(removed_list)]*n_per_row, fillvalue=""):
+            rows.append(", ".join([g for g in group if g]))
+        return "\n".join(rows)
+
+    #?------------------------------------------------
+    #?  Optional: Skip all-zero columns
+    #?------------------------------------------------
+    from rich.table import Table
+    from rich.console import Console
+    from io import StringIO
+
+    #?------------------------------------------------
+    #?  Optional: Skip all-zero columns with rich logging
+    #?------------------------------------------------
     if skip_zero_columns:
         # Normal signals
         keep_mask_normal = ~(np.all(combined_matrix == 0, axis=0))
+        removed_normal   = [h for h, keep in zip(headers_array, keep_mask_normal) if not keep]
         headers_array    = [h for h, keep in zip(headers_array, keep_mask_normal) if keep]
         combined_matrix  = combined_matrix[:, keep_mask_normal]
 
         # FFT signals
         keep_mask_fft    = ~(np.all(combined_fft_matrix == 0, axis=0))
+        removed_fft      = [h for h, keep in zip(FFT_headers, keep_mask_fft) if not keep]
         FFT_headers      = [h for h, keep in zip(FFT_headers, keep_mask_fft) if keep]
         combined_fft_matrix = combined_fft_matrix[:, keep_mask_fft]
+
+        # Create Rich table
+        table = Table(title="Skipped Columns Summary", show_lines=True)
+        table.add_column("Matrix Type", justify="center", style="magenta")
+        table.add_column("Kept Columns", justify="center", style="green")
+        table.add_column("Removed Columns", justify="center", style="red")
+
+        table.add_row("Normal", str(len(headers_array)), ", ".join(removed_normal) if removed_normal else "-")
+        table.add_row("FFT", str(len(FFT_headers)), ", ".join(removed_fft) if removed_fft else "-")
+
+        # Capture table as string silently
+        table_io = StringIO()
+        console = Console(file=table_io, force_terminal=True, width=120, record=True)
+        console.print(table)
+        table_str = table_io.getvalue()
+
+        # Log table line by line
+        for line in table_str.splitlines():
+            self.fileLog.log(line + "\n")
+
+
+
     #?------------------------------------------------
     #?  Determine active sweep keys combinations
     #?------------------------------------------------
