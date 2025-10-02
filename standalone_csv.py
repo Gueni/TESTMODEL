@@ -162,29 +162,6 @@ def repo_3d(header_path=header_path, CSV_MAPS_folder=CSV_MAPS_folder,input_json=
     #?------------------------------------------------
     #?  Optional: Skip all-zero columns
     #?------------------------------------------------
-    from itertools import zip_longest
-    from rich.console import Console
-    from rich.table import Table
-
-    def format_removed_columns(removed_list, n_per_row=3):
-        """Return a string with n items per row, separated by commas."""
-        if not removed_list:
-            return "-"
-        rows = []
-        for group in zip_longest(*[iter(removed_list)]*n_per_row, fillvalue=""):
-            rows.append(", ".join([g for g in group if g]))
-        return "\n".join(rows)
-
-    #?------------------------------------------------
-    #?  Optional: Skip all-zero columns
-    #?------------------------------------------------
-    from rich.table import Table
-    from rich.console import Console
-    from io import StringIO
-
-    #?------------------------------------------------
-    #?  Optional: Skip all-zero columns with rich logging
-    #?------------------------------------------------
     if skip_zero_columns:
         # Normal signals
         keep_mask_normal = ~(np.all(combined_matrix == 0, axis=0))
@@ -198,26 +175,9 @@ def repo_3d(header_path=header_path, CSV_MAPS_folder=CSV_MAPS_folder,input_json=
         FFT_headers      = [h for h, keep in zip(FFT_headers, keep_mask_fft) if keep]
         combined_fft_matrix = combined_fft_matrix[:, keep_mask_fft]
 
-        # Create Rich table
-        table = Table(title="Skipped Columns Summary", show_lines=True)
-        table.add_column("Matrix Type", justify="center", style="magenta")
-        table.add_column("Kept Columns", justify="center", style="green")
-        table.add_column("Removed Columns", justify="center", style="red")
-
-        table.add_row("Normal", str(len(headers_array)), ", ".join(removed_normal) if removed_normal else "-")
-        table.add_row("FFT", str(len(FFT_headers)), ", ".join(removed_fft) if removed_fft else "-")
-
-        # Capture table as string silently
-        table_io = StringIO()
-        console = Console(file=table_io, force_terminal=True, width=120, record=True)
-        console.print(table)
-        table_str = table_io.getvalue()
-
-        # Log table line by line
-        for line in table_str.splitlines():
-            self.fileLog.log(line + "\n")
-
-
+        # Logging summary
+        print(f"[INFO] Normal matrix: kept {len(headers_array)}, removed {len(removed_normal)} -> {removed_normal}")
+        print(f"[INFO] FFT matrix   : kept {len(FFT_headers)}, removed {len(removed_fft)} -> {removed_fft}")
 
     #?------------------------------------------------
     #?  Determine active sweep keys combinations
@@ -449,7 +409,7 @@ def repo_3d(header_path=header_path, CSV_MAPS_folder=CSV_MAPS_folder,input_json=
         if fft_dropdown_data[component]:
             fft_plots.append(make_dropdown(full_title, component, fft_dropdown_data[component], plot_type="FFT"))
 
-    write_html_report(f"{html_base}_{UTC}.html", list_of_plots[1:4], base64_img, script_name, date, UTC, iterSplit=False)
-    write_html_report(f"{html_base}_FFT_{UTC}.html", fft_plots[1:4], base64_img, script_name, date, UTC, iterSplit=False)
+    write_html_report(f"{html_base}_{UTC}.html", list_of_plots, base64_img, script_name, date, UTC, iterSplit=False)
+    write_html_report(f"{html_base}_FFT_{UTC}.html", fft_plots, base64_img, script_name, date, UTC, iterSplit=False)
 
 repo_3d()
