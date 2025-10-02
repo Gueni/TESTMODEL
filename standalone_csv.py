@@ -175,10 +175,6 @@ def repo_3d(header_path=header_path, CSV_MAPS_folder=CSV_MAPS_folder,input_json=
         FFT_headers      = [h for h, keep in zip(FFT_headers, keep_mask_fft) if keep]
         combined_fft_matrix = combined_fft_matrix[:, keep_mask_fft]
 
-        # Logging summary
-        print(f"[INFO] Normal matrix: kept {len(headers_array)}, removed {len(removed_normal)} -> {removed_normal}")
-        print(f"[INFO] FFT matrix   : kept {len(FFT_headers)}, removed {len(removed_fft)} -> {removed_fft}")
-
     #?------------------------------------------------
     #?  Determine active sweep keys combinations
     #?------------------------------------------------
