@@ -14,6 +14,7 @@ header_path         = r"D:\WORKSPACE\BJT-MODEL\assets\HEADER_FILES"
 CSV_MAPS_folder     = r"D:\WORKSPACE\BJT-MODEL\CSV_MAPS"
 input_json          = r"D:\WORKSPACE\BJT-MODEL\assets\Input_vars.json"
 html_base           = r"D:\WORKSPACE\BJT-MODEL\results\result"
+Y_Lengths           = [1,77,77,77,69,69,69,69,69,62,15,18,8,148]
 
 def barchart3D(x_vals, y_vals, z_vals, title, z_title, x_title, y_title, colorscale='Viridis', opacity=1):
     """
@@ -89,10 +90,7 @@ def repo_3d(header_path=header_path, CSV_MAPS_folder=CSV_MAPS_folder,input_json=
     #?  Initialize variables and read inputs
     #?------------------------------------------------
     headers_array, list_of_plots, fft_plots     = [], [], []
-    all_header_files                            = os.listdir(header_path)
     iterSplit                                   = False
-    excluded                                    = ['FFT_Voltage_Map.csv', 'FFT_Current_Map.csv']
-    excluded_headers                            = {'header.json', 'Peak_Losses.json'}
     with open(input_json) as f:config           = json.load(f)
     var1, var2                                  = config["Var1"], config["Var2"]
     sweepNames                                  = config["sweepNames"]
@@ -151,12 +149,16 @@ def repo_3d(header_path=header_path, CSV_MAPS_folder=CSV_MAPS_folder,input_json=
     #?------------------------------------------------
     #?  Load headers and matrices
     #?------------------------------------------------
-    headers_files       = natsorted([f for f in all_header_files if f not in excluded_headers])
-    headers_lists       = [data if isinstance((data := json.load(open(os.path.join(header_path, f)))), list) else [data] for f in headers_files]
-    FFT_headers         = sum(headers_lists[5:7], [])
-    headers_array       = sum(headers_lists[:5] + headers_lists[7:], [])
-    combined_matrix     = np.hstack([pd.read_csv(os.path.join(CSV_MAPS_folder, f), header=None).values for f in sorted(os.listdir(CSV_MAPS_folder)) if f.endswith('.csv') and f not in excluded])
-    combined_fft_matrix = np.hstack([pd.read_csv(os.path.join(CSV_MAPS_folder, f), header=None).values for f in natsorted([f for f in os.listdir(CSV_MAPS_folder) if f.endswith('.csv') and f in excluded])])
+    mat_names           = ["Peak_Currents","RMS_Currents","AVG_Currents","Peak_Voltages","RMS_Voltages","AVG_Voltages","FFT_Current","FFT_Voltage","Dissipations","Elec_Stats","Temps","Thermal_Stats","Controls"]
+    headers_lists       = [data if isinstance((data := json.load(open(os.path.join(header_path, f)))), list) else [data] for f in [f"{name}.json" for name in mat_names]]
+    cumsum              = np.cumsum(Y_Lengths[1:]).tolist()
+    all_headers         = sum(headers_lists, [])
+    fft_start, fft_end  = cumsum[5], cumsum[7]
+    FFT_headers         = all_headers[fft_start:fft_end]
+    headers_array       = all_headers[:fft_start] + all_headers[fft_end:]
+    mat_lists           = [pd.read_csv(os.path.join(CSV_MAPS_folder, f), header=None).values for f in [f"{name}_Map.csv" for name in mat_names]]
+    combined_matrix     = np.hstack((mat_lists[:6] + mat_lists[8:])) 
+    combined_fft_matrix = np.hstack((mat_lists[6:8]))  
     #?------------------------------------------------
     #?  Determine active sweep keys combinations
     #?------------------------------------------------
