@@ -15,7 +15,7 @@ CSV_MAPS_folder     = r"D:\WORKSPACE\BJT-MODEL\CSV_MAPS"
 input_json          = r"D:\WORKSPACE\BJT-MODEL\assets\Input_vars.json"
 html_base           = r"D:\WORKSPACE\BJT-MODEL\results\result"
 Y_Lengths           = [1,77,77,77,69,69,69,69,69,62,15,18,8,148]
-
+skip_zero_columns = True
 def barchart3D(x_vals, y_vals, z_vals, title, z_title, x_title, y_title, colorscale='Viridis', opacity=1):
     """
     Create a 3D bar chart using Plotly Mesh3d cuboids.
@@ -159,6 +159,19 @@ def repo_3d(header_path=header_path, CSV_MAPS_folder=CSV_MAPS_folder,input_json=
     mat_lists           = [pd.read_csv(os.path.join(CSV_MAPS_folder, f), header=None).values for f in [f"{name}_Map.csv" for name in mat_names]]
     combined_matrix     = np.hstack((mat_lists[:6] + mat_lists[8:])) 
     combined_fft_matrix = np.hstack((mat_lists[6:8]))  
+    #?------------------------------------------------
+    #?  Optional: Skip all-zero columns
+    #?------------------------------------------------
+    if skip_zero_columns:
+        # Normal signals
+        keep_mask_normal = ~(np.all(combined_matrix == 0, axis=0))
+        headers_array    = [h for h, keep in zip(headers_array, keep_mask_normal) if keep]
+        combined_matrix  = combined_matrix[:, keep_mask_normal]
+
+        # FFT signals
+        keep_mask_fft    = ~(np.all(combined_fft_matrix == 0, axis=0))
+        FFT_headers      = [h for h, keep in zip(FFT_headers, keep_mask_fft) if keep]
+        combined_fft_matrix = combined_fft_matrix[:, keep_mask_fft]
     #?------------------------------------------------
     #?  Determine active sweep keys combinations
     #?------------------------------------------------
