@@ -150,11 +150,11 @@ def repo_3d(header_path=header_path, CSV_MAPS_folder=CSV_MAPS_folder,input_json=
     #?  Load headers and matrices
     #?------------------------------------------------
     mat_names           = ["Peak_Currents","RMS_Currents","AVG_Currents","Peak_Voltages","RMS_Voltages","AVG_Voltages","FFT_Current","FFT_Voltage","Dissipations","Elec_Stats","Temps","Thermal_Stats","Controls"]
-    headers_lists       = [[f"{h}_FFT" for h in data] if name in ["FFT_Current", "FFT_Voltage"] else data if isinstance((data := json.load(open(os.path.join(header_path, f"{name}.json")))), list) else [data] for name in mat_names]    
+    headers_lists       = [data if isinstance((data := json.load(open(os.path.join(header_path, f"{name}.json")))), list) else [data] for name in mat_names]
     cumsum              = np.cumsum(Y_Lengths[1:]).tolist()
     all_headers         = sum(headers_lists, [])
     fft_start, fft_end  = cumsum[5], cumsum[7]
-    FFT_headers         = all_headers[fft_start:fft_end]
+    FFT_headers = list(map(lambda h: f"{h}_FFT", all_headers[fft_start:fft_end]))
     headers_array       = all_headers[:fft_start] + all_headers[fft_end:]
     mat_lists           = [pd.read_csv(os.path.join(CSV_MAPS_folder, f), header=None).values for f in [f"{name}_Map.csv" for name in mat_names]]
     combined_matrix     = np.hstack((mat_lists[:6] + mat_lists[8:])) 
