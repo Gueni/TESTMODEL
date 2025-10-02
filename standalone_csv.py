@@ -150,7 +150,7 @@ def repo_3d(header_path=header_path, CSV_MAPS_folder=CSV_MAPS_folder,input_json=
     #?  Load headers and matrices
     #?------------------------------------------------
     mat_names           = ["Peak_Currents","RMS_Currents","AVG_Currents","Peak_Voltages","RMS_Voltages","AVG_Voltages","FFT_Current","FFT_Voltage","Dissipations","Elec_Stats","Temps","Thermal_Stats","Controls"]
-    headers_lists       = [data if isinstance((data := json.load(open(os.path.join(header_path, f)))), list) else [data] for f in [f"{name}.json" for name in mat_names]]
+    headers_lists       = [[f"{h}_FFT" for h in data] if name in ["FFT_Current", "FFT_Voltage"] else data if isinstance((data := json.load(open(os.path.join(header_path, f"{name}.json")))), list) else [data] for name in mat_names]    
     cumsum              = np.cumsum(Y_Lengths[1:]).tolist()
     all_headers         = sum(headers_lists, [])
     fft_start, fft_end  = cumsum[5], cumsum[7]
