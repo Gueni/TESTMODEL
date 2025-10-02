@@ -40,4 +40,3 @@ calc.process_list_dict([1, 2, 3], {"a": 10}, 5, "b")  # IndexError and KeyError
 
 
 
-np.delete(matrix, np.s_[idx_start:idx_end], axis=1)
