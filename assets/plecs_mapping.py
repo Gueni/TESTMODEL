@@ -7,6 +7,9 @@
 #?												 |_|   |_____|_____\____|____/  |_|  |_|\__,_| .__/| .__/|_|_| |_|\__, |
 #?												                                             |_|   |_|            |___/
 #?-------------------------------------------------------------------------------------------------------------------------------------------------------------
+import collections
+import copy
+import functools
 import Dependencies as dp
 #-------------------------------------------------------------------------------------------------------------------------------------------------------------
 input_dict						=	dp.Param_Dicts.ModelVars								# Dictionary of Current Simulation Parameters.
@@ -1389,20 +1392,6 @@ DCDC_DUAL_Ctrl_plt				=	[
 									#----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 									]
 
-OBC_pmap_Raw					=	[]														# OBC Raw PLECS Mapping
-OBC_pmap_plt					=	[]														# OBC Plotting  Mapping
-OBC_Constants					=	[]														# OBC Constants Mapping
-OBC_Ctrl_plt					=	[]														# OBC Controls plots mapping.
-
-PFC_pmap_Raw					=	[]														# PFC Raw PLECS Mapping
-PFC_pmap_plt					=	[]														# PFC Plotting  Mapping
-PFC_Constants					=	[]														# PFC Constants Mapping
-PFC_Ctrl_plt					=	[]														# PFC Controls plots mapping.
-
-LLC_pmap_Raw					=	[]														# LLC Raw PLECS Mapping
-LLC_pmap_plt					=	[]														# LLC Plotting  Mapping
-LLC_Constants					=	[]														# LLC Constants Mapping
-LLC_Ctrl_plt					=	[]														# LLC Controls plots mapping.
 #-------------------------------------------------------------------------------------------------------------------------------------------------------------
 def return_mags(op_dict):
 	"""
@@ -1605,40 +1594,6 @@ def return_resistances(op_dict):
 
 	return  dp.np.array(dp.Resistances)
 
-def remove_ranges(input_list, *ranges):
-    """
-    Remove specified ranges from the input list.
-
-    Parameters:
-    	- input_list 	(list)	: The input list to be modified.
-    	- *ranges 		(tuple)	: Variable-length argument representing the ranges to be removed.
-                      			  Each range is a tuple (start, end), where start and end are indices.
-    Returns:
-    	list					: The modified input list with specified ranges removed.
-    """
-    ranges = sorted(ranges, reverse=True)  # Sort in reverse order to avoid index shifting issues
-    for start, end in ranges:
-        if 0 <= start <= len(input_list) and 0 <= end <= len(input_list):
-            del input_list[start:end+1]
-
-    return input_list
-
-def overwrite_values_with_ints(lst,shift=0):
-    """
-    Overwrites the values of the input list `lst` with integers corresponding to their index.
-
-    Args:
-    - lst (list)     : A list whose values need to be overwritten.
-    - shift (int)   : An integer between 0 or 1 : 0 by default | 1 if we don't have Time as first key in the dict.
-
-    Returns:
-    - dict          : An ordered dictionary with the same keys as `od`, but with integer values corresponding to their index.
-    """
-    new_od = dp.OrderedDict()
-    for i, value in enumerate(lst):
-        new_od[value] = i + shift
-    return new_od
-
 def tofile_map_gen(mapping_Raw,lengths):
 	"""
 		Generates two ordered dictionaries of mappings from a raw mapping list and a list of segment lengths.
@@ -1668,39 +1623,20 @@ def tofile_map_gen(mapping_Raw,lengths):
 		keys are the names of the maps and the values are
 		lists of integers.
 	"""
-	c,idx_shift 								=	0,1
-	Maps_names =  [		"Peak_Currents"		,
-                        "Peak_Voltages"		,
-                        "Dissipations"		,
-                        "Elec_Stats"		,
-                        "Temps"				,
-						"Thermal_Stats"		,
-                        "Controls"
-	]
+	c, idx_shift = 0, 1
+	Maps_names = ["Peak_Currents", "Peak_Voltages", "Dissipations", "Elec_Stats", "Temps", "Thermal_Stats", "Controls"]
 
-	Tofile_mapping_3D ,Tofile_mapping_multiple		= 	dp.OrderedDict(),dp.OrderedDict()
-	for i in range(1,len(lengths)):
-		Tofile_mapping_3D[Maps_names[i-1]] 			= overwrite_values_with_ints(dp.copy.deepcopy(mapping_Raw[c+1:lengths[i]+c+1]),shift=0)
-		Tofile_mapping_multiple[Maps_names[i-1]] 	= overwrite_values_with_ints(dp.copy.deepcopy(mapping_Raw[c+1:lengths[i]+c+1]),shift=idx_shift)
-		c			+=lengths[i]
-		idx_shift	+=lengths[i]
-	return	Tofile_mapping_3D,Tofile_mapping_multiple
+	Tofile_mapping_3D, Tofile_mapping_multiple = collections.OrderedDict(), collections.OrderedDict()
 
-def gen_consts(Constans_list):
-	"""
-     This function generates a dictionary of constants based on the configuration specified in 'dp.JSON['TF_Config']'.
-     The constants are organized as key-value pairs, where the key is the constant name, and the value is a list containing the constant name, its physical mapping, and units.
-     The specific constants and their details are determined based on the configuration.
+	for i in range(1, len(lengths)):
+		segment = copy.deepcopy(mapping_Raw[c + 1:lengths[i] + c + 1])
+		Tofile_mapping_3D[Maps_names[i - 1]] 		= collections.OrderedDict(zip(segment, range(0, len(segment))))
+		Tofile_mapping_multiple[Maps_names[i - 1]] 	= collections.OrderedDict(zip(segment, range(idx_shift, len(segment) + idx_shift)))
 
-     Parameters        :   Constants_list        :          List
-                                                            A list of Constants parameters from the model mapping. 
-      Returns          :   Constants_dict        :          Dictionary
-                                                            An ordered dictionary of constants and values from the model parameters mapping.
-	"""
-	constants_dict	=	dp.OrderedDict()
-	for sublist in Constans_list:
-		constants_dict[f'{sublist[0]}'] = [f'{sublist[0]}', dp.pmapping[f'{sublist[0]}'], f'{sublist[1]}']
-	return	constants_dict
+		c += lengths[i]
+		idx_shift += lengths[i]
+
+	return Tofile_mapping_3D, Tofile_mapping_multiple
 
 def gen_pmap_plt():
 	"""
@@ -1800,135 +1736,30 @@ def gen_pmap_plt():
 		#------------------------------------------------------------------------------------------------------------------------------------------------------------------
 	return	pmap_plt_dict,pmap_plt_ctrl_dict
 
-def add_str(input_list, add_string):
-    """
-    Add a specified string to each element in the input list.
-
-    Parameters:
-    	- input_list (list)	: The input list of strings.
-    	- add_string (str)	: The string to be added to each element.
-    Returns:
-    list					: A new list with the specified string added to each element.
-    """
-    modified_list = [string + add_string for string in input_list]
-    return modified_list
-
-def insert_sublist(in_list, item_list):
-	"""
-	Insert sublists into the input list at specified indices.
-
- 	Parameters:
-		- in_list 	(list)	: The input list.
-		- item_list (list)	: List of tuples where each tuple contains a sublist and its index.
-
- 	Returns:
-		list				: The modified input list with sublists inserted at specified indices.
-	"""
-	in_list = dp.np.array(in_list)
-	for i, (sub_list, index) in enumerate(item_list):
-		in_list = dp.np.insert(in_list, index, dp.np.array(sub_list))
-	return in_list.tolist()
-
-def remove_slices(input_list, slice_indices):
-    """
-    Remove slices from the input list based on specified indices.
-
-    Parameters:
-    - input_list 	(list): The input list to be modified.
-    - slice_indices (list): List of tuples representing the start and end indices of slices to be removed.
-
-    Returns:
-    list				  : The modified input list with specified slices removed.
-    """
-    for start, end in slice_indices:
-        input_list[start:end] = []
-    return input_list
-
-def backward_slice(input_list, back_idx, back_size):
-	"""
-	Remove elements from the input list starting from a specified index in reverse order.
-
- 	Parameters:
-		- input_list 	(list)	: The input list to be modified.
-		- back_idx 		(int)	: The starting index for backward slicing.
-		- back_size 	(int)	: The number of elements to remove starting from back_idx.
-	Returns:
-		list					: The modified input list with elements removed in reverse order.
-	"""
-	if len(input_list) >= back_idx:
-		# Remove back_size elements starting from the back_idx element backwards
-		del input_list[-(back_idx + 1):-(back_idx + back_size +1):-1]
-	return input_list
-
 def dump_headers(raw_dict, names):
-	"""
-	Dump header information into JSON files based on specified mapping.
-	Parameters:
-		- raw_dict 	(dict): The raw dictionary containing header information.
-		- names 	(list): List of names used for indexing header information.
-	"""
-    # Dumping the Header list from plecs mapping into a json file.
-	with open(dp.Header_File,'w') as f:
-		Time_series_header = backward_slice(dp.copy.copy(raw_dict),dp.Y_list[-1],dp.Y_Length[10])
-		dp.json.dump(remove_slices(Time_series_header, [(sum(dp.Y_list[0:3]),sum(dp.Y_list[0:3])+dp.Y_Length[9])]) , f)
-	f.close()
-	#?-------------------------------------------------------------
-	# Dumping each sub header list from plecs mapping into a separate json file
-	c   =   0
-	sublists 	=	[	(add_str(raw_dict[1:dp.Y_list[1]+1],' RMS')						  	 ,	sum(dp.Y_Length[0:2])),
-						(add_str(raw_dict[1:dp.Y_list[1]+1],' AVG')						  	 ,	sum(dp.Y_Length[0:3])),
-						(add_str(raw_dict[sum(dp.Y_list[0:2]):sum(dp.Y_list[0:3])],' RMS')   ,  sum(dp.Y_Length[0:5])),
-						(add_str(raw_dict[sum(dp.Y_list[0:2]):sum(dp.Y_list[0:3])],' AVG')	 ,	sum(dp.Y_Length[0:6])),
-
-           				(add_str(raw_dict[1:dp.Y_list[1]+1],'')						  	 ,	sum(dp.Y_Length[0:7])),
-						(add_str(raw_dict[sum(dp.Y_list[0:2]):sum(dp.Y_list[0:3])],'')	 ,	sum(dp.Y_Length[0:8]))
-					]
-	temp_raw_dict = insert_sublist(dp.copy.copy(raw_dict),sublists)
-	for i in range(1,len(dp.Y_Length)):
-		header_file =   "Script/assets/HEADER_FILES/"+Maps_index[names][i-1]+ ".json"
-		with open(header_file,'w') as file:
-			dp.json.dump(temp_raw_dict[c+1:dp.Y_Length[i]+c+1],file)
-		file.close()
-		c			+=dp.Y_Length[i]
-
-def remove_strings_from_json(json_file_path, strings_to_remove):
-	"""
-	 Compares a given list of strings with the ones already in a given json file
-	 if found they would be removed from the json file.
-
-	Args:
-		json_file_path (str)	: input vars json file path.
-		strings_to_remove (list): list of strings to be removed.
-	"""
-	with open(json_file_path, 'r') as file:
-		data = dp.json.load(file)
-	modified_list = data.copy()
-	file.close()
-	for string_to_remove in strings_to_remove:
-		if str(string_to_remove).lower() in [item.lower() for item in modified_list]:
-			modified_list.remove(string_to_remove)
-	with open(json_file_path,'w') as file:
-			dp.json.dump(modified_list,file)
-	file.close()
-
-def pwm_dict(raw_map,elem1,elem2 ):
-	"""
-       Generates a dictionary for pwm signals to be used in multiplotting.
-
-      Parameters        	:   raw_map         :       List
-                                                        The original raw mapping.
-                                elem1           :       string
-                                                    	First element in pwm signals.
-								elem2			:		string
-														Last element in pwm signals.
-      Returns             	:	pwm_dict		:		List
-														Ordered dictionary of the given pwm signals.
-	"""
-	pwm_dict = dp.OrderedDict()
-	pwm_list = raw_map[raw_map.index(elem1):raw_map.index(elem2)]
-	for i in range(len(pwm_list)):
-		pwm_dict[f"{pwm_list[i]}"] = raw_map.index(pwm_list[i])
-	return pwm_dict
+    """
+    Dump header information into JSON files based on specified mapping.
+    """
+    # One-liner to add a suffix to list elements
+    add_str = lambda lst, s: [x + s for x in lst]
+    # Prepare main header
+    ts_header = dp.np.delete(dp.np.array(raw_dict),dp.np.r_[-(dp.Y_list[-1]+1):-(dp.Y_list[-1]+1)+dp.Y_Length[10]])
+    ts_header = dp.np.delete(ts_header,dp.np.r_[sum(dp.Y_list[:3]):sum(dp.Y_list[:3])+dp.Y_Length[9]]).tolist()
+    # Save main header
+    with open(dp.Header_File, 'w') as f: dp.json.dump(ts_header, f)
+	# Prepare sublists and save them
+    slices	= [slice(1, dp.Y_list[1]+1), slice(1, dp.Y_list[1]+1), slice(sum(dp.Y_list[:2]), sum(dp.Y_list[:3])), slice(sum(dp.Y_list[:2]), sum(dp.Y_list[:3])), slice(1, dp.Y_list[1]+1), slice(sum(dp.Y_list[:2]), sum(dp.Y_list[:3]))]
+    suffixes	= [' RMS', ' AVG', ' RMS', ' AVG', '', '']
+    lengths	= [sum(dp.Y_Length[:2]), sum(dp.Y_Length[:3]), sum(dp.Y_Length[:5]), sum(dp.Y_Length[:6]), sum(dp.Y_Length[:7]), sum(dp.Y_Length[:8])]
+    sublists	= [(add_str(raw_dict[s], suf), l) for s, suf, l in zip(slices, suffixes, lengths)]
+    temp_raw_dict = functools.reduce(lambda acc, x: dp.np.insert(acc, x[1], dp.np.array(x[0])), sublists, dp.np.array(raw_dict)).tolist()
+    # Dump sub headers
+    c = 0
+    for i, length in enumerate(dp.Y_Length[1:], 1):
+        header_file = f"Script/assets/HEADER_FILES/{Maps_index[names][i-1]}.json"
+        with open(header_file, 'w') as file:
+            dp.json.dump(temp_raw_dict[c+1:c+1+length], file)
+        c += length
 
 def select_mapping(DCDC_pmap_Raw):
 	"""
@@ -1964,13 +1795,14 @@ def select_mapping(DCDC_pmap_Raw):
 			dp.current_idx         		=  37																								# Index up to which all currents related to resistive loads.
 			dp.com_cols            		=  6																								# Number of columns of commun data (exp : LV filter).
 			dump_headers(DCDC_pmap_Raw,'DCDC_map_names')																					# Generate json header files.
-			DCDC_pmap_Raw 				= remove_slices(DCDC_pmap_Raw, [(sum(dp.Y_list[0:3]),sum(dp.Y_list[0:3])+dp.Y_Length[9])])			# Drop unessecary slices of the mapping.
-			DCDC_pmap_Raw 				= backward_slice(DCDC_pmap_Raw,dp.Y_list[-1],dp.Y_Length[12])										# Remove thermal stats  mapping.
-			dp.pmapping					= overwrite_values_with_ints(DCDC_pmap_Raw,0)														# Generate DCDC plecs mapping dict from RAW list.
+			DCDC_pmap_Raw 				= dp.np.delete(dp.np.array(DCDC_pmap_Raw),dp.np.r_[sum(dp.Y_list[0:3]):sum(dp.Y_list[0:3]) + dp.Y_Length[9]]).tolist()
+			DCDC_pmap_Raw 				= dp.np.delete(dp.np.array(DCDC_pmap_Raw),dp.np.r_[-(dp.Y_list[-1]+1) : -(dp.Y_list[-1]+1) + dp.Y_Length[12]]).tolist()
+			dp.pmapping 				= collections.OrderedDict(zip(DCDC_pmap_Raw, range(0, len(DCDC_pmap_Raw))))
 			dp.pmap_3D,dp.pmap_multi	= tofile_map_gen(DCDC_pmap_Raw,dp.Y_list)															# Generate DCDC mapping dicts both for 3D and multiple plots.
-			dp.pwm_dict 				= pwm_dict(DCDC_pmap_Raw,"PWM Modulator Primary PWM Outputs S1","PWM Modulator Auxiliary PWM Outputs Sdis" )
+			pwm_slice 					= DCDC_pmap_Raw[DCDC_pmap_Raw.index("PWM Modulator Primary PWM Outputs S1"):DCDC_pmap_Raw.index("PWM Modulator Auxiliary PWM Outputs Sdis")]
+			dp.pwm_dict 				= dp.OrderedDict(zip(pwm_slice, map(DCDC_pmap_Raw.index, pwm_slice)))
 			dp.pmap_plt,dp.pmap_plt_ctrl= gen_pmap_plt()																					# Generate DCDC html plots mapping dict & ctrls mapping.
-			dp.constant_dict 			= gen_consts(DCDC_Constants)																		# Generate Constants Dictionary.
+			dp.constant_dict 			= collections.OrderedDict((sub[0], [sub[0], dp.pmapping[sub[0]], sub[1]]) for sub in DCDC_Constants)
 			dp.plt_title_list  			= DCDC_pmap_plt
 			dp.idx_start,dp.idx_end     = 53,61
 			strings_to_remove			=  ['HV Left-Leg ON Current'							,
@@ -1982,7 +1814,8 @@ def select_mapping(DCDC_pmap_Raw):
          									'HV Right-Leg Max Current1'							,
 											'HV Right-Leg Max Current2'
          									]
-			remove_strings_from_json("Script/assets/HEADER_FILES/FFT_Current.json", strings_to_remove)
+			dp.json.dump(list(filter(lambda x: x.lower() not in set(map(str.lower, strings_to_remove)),dp.json.load(open("Script/assets/HEADER_FILES/FFT_Current.json")))),open("Script/assets/HEADER_FILES/FFT_Current.json", 'w'))
+
 			# Define the slices as a list
 			dp.slices = [
 				slice(1, dp.Y_list[1] + 1)                      , #? Currents    Slice
@@ -2010,11 +1843,12 @@ def select_mapping(DCDC_pmap_Raw):
 			dp.current_idx         		=  0																								# Index up to which all currents related to resistive loads.
 			dp.com_cols            		=  0																								# Number of columns of commun data (exp : LV filter).
 			dump_headers(DCDC_DUAL_pmap_Raw,'DCDC_map_names')																				# Generate json header files.
-			dp.pmapping					=  overwrite_values_with_ints(DCDC_DUAL_pmap_Raw,0)													# Generate DCDC plecs mapping dict from RAW list.
+			dp.pmapping = collections.OrderedDict(zip(DCDC_DUAL_pmap_Raw, range(0, len(DCDC_pmap_Raw))))
 			dp.pmap_3D,dp.pmap_multi	=  tofile_map_gen(DCDC_DUAL_pmap_Raw,dp.Y_list)														# Generate DCDC mapping dicts both for 3D and multiple plots.
-			dp.pwm_dict 				= pwm_dict(DCDC_DUAL_pmap_Raw,"PWM Modulator Carrier Waveforms 1 Rail 1","PWM Modulator Auxiliary PWM Outputs Sdis Rail 2" )
+			pwm_slice = DCDC_DUAL_pmap_Raw[DCDC_DUAL_pmap_Raw.index("PWM Modulator Carrier Waveforms 1 Rail 1"):DCDC_DUAL_pmap_Raw.index("PWM Modulator Auxiliary PWM Outputs Sdis Rail 2")]
+			dp.pwm_dict = dp.OrderedDict(zip(pwm_slice, map(DCDC_DUAL_pmap_Raw.index, pwm_slice)))
 			dp.pmap_plt,dp.pmap_plt_ctrl=  gen_pmap_plt()																					# Generate DCDC html plots mapping dict & ctrls mapping.
-			dp.constant_dict 			=  gen_consts(DCDC_DUAL_Constants)																	# Generate Constants Dictionary.
+			dp.constant_dict = collections.OrderedDict((sub[0], [sub[0], dp.pmapping[sub[0]], sub[1]]) for sub in DCDC_DUAL_Constants)
 			dp.plt_title_list  			=  DCDC_DUAL_pmap_plt
 			dp.idx_start,dp.idx_end     =  97,113
 			strings_to_remove			=  [
@@ -2035,7 +1869,8 @@ def select_mapping(DCDC_pmap_Raw):
 											'HV Right-Leg Max Current2 Rail 1'			,
          									'HV Right-Leg Max Current2 Rail 2'
 											]
-			remove_strings_from_json("Script/assets/HEADER_FILES/FFT_Current.json", strings_to_remove)
+			dp.json.dump(list(filter(lambda x: x.lower() not in set(map(str.lower, strings_to_remove)),dp.json.load(open("Script/assets/HEADER_FILES/FFT_Current.json")))),open("Script/assets/HEADER_FILES/FFT_Current.json", 'w'))
+
 			# Define the slices as a list
 			dp.slices = [
 				slice(1, dp.Y_list[1] + 1)                      , #? Currents    Slice
