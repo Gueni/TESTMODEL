@@ -16,64 +16,75 @@ input_json          = r"D:\WORKSPACE\BJT-MODEL\assets\Input_vars.json"
 html_base           = r"D:\WORKSPACE\BJT-MODEL\results\result"
 
 def barchart3D(x_vals, y_vals, z_vals, title, z_title, x_title, y_title, colorscale='Viridis', opacity=1):
-    """
-    Create a 3D bar chart using Plotly Mesh3d cuboids.
-        - Each bar is represented as a Mesh3d cuboid.
-        - The bar width is automatically calculated from the spacing between unique x and y values.
-        - An annotation is added at the top of each bar, showing its height.
+    import numpy as np
+    import plotly.graph_objects as go
 
-    Parameters :
-                    x_vals      : (array) The x-coordinates of the bar positions.
-                    y_vals      : (array) The y-coordinates of the bar positions.
-                    z_vals      : (array) The heights (z-axis values) of the bars.
-                    title       : (str)   Title of the chart.
-                    z_title     : (str)   Label for the Z-axis.
-                    x_title     : (str)   Label for the X-axis.
-                    y_title     : (str)   Label for the Y-axis.
-                    colorscale  : (str)   optional Plotly colorscale name (default is 'Viridis').
-                    opacity     : (float) optional Opacity of the bars (default is 1, fully opaque).
+    fig, ann = go.Figure(), []
 
-    Returns    :
-                    fig : plotly.graph_objects.Figure : A Plotly Figure object containing the 3D bar chart.
-
-    """
-    # Create an empty Plotly figure and Collect annotations for bar tops
-    fig         = go.Figure()
-    ann         = []
-
-    # Ensure x_vals, y_vals, and z_vals are numpy arrays of type float
     x_vals, y_vals, z_vals = map(lambda arr: np.array(arr, dtype=float), (x_vals, y_vals, z_vals))
+    dx = np.min(np.diff(np.unique(x_vals))) * 0.4 if len(np.unique(x_vals)) > 1 else 1.0
+    dy = np.min(np.diff(np.unique(y_vals))) * 0.4 if len(np.unique(y_vals)) > 1 else 1.0
+    dx, dy = max(dx, 1e-6), max(dy, 1e-6)
 
-    # Compute bar widths safely from unique coordinate spacings
-    dx          = np.min(np.diff(np.unique(x_vals))) * 0.4 if len(np.unique(x_vals)) > 1 else 1.0
-    dy          = np.min(np.diff(np.unique(y_vals))) * 0.4 if len(np.unique(y_vals)) > 1 else 1.0
-
-    # Ensure widths are never zero (avoid degenerate bars)
-    dx, dy      = max(dx, 1e-6), max(dy, 1e-6) 
-
-    # Loop over all z-values to create cuboid bars
     for i, z_max in enumerate(z_vals):
-        x_cnt, y_cnt = x_vals[i], y_vals[i]  
+        x_cnt, y_cnt = x_vals[i], y_vals[i]
         x_min, x_max = x_cnt - dx/2, x_cnt + dx/2
         y_min, y_max = y_cnt - dy/2, y_cnt + dy/2
-        x            = [x_min, x_min, x_max, x_max, x_min, x_min, x_max, x_max]
-        y            = [y_min, y_max, y_max, y_min, y_min, y_max, y_max, y_min]
-        z            = [0, 0, 0, 0, z_max, z_max, z_max, z_max]
+        x = [x_min, x_min, x_max, x_max, x_min, x_min, x_max, x_max]
+        y = [y_min, y_max, y_max, y_min, y_min, y_max, y_max, y_min]
+        z = [0, 0, 0, 0, z_max, z_max, z_max, z_max]
 
-        # Add a cuboid Mesh3d trace for the bar
-        fig.add_trace(go.Mesh3d(x=x,y=y,z=z,alphahull=0,intensity=z,coloraxis='coloraxis',opacity=opacity))
+        fig.add_trace(go.Mesh3d(
+            x=x, y=y, z=z,
+            alphahull=0,
+            intensity=z,
+            coloraxis='coloraxis',
+            opacity=opacity,
+            hoverinfo='skip'  # disable corner hover
+        ))
 
-        # Add annotation on top of the bar showing height
-        ann.append(dict(showarrow=False,x=x_cnt, y=y_cnt, z=z_max,text=f'{z_max:.2f}',font=dict(color='white', size=10),bgcolor='rgba(0,0,0,0.3)',xanchor='center', yanchor='middle'))
+        ann.append(dict(
+            showarrow=False, x=x_cnt, y=y_cnt, z=z_max,
+            text=f'{z_max:.2f}',
+            font=dict(color='white', size=10),
+            bgcolor='rgba(0,0,0,0.3)',
+            xanchor='center', yanchor='middle'
+        ))
 
-    # Update layout: axis labels, fonts, title, colors
+    # Add clean hover points
+    fig.add_trace(go.Scatter3d(
+        x=x_vals,
+        y=y_vals,
+        z=z_vals,
+        mode='markers',
+        marker=dict(size=4, color=z_vals, colorscale=colorscale, opacity=0),
+        hovertemplate=(
+            f"<b>{x_title}</b>: %{{x:.2f}}<br>"
+            f"<b>{y_title}</b>: %{{y:.2f}}<br>"
+            f"<b>{z_title}</b>: %{{z:.2f}}<extra></extra>"
+        ),
+        showlegend=False
+    ))
+
     fig.update_layout(
         title=dict(text=title, x=0.5, xanchor='center', yanchor='top'),
-        scene=dict(xaxis_title=x_title,yaxis_title=y_title,zaxis_title=z_title,annotations=ann,xaxis_title_font=dict(size=10),yaxis_title_font=dict(size=10),
-                   zaxis_title_font=dict(size=10),xaxis_tickfont=dict(size=10),yaxis_tickfont=dict(size=10),zaxis_tickfont=dict(size=10)),
-        coloraxis=dict(colorscale=colorscale))
+        scene=dict(
+            xaxis_title=x_title,
+            yaxis_title=y_title,
+            zaxis_title=z_title,
+            annotations=ann,
+            xaxis_title_font=dict(size=10),
+            yaxis_title_font=dict(size=10),
+            zaxis_title_font=dict(size=10),
+            xaxis_tickfont=dict(size=10),
+            yaxis_tickfont=dict(size=10),
+            zaxis_tickfont=dict(size=10)
+        ),
+        coloraxis=dict(colorscale=colorscale)
+    )
 
     return fig
+
 
 def repo_3d(header_path=header_path, CSV_MAPS_folder=CSV_MAPS_folder,input_json=input_json, html_base=html_base):
     """
