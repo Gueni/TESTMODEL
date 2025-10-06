@@ -221,219 +221,273 @@ def repo_3d(header_path=header_path, CSV_MAPS_folder=CSV_MAPS_folder,input_json=
         fig             = go.Figure()
         fixed_dict      = {}
 
-        # Normal signals 2D plotting
+        sweep_values = sweep_vars[single_X_key]
+        sweep_label  = sweepNames[int(re.search(r'\d+', single_X_key).group())-1]
+        fixed_vars   = {k: v for k, v in sweep_vars.items() if k != single_X_key and v != [0]}
+        fixed_combos = list(product(*fixed_vars.values())) if fixed_vars else [()]
+        def format_fixed_title(fixed_dict):
+            if not fixed_dict: return ""
+            items = list(fixed_dict.items())
+            lines = []
+            for i in range(0, len(items), 2):
+                pair = " | ".join(f"{sweepNames[int(re.search(r'\\d+', k).group())-1]} = {v}" for k, v in items[i:i+2])
+                lines.append(pair)
+            return "<br>".join(lines)
+
+        # Initialize container dicts for HTML content
+        signals_html_dict, fft_html_dict = {}, {}
+
+        # --- NORMAL SIGNALS ---
         for component in headers_array:
-            z_column    = headers_array.index(component)
-            z_vals      = combined_matrix[:len(sweep_values), z_column]
-            fig.add_trace(go.Scatter(x=sweep_values, y=z_vals, mode='lines+markers', fill='tozeroy', name=component))
-            fixed_dict.update({k: v[0] if isinstance(v, list) else v for k, v in sweep_vars.items() if k != single_X_key and v != [0]})
-            fixed_title = format_fixed_title(fixed_dict, sweepNames)
-            full_title  = f'{component}<br>{fixed_title}' if fixed_dict else component
-            fig.update_layout(title=dict(text=full_title, x=0.5, xanchor='center', yanchor='top'),xaxis_title=sweepNames[int(re.search(r'\d+', single_X_key).group())-1],
-                              yaxis_title=component,xaxis_title_font=dict(size=10),yaxis_title_font=dict(size=10),xaxis_tickfont=dict(size=10),yaxis_tickfont=dict(size=10))
-            list_of_plots.append(fig)
+            figs = []
+            for fixed_values in fixed_combos:
+                fixed_dict = dict(zip(fixed_vars.keys(), fixed_values))
+                z_column = headers_array.index(component)
+                z_vals = combined_matrix[:len(sweep_values), z_column]
 
-        # FFT 2D plotting
+                fig = go.Figure()
+                fig.add_trace(go.Scatter(
+                    x=sweep_values, y=z_vals, mode='lines+markers', fill='tozeroy',
+                    name=f"{component} {format_fixed_title(fixed_dict)}"
+                ))
+                fig.update_layout(
+                    title=dict(text=f"{component}<br>{format_fixed_title(fixed_dict)}", x=0.5),
+                    xaxis_title=sweep_label, yaxis_title=component,
+                    xaxis_title_font=dict(size=10), yaxis_title_font=dict(size=10),
+                    xaxis_tickfont=dict(size=10), yaxis_tickfont=dict(size=10),
+                    margin=dict(r=50)
+                )
+                figs.append(fig)
+
+            signals_html_dict[component] = figs
+
+        # --- FFT SIGNALS ---
         for component in FFT_headers:
-            z_column    = FFT_headers.index(component)
-            z_vals      = combined_fft_matrix[:len(sweep_values), z_column]
-            x_vals      = np.array(harmonics) * F_fund
-            x_plot      = np.tile(x_vals, int(np.ceil(len(sweep_values)/len(x_vals))))[:len(sweep_values)]
-            fig.add_trace(go.Bar(x=x_plot, y=z_vals, name=component))
-            fixed_dict.update({k: v[0] if isinstance(v, list) else v for k, v in sweep_vars.items() if k != single_X_key and v != [0]})
-            fixed_title = format_fixed_title(fixed_dict, sweepNames)
-            full_title  = f'{component}<br>{fixed_title}' if fixed_dict else component
-            fig.update_layout(title=dict(text=full_title, x=0.5, xanchor='center', yanchor='top'),xaxis_title='Frequency [Hz]',yaxis_title=component,
-                              xaxis_title_font=dict(size=10),yaxis_title_font=dict(size=10),xaxis_tickfont=dict(size=10),yaxis_tickfont=dict(size=10))
-            fft_plots.append(fig)
+            figs = []
+            for fixed_values in fixed_combos:
+                fixed_dict = dict(zip(fixed_vars.keys(), fixed_values))
+                z_column = FFT_headers.index(component)
+                z_vals = combined_fft_matrix[:len(sweep_values), z_column]
+                x_vals = np.array(harmonics) * F_fund
+                x_plot = np.tile(x_vals, int(np.ceil(len(sweep_values)/len(x_vals))))[:len(sweep_values)]
 
-        # Write HTML reports (no splitting, no dropdowns)
-        write_html_report(f"{html_base}_{UTC}.html", list_of_plots, base64_img, script_name, date, UTC, iterSplit=False)
-        write_html_report(f"{html_base}_FFT_{UTC}.html", fft_plots, base64_img, script_name, date, UTC, iterSplit=False)
-        return
-    #?------------------------------------------------
-    #?  3D case: prepare fixed combos
-    #?------------------------------------------------
-    sweep_keys                  = list(sweep_vars.keys())
-    other_vars                  = {k: eval(v) for k, v in config.items() if re.fullmatch(r"X\d+", k) and k not in [var1, var2] and eval(v) != [0] and not config["sweepNames"][int(re.search(r'\d+', k).group())-1].startswith("X")}
-    fixed_keys                  = list(other_vars.keys())
-    fixed_combos                = (list(product(*other_vars.values())) if permute else np.where((arr := np.array(list(zip_longest(*other_vars.values(), fillvalue=None)), dtype=object)) == None, [v[-1] for v in other_vars.values()], arr).tolist())
-    rows_dict ,fft_rows_dict    = {}, {}
+                fig = go.Figure()
+                fig.add_trace(go.Bar(
+                    x=x_plot, y=z_vals, name=f"{component} {format_fixed_title(fixed_dict)}"
+                ))
+                fig.update_layout(
+                    title=dict(text=f"{component}<br>{format_fixed_title(fixed_dict)}", x=0.5),
+                    xaxis_title='Frequency [Hz]', yaxis_title=component,
+                    xaxis_title_font=dict(size=10), yaxis_title_font=dict(size=10),
+                    xaxis_tickfont=dict(size=10), yaxis_tickfont=dict(size=10),
+                    margin=dict(r=50)
+                )
+                figs.append(fig)
 
-    for fixed_values in fixed_combos:
-        fixed_dict                          = dict(zip(fixed_keys, fixed_values))
-        rows                                = np.array([(i, combo[sweep_keys.index(var1)], combo[sweep_keys.index(var2)]) for i, combo in enumerate(all_combos) if all(combo[sweep_keys.index(k)] == v for k, v in fixed_dict.items())])
-        fft_rows                            = np.array([(i, combo[sweep_keys.index(var1)], combo[sweep_keys.index(var2)]) for i, combo in enumerate(fft_combos) if all(combo[sweep_keys.index(k)] == v for k, v in fixed_dict.items())])
-        rows_dict[tuple(fixed_values)]      = rows
-        fft_rows_dict[tuple(fixed_values)]  = fft_rows
-    #?------------------------------------------------
-    #?  Case A: iterSplit=True → per-combo HTML, no dropdown
-    #?------------------------------------------------
-    if iterSplit:
-        for component, fixed_values in product(headers_array, fixed_combos):
-            fixed_dict              =  dict(zip(fixed_keys, fixed_values))
-            z_column                =  headers_array.index(component)
-            rows                    =  rows_dict[tuple(fixed_values)]
-            if len(rows)            == 0: continue #todo : add logic error for empty rows later
-            x_vals, y_vals, z_vals  =  rows[:,1], rows[:,2], combined_matrix[rows[:,0].astype(int), z_column]
-            X, Y                    =  np.meshgrid(np.unique(x_vals), np.unique(y_vals))
-            Z                       =  np.full_like(X, np.nan, dtype=float)
-            Xi , Yi                 =  np.searchsorted(np.unique(y_vals), y_vals), np.searchsorted(np.unique(x_vals), x_vals)
-            Z[Xi,Yi]                =  z_vals
-            full_title              =  f'{component}<br>{format_fixed_title(fixed_dict, sweepNames)}'
-            fig                     =  go.Figure(data=[go.Surface(x=X, y=Y, z=Z, colorscale='Viridis', colorbar=dict(title=component))])
-            fig.update_layout(  title=dict(text=full_title, x=0.5, xanchor='center', yanchor='top'),
-                                scene=dict(xaxis_title=sweepNames[int(re.search(r'\d+', var1).group())-1],yaxis_title=sweepNames[int(re.search(r'\d+', var2).group())-1],zaxis_title=component,
-                                           xaxis_title_font=dict(size=10),yaxis_title_font=dict(size=10),zaxis_title_font=dict(size=10),xaxis_tickfont=dict(size=10),yaxis_tickfont=dict(size=10),zaxis_tickfont=dict(size=10)))
-            list_of_plots.append(fig)
+            fft_html_dict[component] = figs
 
-        for component, fixed_values in product(FFT_headers, fixed_combos):
-            fixed_dict              =  dict(zip(fixed_keys, fixed_values))
-            z_column                =  FFT_headers.index(component)
-            fft_rows                =  fft_rows_dict[tuple(fixed_values)]
-            if len(fft_rows)        == 0: continue
-            y_vals                  =  fft_rows[:,2]
-            x_vals                  =  np.tile(np.array(harmonics)*F_fund, int(np.ceil(len(y_vals)/len(harmonics))))[:len(y_vals)]
-            z_vals                  =  combined_fft_matrix[fft_rows[:,0].astype(int), z_column]
-            full_title              =  f'{component}<br>{format_fixed_title(fixed_dict, sweepNames)}'
-            fig                     =  barchart3D(x_vals, y_vals, z_vals, full_title, 'Magnitude',x_title='Frequency [Hz]',y_title=sweepNames[int(re.search(r'\d+', var2).group())-1])
-            fft_plots.append(fig)
+        # --- WRITE HTML FILES ---
+        if iterSplit:
+            # One HTML per component
+            for component, figs in signals_html_dict.items():
+                html_path = f"{html_base}_{component}_{UTC}.html"
+                write_html_report(html_path, figs, base64_img, script_name, date, UTC, iterSplit=True)
 
-        # Write multiple html files
-        for idx, component in enumerate(headers_array):
-            start, end = idx*max(1,len(list_of_plots)//len(headers_array)), (idx+1)*max(1,len(list_of_plots)//len(headers_array))
-            write_html_report(f"{html_base}_{UTC}_{component}.html", list_of_plots[start:end], base64_img, script_name, date, UTC, iterSplit=True)
-        for idx, component in enumerate(FFT_headers):
-            start, end = idx*max(1,len(fft_plots)//len(FFT_headers)), (idx+1)*max(1,len(fft_plots)//len(FFT_headers))
-            write_html_report(f"{html_base}_{UTC}_{component}.html", fft_plots[start:end], base64_img, script_name, date, UTC, iterSplit=True)
-        return
-    #?------------------------------------------------
-    #?  Case B: iterSplit=False → 1 file ,use dropdowns
-    #?------------------------------------------------
-    def make_dropdown(full_title, component, fixed_combos_data, plot_type="3D"):
-        """
-        Create a Plotly figure with multiple traces (3D Surface or 3D bar chart) and a dropdown menu
-        to switch between different sets of fixed parameter combinations.
+            for component, figs in fft_html_dict.items():
+                html_path = f"{html_base}_FFT_{component}_{UTC}.html"
+                write_html_report(html_path, figs, base64_img, script_name, date, UTC, iterSplit=True)
+        else:
+            # One HTML for all signals
+            all_signal_figs = sum(signals_html_dict.values(), [])
+            write_html_report(f"{html_base}_{UTC}.html", all_signal_figs, base64_img, script_name, date, UTC, iterSplit=True)
 
-        Each item in `fixed_combos_data` corresponds to a group of traces representing a fixed combination 
-        of parameters. The dropdown allows the user to toggle visibility between these groups.
-    
-        - Each group of traces is initially hidden except the first group.
-        - Dropdown menu entries are dynamically generated using the `fixed_dict` values.
-        - Figure layout is automatically adjusted for scene axis titles and font sizes.
-        - For `plot_type="FFT"`, x-axis is labeled as "Frequency [Hz]" and z-axis as "Magnitude".
-        - For `plot_type="3D"`, axis titles use `sweepNames` from the global `config` dictionary.
+            # One HTML for all FFTs
+            all_fft_figs = sum(fft_html_dict.values(), [])
+            write_html_report(f"{html_base}_FFT_{UTC}.html", all_fft_figs, base64_img, script_name, date, UTC, iterSplit=True)
+    else:
+        #?------------------------------------------------
+        #?  3D case: prepare fixed combos
+        #?------------------------------------------------
+        sweep_keys                  = list(sweep_vars.keys())
+        other_vars                  = {k: eval(v) for k, v in config.items() if re.fullmatch(r"X\d+", k) and k not in [var1, var2] and eval(v) != [0] and not config["sweepNames"][int(re.search(r'\d+', k).group())-1].startswith("X")}
+        fixed_keys                  = list(other_vars.keys())
+        fixed_combos                = (list(product(*other_vars.values())) if permute else np.where((arr := np.array(list(zip_longest(*other_vars.values(), fillvalue=None)), dtype=object)) == None, [v[-1] for v in other_vars.values()], arr).tolist())
+        rows_dict ,fft_rows_dict    = {}, {}
 
-        Parameters :
-                    full_title          : str The overall title for the figure (used internally in trace generation).
-                    component           : str Name of the component or measurement being plotted (used in axis labels and figure title).
-                    fixed_combos_data   : dict Dictionary where each key is an identifier and each value is a tuple: (x_vals, y_vals, z_vals, fixed_dict)
-                            - x_vals, y_vals    : array-like, coordinates for the plot (can be irregularly spaced)
-                            - z_vals            : array-like, values corresponding to each (x, y) point
-                            - fixed_dict        : dict, mapping of fixed sweep parameters for this group (used in dropdown label)
-                    plot_type           : str, optional Type of plot to generate. Options:
-                            - "3D"              : 3D surface plot
-                            - "FFT"             : 3D bar chart (magnitude vs frequency)
-        Returns    :
-                    fig                 : plotly.graph_objects.Figure Plotly figure object with traces corresponding to all groups in `fixed_combos_data`and a 
-                    dropdown menu to select the active group.
-        """
-        fig, dropdown_buttons ,sweepNames   = go.Figure(), [] , config["sweepNames"]
-        group_trace_indices ,current_index  = []  ,0
-
-        for i, (_, data) in enumerate(fixed_combos_data.items()):
-            x_vals, y_vals, z_vals, fixed_dict = data
-
-            if plot_type == "FFT":
-                temp_fig = barchart3D(x_vals, y_vals, z_vals, full_title, 'Magnitude',x_title='Frequency [Hz]',y_title=sweepNames[int(re.search(r'\d+', var2).group())-1])
-                for trace in temp_fig.data:
-                    trace.visible = False  # initially hidden
-                    fig.add_trace(trace)
-                n_traces = len(temp_fig.data)
-
-            else:  # 3D Surface mode
-                X, Y    = np.meshgrid(np.unique(x_vals), np.unique(y_vals))
-                Z       = np.full_like(X, np.nan, dtype=float)
-                Z[np.searchsorted(np.unique(y_vals), y_vals),
-                np.searchsorted(np.unique(x_vals), x_vals)] = z_vals
-                fig.add_trace(go.Surface(x=X, y=Y, z=Z, colorscale='Viridis',visible=False))
-                n_traces = 1
-            # store which traces belong to this group
-            group_trace_indices.append((current_index, current_index + n_traces))
-            current_index += n_traces
-
-        # Make the first group visible by default
-        first_start, first_end = group_trace_indices[0]
-        for j in range(first_start, first_end): fig.data[j].visible = True
-
-        # Create dropdown buttons
-        for i, (_, data) in enumerate(fixed_combos_data.items()):
-            fixed_dict          = data[3]
-            start_idx, end_idx  = group_trace_indices[i]
-
-            # Title for dropdown label - using the same format function
-            fixed_title = format_fixed_title(fixed_dict, sweepNames)
-
-            # Visibility mask: hide all except this group
-            visibility = [False] * len(fig.data)
-            for j in range(start_idx, end_idx): visibility[j] = True
-            dropdown_buttons.append({'label': fixed_title,'method': 'update','args': [{'visible': visibility},{'title.text': f'{component}<br>{fixed_title}'}]})
-
-        # Initial title
-        first_dict  = next(iter(fixed_combos_data.values()))[3]
-        first_title = format_fixed_title(first_dict, sweepNames)
-
-        # In the make_dropdown function, update the layout_base:
-        layout_base = dict(
-            title=dict( text=f'{component}<br>{first_title}',x=0.5, xanchor='center', yanchor='top'),updatemenus=[dict(type='dropdown', x=1.15, y=0.5,xanchor='left', yanchor='middle',
-                        buttons=dropdown_buttons,direction='down', showactive=True,bgcolor='lightgray', bordercolor='black',font={'size': 12}, pad={'r': 20})],margin=dict(r=200))
-
-        # Set the scene configuration:
-        if plot_type == "3D": layout_base['scene'] = dict(xaxis_title=sweepNames[int(re.search(r'\d+', var1).group())-1],yaxis_title=sweepNames[int(re.search(r'\d+', var2).group())-1],zaxis_title=component,
-                                                          xaxis_title_font=dict(size=10),yaxis_title_font=dict(size=10),zaxis_title_font=dict(size=10),xaxis_tickfont=dict(size=10),yaxis_tickfont=dict(size=10),zaxis_tickfont=dict(size=10))
-        if plot_type == "FFT":layout_base['scene'] = dict(xaxis_title='Frequency [Hz]',yaxis_title=sweepNames[int(re.search(r'\d+', var2).group())-1],zaxis_title='Magnitude',xaxis_title_font=dict(size=10),
-                                                          yaxis_title_font=dict(size=10),zaxis_title_font=dict(size=10),xaxis_tickfont=dict(size=10),yaxis_tickfont=dict(size=10),zaxis_tickfont=dict(size=10))
-
-        fig.update_layout(**layout_base)
-        return fig
-
-    # Prepare dropdown data
-    dropdown_data, fft_dropdown_data    = {}, {}
-
-    for component in headers_array:
-        comp_data = {}
         for fixed_values in fixed_combos:
-            fixed_dict                  =  dict(zip(fixed_keys, fixed_values))
-            full_title                  =  f'{component}<br>{format_fixed_title(fixed_dict, sweepNames)}'
-            rows                        =  rows_dict[tuple(fixed_values)]
-            if len(rows)                == 0: continue
-            x_vals, y_vals, z_vals      =  rows[:,1], rows[:,2], combined_matrix[rows[:,0].astype(int), headers_array.index(component)]
-            comp_data[str(fixed_dict)]  =  (x_vals, y_vals, z_vals, fixed_dict)
-        dropdown_data[component]        =  comp_data
+            fixed_dict                          = dict(zip(fixed_keys, fixed_values))
+            rows                                = np.array([(i, combo[sweep_keys.index(var1)], combo[sweep_keys.index(var2)]) for i, combo in enumerate(all_combos) if all(combo[sweep_keys.index(k)] == v for k, v in fixed_dict.items())])
+            fft_rows                            = np.array([(i, combo[sweep_keys.index(var1)], combo[sweep_keys.index(var2)]) for i, combo in enumerate(fft_combos) if all(combo[sweep_keys.index(k)] == v for k, v in fixed_dict.items())])
+            rows_dict[tuple(fixed_values)]      = rows
+            fft_rows_dict[tuple(fixed_values)]  = fft_rows
+        #?------------------------------------------------
+        #?  Case A: iterSplit=True → per-combo HTML, no dropdown
+        #?------------------------------------------------
+        if iterSplit:
+            for component, fixed_values in product(headers_array, fixed_combos):
+                fixed_dict              =  dict(zip(fixed_keys, fixed_values))
+                z_column                =  headers_array.index(component)
+                rows                    =  rows_dict[tuple(fixed_values)]
+                if len(rows)            == 0: continue #todo : add logic error for empty rows later
+                x_vals, y_vals, z_vals  =  rows[:,1], rows[:,2], combined_matrix[rows[:,0].astype(int), z_column]
+                X, Y                    =  np.meshgrid(np.unique(x_vals), np.unique(y_vals))
+                Z                       =  np.full_like(X, np.nan, dtype=float)
+                Xi , Yi                 =  np.searchsorted(np.unique(y_vals), y_vals), np.searchsorted(np.unique(x_vals), x_vals)
+                Z[Xi,Yi]                =  z_vals
+                full_title              =  f'{component}<br>{format_fixed_title(fixed_dict, sweepNames)}'
+                fig                     =  go.Figure(data=[go.Surface(x=X, y=Y, z=Z, colorscale='Viridis', colorbar=dict(title=component))])
+                fig.update_layout(  title=dict(text=full_title, x=0.5, xanchor='center', yanchor='top'),
+                                    scene=dict(xaxis_title=sweepNames[int(re.search(r'\d+', var1).group())-1],yaxis_title=sweepNames[int(re.search(r'\d+', var2).group())-1],zaxis_title=component,
+                                            xaxis_title_font=dict(size=10),yaxis_title_font=dict(size=10),zaxis_title_font=dict(size=10),xaxis_tickfont=dict(size=10),yaxis_tickfont=dict(size=10),zaxis_tickfont=dict(size=10)))
+                list_of_plots.append(fig)
 
-    for component in FFT_headers:
-        comp_data = {}
-        for fixed_values in fixed_combos:
-            fixed_dict                  =  dict(zip(fixed_keys, fixed_values))
-            full_title                  =  f'{component}<br>{format_fixed_title(fixed_dict, sweepNames)}'
-            fft_rows                    =  fft_rows_dict[tuple(fixed_values)]
-            if len(fft_rows)            == 0: continue
-            y_vals                      =  fft_rows[:,2]
-            x_vals                      =  np.tile(np.array(harmonics)*F_fund, int(np.ceil(len(y_vals)/len(harmonics))))[:len(y_vals)]
-            z_vals                      =  combined_fft_matrix[fft_rows[:,0].astype(int), FFT_headers.index(component)]
-            comp_data[str(fixed_dict)]  =  (x_vals, y_vals, z_vals, fixed_dict)
-        fft_dropdown_data[component]    =  comp_data
+            for component, fixed_values in product(FFT_headers, fixed_combos):
+                fixed_dict              =  dict(zip(fixed_keys, fixed_values))
+                z_column                =  FFT_headers.index(component)
+                fft_rows                =  fft_rows_dict[tuple(fixed_values)]
+                if len(fft_rows)        == 0: continue
+                y_vals                  =  fft_rows[:,2]
+                x_vals                  =  np.tile(np.array(harmonics)*F_fund, int(np.ceil(len(y_vals)/len(harmonics))))[:len(y_vals)]
+                z_vals                  =  combined_fft_matrix[fft_rows[:,0].astype(int), z_column]
+                full_title              =  f'{component}<br>{format_fixed_title(fixed_dict, sweepNames)}'
+                fig                     =  barchart3D(x_vals, y_vals, z_vals, full_title, 'Magnitude',x_title='Frequency [Hz]',y_title=sweepNames[int(re.search(r'\d+', var2).group())-1])
+                fft_plots.append(fig)
 
-    # Create dropdown figs
-    for component in headers_array:
-        if dropdown_data[component]:
-            list_of_plots.append(make_dropdown(full_title,component, dropdown_data[component], plot_type="3D"))
+            # Write multiple html files
+            for idx, component in enumerate(headers_array):
+                start, end = idx*max(1,len(list_of_plots)//len(headers_array)), (idx+1)*max(1,len(list_of_plots)//len(headers_array))
+                write_html_report(f"{html_base}_{UTC}_{component}.html", list_of_plots[start:end], base64_img, script_name, date, UTC, iterSplit=True)
+            for idx, component in enumerate(FFT_headers):
+                start, end = idx*max(1,len(fft_plots)//len(FFT_headers)), (idx+1)*max(1,len(fft_plots)//len(FFT_headers))
+                write_html_report(f"{html_base}_{UTC}_{component}.html", fft_plots[start:end], base64_img, script_name, date, UTC, iterSplit=True)
+            return
+        #?------------------------------------------------
+        #?  Case B: iterSplit=False → 1 file ,use dropdowns
+        #?------------------------------------------------
+        def make_dropdown(full_title, component, fixed_combos_data, plot_type="3D"):
+            """
+            Create a Plotly figure with multiple traces (3D Surface or 3D bar chart) and a dropdown menu
+            to switch between different sets of fixed parameter combinations.
 
-    for component in FFT_headers:
-        if fft_dropdown_data[component]:
-            fft_plots.append(make_dropdown(full_title, component, fft_dropdown_data[component], plot_type="FFT"))
+            Each item in `fixed_combos_data` corresponds to a group of traces representing a fixed combination 
+            of parameters. The dropdown allows the user to toggle visibility between these groups.
+        
+            - Each group of traces is initially hidden except the first group.
+            - Dropdown menu entries are dynamically generated using the `fixed_dict` values.
+            - Figure layout is automatically adjusted for scene axis titles and font sizes.
+            - For `plot_type="FFT"`, x-axis is labeled as "Frequency [Hz]" and z-axis as "Magnitude".
+            - For `plot_type="3D"`, axis titles use `sweepNames` from the global `config` dictionary.
 
-    write_html_report(f"{html_base}_{UTC}.html", list_of_plots[:4], base64_img, script_name, date, UTC, iterSplit=False)
-    write_html_report(f"{html_base}_FFT_{UTC}.html", fft_plots[:4], base64_img, script_name, date, UTC, iterSplit=False)
+            Parameters :
+                        full_title          : str The overall title for the figure (used internally in trace generation).
+                        component           : str Name of the component or measurement being plotted (used in axis labels and figure title).
+                        fixed_combos_data   : dict Dictionary where each key is an identifier and each value is a tuple: (x_vals, y_vals, z_vals, fixed_dict)
+                                - x_vals, y_vals    : array-like, coordinates for the plot (can be irregularly spaced)
+                                - z_vals            : array-like, values corresponding to each (x, y) point
+                                - fixed_dict        : dict, mapping of fixed sweep parameters for this group (used in dropdown label)
+                        plot_type           : str, optional Type of plot to generate. Options:
+                                - "3D"              : 3D surface plot
+                                - "FFT"             : 3D bar chart (magnitude vs frequency)
+            Returns    :
+                        fig                 : plotly.graph_objects.Figure Plotly figure object with traces corresponding to all groups in `fixed_combos_data`and a 
+                        dropdown menu to select the active group.
+            """
+            fig, dropdown_buttons ,sweepNames   = go.Figure(), [] , config["sweepNames"]
+            group_trace_indices ,current_index  = []  ,0
+
+            for i, (_, data) in enumerate(fixed_combos_data.items()):
+                x_vals, y_vals, z_vals, fixed_dict = data
+
+                if plot_type == "FFT":
+                    temp_fig = barchart3D(x_vals, y_vals, z_vals, full_title, 'Magnitude',x_title='Frequency [Hz]',y_title=sweepNames[int(re.search(r'\d+', var2).group())-1])
+                    for trace in temp_fig.data:
+                        trace.visible = False  # initially hidden
+                        fig.add_trace(trace)
+                    n_traces = len(temp_fig.data)
+
+                else:  # 3D Surface mode
+                    X, Y    = np.meshgrid(np.unique(x_vals), np.unique(y_vals))
+                    Z       = np.full_like(X, np.nan, dtype=float)
+                    Z[np.searchsorted(np.unique(y_vals), y_vals),
+                    np.searchsorted(np.unique(x_vals), x_vals)] = z_vals
+                    fig.add_trace(go.Surface(x=X, y=Y, z=Z, colorscale='Viridis',visible=False))
+                    n_traces = 1
+                # store which traces belong to this group
+                group_trace_indices.append((current_index, current_index + n_traces))
+                current_index += n_traces
+
+            # Make the first group visible by default
+            first_start, first_end = group_trace_indices[0]
+            for j in range(first_start, first_end): fig.data[j].visible = True
+
+            # Create dropdown buttons
+            for i, (_, data) in enumerate(fixed_combos_data.items()):
+                fixed_dict          = data[3]
+                start_idx, end_idx  = group_trace_indices[i]
+
+                # Title for dropdown label - using the same format function
+                fixed_title = format_fixed_title(fixed_dict, sweepNames)
+
+                # Visibility mask: hide all except this group
+                visibility = [False] * len(fig.data)
+                for j in range(start_idx, end_idx): visibility[j] = True
+                dropdown_buttons.append({'label': fixed_title,'method': 'update','args': [{'visible': visibility},{'title.text': f'{component}<br>{fixed_title}'}]})
+
+            # Initial title
+            first_dict  = next(iter(fixed_combos_data.values()))[3]
+            first_title = format_fixed_title(first_dict, sweepNames)
+
+            # In the make_dropdown function, update the layout_base:
+            layout_base = dict(
+                title=dict( text=f'{component}<br>{first_title}',x=0.5, xanchor='center', yanchor='top'),updatemenus=[dict(type='dropdown', x=1.15, y=0.5,xanchor='left', yanchor='middle',
+                            buttons=dropdown_buttons,direction='down', showactive=True,bgcolor='lightgray', bordercolor='black',font={'size': 12}, pad={'r': 20})],margin=dict(r=200))
+
+            # Set the scene configuration:
+            if plot_type == "3D": layout_base['scene'] = dict(xaxis_title=sweepNames[int(re.search(r'\d+', var1).group())-1],yaxis_title=sweepNames[int(re.search(r'\d+', var2).group())-1],zaxis_title=component,
+                                                            xaxis_title_font=dict(size=10),yaxis_title_font=dict(size=10),zaxis_title_font=dict(size=10),xaxis_tickfont=dict(size=10),yaxis_tickfont=dict(size=10),zaxis_tickfont=dict(size=10))
+            if plot_type == "FFT":layout_base['scene'] = dict(xaxis_title='Frequency [Hz]',yaxis_title=sweepNames[int(re.search(r'\d+', var2).group())-1],zaxis_title='Magnitude',xaxis_title_font=dict(size=10),
+                                                            yaxis_title_font=dict(size=10),zaxis_title_font=dict(size=10),xaxis_tickfont=dict(size=10),yaxis_tickfont=dict(size=10),zaxis_tickfont=dict(size=10))
+
+            fig.update_layout(**layout_base)
+            return fig
+
+        # Prepare dropdown data
+        dropdown_data, fft_dropdown_data    = {}, {}
+
+        for component in headers_array:
+            comp_data = {}
+            for fixed_values in fixed_combos:
+                fixed_dict                  =  dict(zip(fixed_keys, fixed_values))
+                full_title                  =  f'{component}<br>{format_fixed_title(fixed_dict, sweepNames)}'
+                rows                        =  rows_dict[tuple(fixed_values)]
+                if len(rows)                == 0: continue
+                x_vals, y_vals, z_vals      =  rows[:,1], rows[:,2], combined_matrix[rows[:,0].astype(int), headers_array.index(component)]
+                comp_data[str(fixed_dict)]  =  (x_vals, y_vals, z_vals, fixed_dict)
+            dropdown_data[component]        =  comp_data
+
+        for component in FFT_headers:
+            comp_data = {}
+            for fixed_values in fixed_combos:
+                fixed_dict                  =  dict(zip(fixed_keys, fixed_values))
+                full_title                  =  f'{component}<br>{format_fixed_title(fixed_dict, sweepNames)}'
+                fft_rows                    =  fft_rows_dict[tuple(fixed_values)]
+                if len(fft_rows)            == 0: continue
+                y_vals                      =  fft_rows[:,2]
+                x_vals                      =  np.tile(np.array(harmonics)*F_fund, int(np.ceil(len(y_vals)/len(harmonics))))[:len(y_vals)]
+                z_vals                      =  combined_fft_matrix[fft_rows[:,0].astype(int), FFT_headers.index(component)]
+                comp_data[str(fixed_dict)]  =  (x_vals, y_vals, z_vals, fixed_dict)
+            fft_dropdown_data[component]    =  comp_data
+
+        # Create dropdown figs
+        for component in headers_array:
+            if dropdown_data[component]:
+                list_of_plots.append(make_dropdown(full_title,component, dropdown_data[component], plot_type="3D"))
+
+        for component in FFT_headers:
+            if fft_dropdown_data[component]:
+                fft_plots.append(make_dropdown(full_title, component, fft_dropdown_data[component], plot_type="FFT"))
+
+        write_html_report(f"{html_base}_{UTC}.html", list_of_plots[:4], base64_img, script_name, date, UTC, iterSplit=False)
+        write_html_report(f"{html_base}_FFT_{UTC}.html", fft_plots[:4], base64_img, script_name, date, UTC, iterSplit=False)
 
 repo_3d()
