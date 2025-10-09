@@ -1,119 +1,113 @@
-
-
+from functools import wraps
 from rich.console import Console
 from rich.panel import Panel
-from functools import wraps
+import sys
 
-# Initialize a Rich console object for pretty printing panels
 console = Console()
 
+
 class ErrorHint:
-    """
-    Stores custom suggestions per variable.
-    These hints can be used to provide a clear message when exceptions occur.
-    """
+    """Stores variable-specific hints and allows retrieval by key or last hint."""
     def __init__(self):
-        self.hints = {}  # Dictionary to store variable name -> suggestion mapping
+        self.hints = {}  # key -> message
+        self.last_key = None
 
-    def add(self, var_name, suggestion):
-        """Add a custom suggestion for a specific variable."""
-        self.hints[var_name] = suggestion
+    def add(self, key, message):
+        """Add a hint for a given variable or context key."""
+        self.hints[key] = message
+        self.last_key = key  # keep track of most recently added
 
-    def get(self, var_name):
-        """Retrieve the custom suggestion for a variable, if any."""
-        return self.hints.get(var_name, None) 
+    def get(self, key=None):
+        """Get a hint by key, or fallback to the last one if no key given."""
+        if key and key in self.hints:
+            return self.hints[key]
+        if self.last_key:
+            return self.hints[self.last_key]
+        return None
 
-def safe_class(skip_map: dict):
-    """
-    Class decorator that wraps all class methods with skip-on-error logic.
+    def clear(self):
+        """Clear all hints."""
+        self.hints.clear()
+        self.last_key = None
 
-    Parameters:
-    skip_map : dict
-        Mapping of method name -> recovery method name.
-        Example: {"step1": "step_end"} 
-        If 'step1' fails, it will automatically call 'step_end' and skip all intermediate steps.
-    """
-    def decorator(cls):
-    
-        # Iterate over a list of class attributes to avoid RuntimeError 
-        # if the dictionary changes size during iteration
-        for name, func in list(cls.__dict__.items()):
-
-            # Only wrap callable methods that are not special methods
-            if callable(func) and not name.startswith("__"):
-
-                # Determine the recovery function for this method, if any
-                recovery_func = skip_map.get(name)
-
-                # Store the original function so it can be called directly later
-                setattr(cls, f"__orig_{name}", func)
-
-                # Replace the method with the wrapped version
-                setattr(cls, name, safe_function(func, recovery_func, cls))
-
-        return cls
-    
-    return decorator
 
 def safe_function(func, recovery_func_name=None, cls=None):
+    """Wrap a function with error catching, skipping, and hint display logic."""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        try:
-            self_obj = args[0] if args else None
+        self_obj = args[0] if args else None
 
-            # Skip logic
+        try:
+            # Skip logic — if skip flag is set, only allow recovery function to run
             if getattr(self_obj, "_skip_next_steps", False):
                 if recovery_func_name and func.__name__ == recovery_func_name:
-                    pass
+                    pass  # allow recovery to run
                 else:
                     return None
 
             return func(*args, **kwargs)
 
         except Exception as e:
-            try:
-                # Only set skip flag if recovery function exists
-                if self_obj and recovery_func_name:
-                    self_obj._skip_next_steps = True
+            # Mark skip flag if a recovery is defined
+            if self_obj and recovery_func_name:
+                self_obj._skip_next_steps = True
 
-                # Prepare hint: check all arguments
-                suggestion = None
-                if self_obj and hasattr(self_obj, "hint"):
-                    local_hint = self_obj.hint
-                    for i, arg_name in enumerate(func.__code__.co_varnames[1:]):  # skip self
-                        hint = local_hint.get(arg_name)
-                        if hint:
-                            suggestion = hint
-                            break  # use the first hint found
+            # === Hint handling ===
+            suggestion = None
+            if self_obj and hasattr(self_obj, "hint"):
+                hint_obj = self_obj.hint
+                suggestion = hint_obj.get()  # always get last hint, no fallback to exception text
 
-                # Fallback to exception message
-                if not suggestion:
-                    suggestion = f"{type(e).__name__}: {str(e)}"
+            # If no hint exists, fallback to exception type/message
+            if not suggestion:
+                suggestion = f"{type(e).__name__}: {str(e)}"
 
-                # Print Rich panel
-                console.print(
-                    Panel.fit(f"[white]{suggestion}[/white]",
-                              title="[red] Exception caught[/red]",
-                              border_style="red")
+            # Display a single red bordered error panel
+            console.print(
+                Panel.fit(
+                    f"[bold yellow]{suggestion}[/bold yellow]",
+                    title="[bright_red]Exception caught[/bright_red]",
+                    border_style="red"
                 )
+            )
 
-                # Call recovery function if defined
-                if self_obj and recovery_func_name:
-                    ran_flag = f"_{recovery_func_name}_ran"
-                    if hasattr(self_obj, f"__orig_{recovery_func_name}") and not getattr(self_obj, ran_flag, False):
-                        orig_func = getattr(self_obj, f"__orig_{recovery_func_name}")
-                        orig_func()
+            # === Recovery logic ===
+            if self_obj and recovery_func_name:
+                ran_flag = f"_{recovery_func_name}_ran"
+                recovery_func = getattr(self_obj, f"__orig_{recovery_func_name}", None)
+
+                if recovery_func and not getattr(self_obj, ran_flag, False):
+                    try:
+                        recovery_func()
                         setattr(self_obj, ran_flag, True)
+                    except Exception as fatal:
+                        # Show the hint or exception of the recovery function and then exit
+                        suggestion = None
+                        if self_obj and hasattr(self_obj, "hint"):
+                            suggestion = self_obj.hint.get()
+                        if not suggestion:
+                            suggestion = f"{type(fatal).__name__}: {str(fatal)}"
 
-                return None
+                        console.print(
+                            Panel.fit(
+                                f"[bold yellow]{suggestion}[/bold yellow]",
+                                title="[bright_red]Exception caught[/bright_red]",
+                                border_style="red"
+                            )
+                        )
+                        sys.exit(1)
 
-            except Exception as inner_e:
-                # Suppress any errors inside the error handler
-                console.print(
-                    Panel.fit(f"[white]Internal error in error handler: {inner_e}[/white]",
-                              title="[red] Exception caught[/red]",
-                              border_style="red")
-                )
-                return None
-
+            return None
     return wrapper
+
+
+def safe_class(skip_rules):
+    """Applies safe_function wrapper to all methods in a class."""
+    def decorator(cls):
+        for name, method in list(cls.__dict__.items()):
+            if callable(method):
+                recovery_func_name = skip_rules.get(name)
+                setattr(cls, f"__orig_{name}", method)
+                setattr(cls, name, safe_function(method, recovery_func_name, cls))
+        return cls
+    return decorator
