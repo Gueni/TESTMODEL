@@ -136,20 +136,18 @@ def _run_recovery(obj, recovery_func_name):
 
 
 def safe_class(skip_rules):
-    """
-    Class decorator to wrap all methods in a class with safe_function.
-    
-    - skip_rules: dict mapping method name -> recovery method name
-      Example: {"step1": "step_end"}
-    """
+    """Wrap all class methods with safe_function."""
     def decorator(cls):
         for name, method in list(cls.__dict__.items()):
-            # Wrap only callable methods, skip special methods like __init__
             if callable(method) and not name.startswith("__"):
+                # --- Only wrap if not already wrapped ---
+                if getattr(method, "_is_safe_wrapped", False):
+                    continue
+
                 recovery_func_name = skip_rules.get(name)
-                # Store original function to allow recovery calls
                 setattr(cls, f"__orig_{name}", method)
-                # Replace method with wrapped version
-                setattr(cls, name, safe_function(method, recovery_func_name))
+                wrapped = safe_function(method, recovery_func_name)
+                wrapped._is_safe_wrapped = True  # mark it as wrapped
+                setattr(cls, name, wrapped)
         return cls
     return decorator
