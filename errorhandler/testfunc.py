@@ -1,42 +1,39 @@
-from error_handler import safe_class, ErrorHint
+from error_handler_2 import safe_class, ErrorHint
 
-@safe_class
-class Calculator:
+# -------------------
+# Example usage
+skip_rules = { "step1": "step_end", "step5": "step_end" }
+
+@safe_class(skip_rules)
+class MyClass:
     def __init__(self):
-        # Instance-level hint storage
         self.hint = ErrorHint()
+        self._step_end_ran = False
 
-    def divide(self, a, b):
-        # Custom suggestion for this variable
-        self.hint.add('b', "You cannot divide by zero! Provide a non-zero 'b'")
-        return a / b
+    def step1(self, a, b):
+        self.hint.add("b", "b cannot be zero")
+        print("Step1 result:", a / b)
 
-    def open_file(self, filename):
-        # Custom suggestion for this variable
-        self.hint.add('filename', "Make sure the file exists or create it before opening")
-        with open(filename) as f:
-            return f.read()
+    def step1_5(self, multiplier):
+        print("Step1.5 result:", multiplier * 2)
 
-    def process_list_dict(self, lst, dct, index, key):
-        # Custom hints
-        self.hint.add('index', "Index should be within the bounds of the list.")
-        self.hint.add('key', "Key must exist in the dictionary before accessing.")
+    def step2(self):
+        print("Step2 runs normally")
 
-        # Example operations that could fail
-        total = lst[index] + dct[key]  # IndexError, KeyError, TypeError possible
-        return total
+    def step3(self):
+        self.hint.add("", "step3 hinht")
+        print("Step3 runs normally")
 
-# --- Example usage ---
-calc = Calculator()
+    def step5(self):
+        raise ValueError("Step5 error!")
 
-# Trigger custom ZeroDivisionError
-calc.divide(10, 0)
+    def step_end(self):
+        print("Step_end runs as recovery")
 
-# Trigger custom FileNotFoundError
-calc.open_file("missing.txt")
-
-# Trigger multiple errors
-calc.process_list_dict([1, 2, 3], {"a": 10}, 5, "b")  # IndexError and KeyError
-
-
-
+# -------------------
+# Test workflow
+obj = MyClass()
+obj.step1(10, 0)  # triggers step_end automatically
+obj.step1_5(5)    # skipped because _skip_next_steps=True
+obj.step2()       # skipped
+obj.step_end()    # already ran, skipped
