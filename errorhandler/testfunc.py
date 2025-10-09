@@ -31,6 +31,7 @@ class MyClass:
     def step_end(self):
         print("Step_end runs as recovery")
 
+
 # -------------------
 # Test workflow
 def main():
@@ -45,15 +46,3 @@ def main():
 main()
 
 
-# main.py
-from error_handler_2 import MyClass, safe_class, ErrorHint
-
-skip_rules = {"step1": "step_end", "step5": "step_end"}
-MyClass = safe_class(skip_rules)(MyClass)  # re-decorate
-
-def main():
-    obj = MyClass()
-    obj.step1(10, 0)
-    obj.step1_5(5)
-    obj.step2()
-    obj.step_end()
