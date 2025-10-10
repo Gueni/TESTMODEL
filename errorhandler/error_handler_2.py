@@ -106,7 +106,6 @@ def _run_recovery(obj, recovery_func_name):
             )
             sys.exit(1)
 
-
 def safe_class(skip_rules):
     """Wrap all class methods with safe_function."""
     def decorator(cls):
