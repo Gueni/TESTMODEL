@@ -1,5 +1,5 @@
 # ============================================================
-# error_handler_final.py — Final version with correct recovery jump
+# error_handler_final.py — Clean, quiet version
 # ============================================================
 
 from functools import wraps
@@ -7,6 +7,7 @@ from rich.console import Console
 from rich.panel import Panel
 import sys
 import threading
+import traceback
 
 # ------------------------------------------------------------
 # ✅ GLOBAL SHARED CONSOLE + LOCK
@@ -21,7 +22,17 @@ console_lock = CONSOLE_LOCK
 
 
 # ------------------------------------------------------------
-# ✅ ErrorHint
+# ✅ Suppress all tracebacks systemwide
+# ------------------------------------------------------------
+def _silent_excepthook(exc_type, exc_value, exc_traceback):
+    """Suppress traceback printing — only Rich panels are shown."""
+    pass  # Do nothing — handled by safe_function already
+
+sys.excepthook = _silent_excepthook
+
+
+# ------------------------------------------------------------
+# ✅ ErrorHint class
 # ------------------------------------------------------------
 class ErrorHint:
     """Stores variable hints and force_skip flag."""
@@ -54,12 +65,10 @@ def _run_recovery(obj, current_func_name):
     """Run the mapped recovery function based on skip_rules."""
     recovery_func_name = None
 
-    # find matching rule for this method
     if hasattr(obj.__class__, "_safe_rules"):
         rules = obj.__class__._safe_rules
         recovery_func_name = rules.get(current_func_name)
         if not recovery_func_name and rules:
-            # fallback: use first recovery if not directly mapped
             recovery_func_name = next(iter(rules.values()), None)
 
     if not recovery_func_name:
@@ -80,7 +89,8 @@ def _run_recovery(obj, current_func_name):
                     _, _, msg = last_hint
                     suggestion = msg
             if not suggestion:
-                suggestion = str(e)
+                suggestion = f"{type(e).__name__}: {e}"
+
             with console_lock:
                 console.print(
                     Panel.fit(
@@ -89,30 +99,33 @@ def _run_recovery(obj, current_func_name):
                         border_style="red",
                     )
                 )
-            sys.exit(1)
+
+            # ✅ Exit quietly — no tracebacks, no extra noise
+            sys.exit(0)
 
 
 # ------------------------------------------------------------
-# ✅ Safe Function Wrapper
+# ✅ Safe function wrapper
 # ------------------------------------------------------------
 def safe_function(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         self_obj = args[0] if args else None
         if not self_obj:
-            return func(*args, **kwargs)
+            try:
+                return func(*args, **kwargs)
+            except Exception:
+                # swallow exceptions if used standalone
+                return None
 
         if not hasattr(self_obj, "_skip_lock"):
             self_obj._skip_lock = threading.Lock()
 
-        # skip check
         with self_obj._skip_lock:
             skip_now = getattr(self_obj, "_skip_next_steps", False)
 
-        # skip non-recovery functions
         if skip_now:
-            # but still allow recovery to run manually later
-            return None
+            return None  # skip execution if flagged
 
         try:
             return func(*args, **kwargs)
@@ -127,7 +140,7 @@ def safe_function(func):
                     _, force_skip, msg = last_hint
                     suggestion = msg
 
-            # avoid duplicates
+            # show panel once
             show_panel = True
             if hasattr(self_obj, "hint"):
                 show_panel = self_obj.hint.should_show(suggestion)
@@ -142,11 +155,12 @@ def safe_function(func):
                         )
                     )
 
-            # enforce skip & trigger mapped recovery
+            # if forced, skip all next + run mapped recovery
             if force_skip:
                 with self_obj._skip_lock:
                     self_obj._skip_next_steps = True
                 _run_recovery(self_obj, func.__name__)
+
             return None
 
     return wrapper
