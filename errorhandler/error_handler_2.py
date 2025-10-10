@@ -1,59 +1,55 @@
 # ============================================================
-# error_handler_final_fixed.py — reliable, multi-thread + loops
+# error_handler_final_func_only.py — reliable, multithread + loops
 # ============================================================
 
 from functools import wraps
 from rich.console import Console
 from rich.panel import Panel
-import sys
 import threading
+import sys
 
 # ------------------------------------------------------------
-# Global console + lock (avoid duplicate panels)
+# Global console + lock
 # ------------------------------------------------------------
 if "GLOBAL_CONSOLE" not in globals():
     GLOBAL_CONSOLE = Console()
 if "CONSOLE_LOCK" not in globals():
     CONSOLE_LOCK = threading.Lock()
-
 console = GLOBAL_CONSOLE
 console_lock = CONSOLE_LOCK
 
 # ------------------------------------------------------------
-# Global exception suppression to prevent tracebacks
+# Silent global exception handler
 # ------------------------------------------------------------
 def _silent_excepthook(exc_type, exc_value, exc_traceback):
-    """Prevent Python from printing unwanted tracebacks."""
     pass
 
 sys.excepthook = _silent_excepthook
 
 # ------------------------------------------------------------
-# ErrorHint class
+# ErrorHint class — now per-function only
 # ------------------------------------------------------------
 class ErrorHint:
-    """Stores variable hints with optional force_skip flag."""
+    """Stores hints per function with optional force_skip."""
     def __init__(self):
-        self.hints = []  # list of (var, force_skip, message)
+        # {func_name: [(force_skip, message), ...]}
+        self.hints = {}
         self.shown_hints = set()
 
-    def add(self, var, message, force_skip=False):
-        """Add a hint. If force_skip=True → jump to recovery immediately."""
-        self.hints.append((var, force_skip, message))
+    def add(self, func_name, message, force_skip=False):
+        """Add a hint for a specific function."""
+        if func_name not in self.hints:
+            self.hints[func_name] = []
+        self.hints[func_name].append((force_skip, message))
 
-    def get_for_var(self, var):
-        """Return the most recent hint for a specific variable."""
-        for v, force, msg in reversed(self.hints):
-            if v == var:
-                return v, force, msg
+    def get_last(self, func_name):
+        """Return the last hint tuple for a function."""
+        if func_name in self.hints and self.hints[func_name]:
+            return self.hints[func_name][-1]
         return None
 
-    def get_last(self):
-        """Return the last added hint tuple."""
-        return self.hints[-1] if self.hints else None
-
     def should_show(self, msg):
-        """Ensure same hint is not printed multiple times."""
+        """Prevent duplicate panels."""
         if msg in self.shown_hints:
             return False
         self.shown_hints.add(msg)
@@ -67,16 +63,10 @@ class ErrorHint:
 # Recovery runner
 # ------------------------------------------------------------
 def _run_recovery(obj, current_func_name):
-    """Run the recovery function once, silently halt on error."""
-    recovery_func_name = None
-    if hasattr(obj.__class__, "_safe_rules"):
-        rules = obj.__class__._safe_rules
-        recovery_func_name = rules.get(current_func_name)
-        if not recovery_func_name and rules:
-            recovery_func_name = next(iter(rules.values()), None)
-
+    """Run the mapped recovery function once and halt silently on failure."""
+    recovery_func_name = getattr(obj.__class__, "_safe_rules", {}).get(current_func_name)
     if not recovery_func_name:
-        return  # no recovery defined
+        return
 
     ran_flag = f"_{recovery_func_name}_ran"
     orig_name = f"__orig_{recovery_func_name}"
@@ -85,16 +75,16 @@ def _run_recovery(obj, current_func_name):
         try:
             getattr(obj, orig_name)()
             setattr(obj, ran_flag, True)
-        except Exception as e:
+        except Exception:
+            # Show recovery hint if exists
             suggestion = None
             if hasattr(obj, "hint"):
-                last_hint = obj.hint.get_last()
+                last_hint = obj.hint.get_last(recovery_func_name)
                 if last_hint:
-                    _, _, suggestion = last_hint
+                    _, suggestion = last_hint
             if not suggestion:
-                suggestion = f"{type(e).__name__}: {e}"
+                suggestion = f"Error in recovery"
 
-            # Display recovery failure panel
             with console_lock:
                 console.print(
                     Panel.fit(
@@ -103,7 +93,8 @@ def _run_recovery(obj, current_func_name):
                         border_style="red",
                     )
                 )
-            # Stop further execution silently
+
+            # Stop further execution immediately
             with obj._skip_lock:
                 obj._skip_next_steps = True
 
@@ -111,13 +102,12 @@ def _run_recovery(obj, current_func_name):
 # Safe function wrapper
 # ------------------------------------------------------------
 def safe_function(func):
-    """Wrap a function with try/except, controlled recovery and skip."""
     @wraps(func)
     def wrapper(*args, **kwargs):
         self_obj = args[0] if args else None
 
         if not self_obj:
-            # standalone function
+            # Standalone function
             try:
                 return func(*args, **kwargs)
             except Exception:
@@ -126,7 +116,7 @@ def safe_function(func):
         if not hasattr(self_obj, "_skip_lock"):
             self_obj._skip_lock = threading.Lock()
 
-        # skip flagged methods
+        # Skip flagged functions
         with self_obj._skip_lock:
             if getattr(self_obj, "_skip_next_steps", False):
                 return None
@@ -134,23 +124,15 @@ def safe_function(func):
         try:
             return func(*args, **kwargs)
 
-        except Exception as e:
-            force_skip = False
-            suggestion = f"{type(e).__name__}: {e}"
-
-            # Try to match hint by variable from exception args
-            var_name = getattr(e, "args", [None])[0]
-            hint_for_var = None
+        except Exception:
+            # Get last hint for this function
+            force_skip, suggestion = False, f"{func.__name__} error"
             if hasattr(self_obj, "hint"):
-                if var_name is not None:
-                    hint_for_var = self_obj.hint.get_for_var(var_name)
-                if not hint_for_var:
-                    hint_for_var = self_obj.hint.get_last()
+                last_hint = self_obj.hint.get_last(func.__name__)
+                if last_hint:
+                    force_skip, suggestion = last_hint
 
-            if hint_for_var:
-                _, force_skip, suggestion = hint_for_var
-
-            # Show panel if not already shown
+            # Show panel once
             show_panel = True
             if hasattr(self_obj, "hint"):
                 show_panel = self_obj.hint.should_show(suggestion)
@@ -165,7 +147,7 @@ def safe_function(func):
                         )
                     )
 
-            # Force skip and recovery if requested
+            # Skip further calls and run recovery if forced
             if force_skip:
                 with self_obj._skip_lock:
                     self_obj._skip_next_steps = True
@@ -176,10 +158,10 @@ def safe_function(func):
     return wrapper
 
 # ------------------------------------------------------------
-# safe_class decorator
+# Safe class decorator
 # ------------------------------------------------------------
 def safe_class(skip_rules):
-    """Wrap all class methods safely, only once per class."""
+    """Wrap all class methods safely and store skip rules."""
     def decorator(cls):
         if getattr(cls, "_already_wrapped", False):
             return cls
@@ -193,4 +175,5 @@ def safe_class(skip_rules):
 
         cls._already_wrapped = True
         return cls
+
     return decorator
