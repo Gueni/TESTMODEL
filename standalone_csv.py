@@ -15,7 +15,6 @@ CSV_MAPS_folder     = r"D:\WORKSPACE\BJT-MODEL\CSV_MAPS"
 input_json          = r"D:\WORKSPACE\BJT-MODEL\assets\Input_vars.json"
 html_base           = r"D:\WORKSPACE\BJT-MODEL\results\result"
 Y_Lengths           = [1,77,77,77,69,69,69,69,69,62,15,18,8,148]
-skip_zero_columns = True
 
 def barchart3D(x_vals, y_vals, z_vals, title, z_title, x_title, y_title,
                colorscale='Viridis', opacity=1):
@@ -39,28 +38,30 @@ def barchart3D(x_vals, y_vals, z_vals, title, z_title, x_title, y_title,
         y = [y_min, y_max, y_max, y_min, y_min, y_max, y_max, y_min]
         z = [0, 0, 0, 0, z_max, z_max, z_max, z_max]
 
-        # Real visible bar
+        # Visible bar
         fig.add_trace(go.Mesh3d(
             x=x, y=y, z=z,
             alphahull=0,
             intensity=z,
-            coloraxis='coloraxis',
+            colorscale=colorscale,
+            showscale=False,          # 🚫 hides the colorbar
             opacity=opacity,
             hoverinfo='skip'
         ))
 
+        # Transparent hover plane
         fig.add_trace(go.Mesh3d(
             x=[x_min, x_max, x_max, x_min],
             y=[y_min, y_min, y_max, y_max],
             z=[z_max, z_max, z_max, z_max],
-            color='rgba(0,0,0,0)',    # fully transparent, no link to colorscale
+            color='rgba(0,0,0,0)',
             opacity=0.01,
             hovertemplate=(
                 f"<b>{x_title}</b>: {x_cnt:.2f}<br>"
                 f"<b>{y_title}</b>: {y_cnt:.2f}<br>"
                 f"<b>{z_title}</b>: {z_max:.2f}<extra></extra>"
             ),
-            hoverlabel=dict(           # <<---- force fixed hover color here
+            hoverlabel=dict(
                 bgcolor='rgba(30,30,30,0.8)',
                 font_color='white',
                 bordercolor='white'
@@ -68,8 +69,7 @@ def barchart3D(x_vals, y_vals, z_vals, title, z_title, x_title, y_title,
             showlegend=False
         ))
 
-
-        # Add text annotation on top
+        # Annotation on top
         ann.append(dict(
             showarrow=False,
             x=x_cnt, y=y_cnt, z=z_max,
@@ -91,13 +91,14 @@ def barchart3D(x_vals, y_vals, z_vals, title, z_title, x_title, y_title,
             zaxis_title_font=dict(size=10),
             xaxis_tickfont=dict(size=10),
             yaxis_tickfont=dict(size=10),
-            zaxis_tickfont=dict(size=10)
+            zaxis_tickfont=dict(size=10),
+
+       
         ),
-        coloraxis=dict(colorscale=colorscale),
         hoverlabel=dict(
-            bgcolor='rgba(50,50,50,0.8)',  # fixed dark background
-            font_color='white',            # white text
-            bordercolor='white'            # optional border
+            bgcolor='rgba(50,50,50,0.8)',
+            font_color='white',
+            bordercolor='white'
         )
     )
 
@@ -118,7 +119,7 @@ def repo_3d(header_path=header_path, CSV_MAPS_folder=CSV_MAPS_folder,input_json=
     #?  Initialize variables and read inputs
     #?------------------------------------------------
     headers_array, list_of_plots, fft_plots     = [], [], []
-    iterSplit                                   = False
+    iterSplit                                   = True
     with open(input_json) as f:config           = json.load(f)
     var1, var2                                  = config["Var1"], config["Var2"]
     sweepNames                                  = config["sweepNames"]
@@ -129,7 +130,6 @@ def repo_3d(header_path=header_path, CSV_MAPS_folder=CSV_MAPS_folder,input_json=
     with open(base64_file, 'r') as f:base64_img = ''.join(line.strip() for line in f)
     permute                                     = True
     harmonics                                   = [1, 2]
-    F_fund                                      = 1e5
 
     def format_fixed_title(fixed_dict, sweepNames):
         """Format the fixed title in the same way as dropdown case"""
@@ -177,7 +177,7 @@ def repo_3d(header_path=header_path, CSV_MAPS_folder=CSV_MAPS_folder,input_json=
     #?------------------------------------------------
     #?  Load headers and matrices
     #?------------------------------------------------
-    mat_names           = ["Peak_Currents","RMS_Currents","AVG_Currents","Peak_Voltages","RMS_Voltages","AVG_Voltages","FFT_Current","FFT_Voltage","Dissipations","Elec_Stats","Temps","Thermal_Stats","Controls"]
+    mat_names           = ["Peak_Currents","RMS_Currents","AVG_Currents","Peak_Voltages","RMS_Voltages","AVG_Voltages","FFT_Current","FFT_Voltage","Dissipations","Elec_Stats","Temps","Thermal_Stats"]
     headers_lists       = [data if isinstance((data := json.load(open(os.path.join(header_path, f"{name}.json")))), list) else [data] for name in mat_names]
     cumsum              = np.cumsum(Y_Lengths[1:]).tolist()
     all_headers         = sum(headers_lists, [])
@@ -187,23 +187,6 @@ def repo_3d(header_path=header_path, CSV_MAPS_folder=CSV_MAPS_folder,input_json=
     mat_lists           = [pd.read_csv(os.path.join(CSV_MAPS_folder, f), header=None).values for f in [f"{name}_Map.csv" for name in mat_names]]
     combined_matrix     = np.hstack((mat_lists[:6] + mat_lists[8:])) 
     combined_fft_matrix = np.hstack((mat_lists[6:8]))  
-    #?------------------------------------------------
-    #?  Optional: Skip all-zero columns
-    #?------------------------------------------------
-    if skip_zero_columns:
-        # Normal signals
-        keep_mask_normal = ~(np.all(combined_matrix == 0, axis=0))
-        removed_normal   = [h for h, keep in zip(headers_array, keep_mask_normal) if not keep]
-        headers_array    = [h for h, keep in zip(headers_array, keep_mask_normal) if keep]
-        combined_matrix  = combined_matrix[:, keep_mask_normal]
-
-        # FFT signals
-        keep_mask_fft    = ~(np.all(combined_fft_matrix == 0, axis=0))
-        removed_fft      = [h for h, keep in zip(FFT_headers, keep_mask_fft) if not keep]
-        FFT_headers      = [h for h, keep in zip(FFT_headers, keep_mask_fft) if keep]
-        combined_fft_matrix = combined_fft_matrix[:, keep_mask_fft]
-
-    #?------------------------------------------------
     #?  Determine active sweep keys combinations
     #?------------------------------------------------
     sweep_vars          = {k: eval(v) for k, v in config.items() if re.fullmatch(r"X\d+", k) and eval(v) != [0]}
@@ -217,29 +200,16 @@ def repo_3d(header_path=header_path, CSV_MAPS_folder=CSV_MAPS_folder,input_json=
     #?  Plotting: 2D case
     #?------------------------------------------------
     if plot_2D:
-        sweep_values    = sweep_vars[single_X_key]
-        fig             = go.Figure()
-        fixed_dict      = {}
-
         sweep_values = sweep_vars[single_X_key]
-        sweep_label  = sweepNames[int(re.search(r'\d+', single_X_key).group())-1]
-        fixed_vars   = {k: v for k, v in sweep_vars.items() if k != single_X_key and v != [0]}
+        sweep_label = sweepNames[int(re.search(r'\d+', single_X_key).group())-1]
+        fixed_vars = {k: v for k, v in sweep_vars.items() if k != single_X_key and v != [0]}
         fixed_combos = list(product(*fixed_vars.values())) if fixed_vars else [()]
-        def format_fixed_title(fixed_dict):
-            if not fixed_dict: return ""
-            items = list(fixed_dict.items())
-            lines = []
-            for i in range(0, len(items), 2):
-                pair = " | ".join(f"{sweepNames[int(re.search(r'\\d+', k).group())-1]} = {v}" for k, v in items[i:i+2])
-                lines.append(pair)
-            return "<br>".join(lines)
 
-        # Initialize container dicts for HTML content
-        signals_html_dict, fft_html_dict = {}, {}
+        # Clear the plot lists
+        list_of_plots, fft_plots = [], []
 
         # --- NORMAL SIGNALS ---
         for component in headers_array:
-            figs = []
             for fixed_values in fixed_combos:
                 fixed_dict = dict(zip(fixed_vars.keys(), fixed_values))
                 z_column = headers_array.index(component)
@@ -247,63 +217,99 @@ def repo_3d(header_path=header_path, CSV_MAPS_folder=CSV_MAPS_folder,input_json=
 
                 fig = go.Figure()
                 fig.add_trace(go.Scatter(
-                    x=sweep_values, y=z_vals, mode='lines+markers', fill='tozeroy',
-                    name=f"{component} {format_fixed_title(fixed_dict)}"
+                    x=sweep_values, y=z_vals, mode='lines',
+                    name=f"{component} {format_fixed_title(fixed_dict, sweepNames)}"
                 ))
                 fig.update_layout(
-                    title=dict(text=f"{component}<br>{format_fixed_title(fixed_dict)}", x=0.5),
+                    title=dict(text=f"{component}<br>{format_fixed_title(fixed_dict, sweepNames)}", x=0.5),
                     xaxis_title=sweep_label, yaxis_title=component,
                     xaxis_title_font=dict(size=10), yaxis_title_font=dict(size=10),
                     xaxis_tickfont=dict(size=10), yaxis_tickfont=dict(size=10),
                     margin=dict(r=50)
                 )
-                figs.append(fig)
-
-            signals_html_dict[component] = figs
+                list_of_plots.append(fig)
 
         # --- FFT SIGNALS ---
         for component in FFT_headers:
-            figs = []
             for fixed_values in fixed_combos:
                 fixed_dict = dict(zip(fixed_vars.keys(), fixed_values))
                 z_column = FFT_headers.index(component)
                 z_vals = combined_fft_matrix[:len(sweep_values), z_column]
-                x_vals = np.array(harmonics) * F_fund
+                x_vals = np.array(harmonics)
                 x_plot = np.tile(x_vals, int(np.ceil(len(sweep_values)/len(x_vals))))[:len(sweep_values)]
 
                 fig = go.Figure()
                 fig.add_trace(go.Bar(
-                    x=x_plot, y=z_vals, name=f"{component} {format_fixed_title(fixed_dict)}"
+                    x=x_plot, y=z_vals, name=f"{component} {format_fixed_title(fixed_dict, sweepNames)}"
                 ))
                 fig.update_layout(
-                    title=dict(text=f"{component}<br>{format_fixed_title(fixed_dict)}", x=0.5),
-                    xaxis_title='Frequency [Hz]', yaxis_title=component,
+                    title=dict(text=f"{component}<br>{format_fixed_title(fixed_dict, sweepNames)}", x=0.5),
+                    xaxis_title='Harmonic Order', yaxis_title=component,
                     xaxis_title_font=dict(size=10), yaxis_title_font=dict(size=10),
                     xaxis_tickfont=dict(size=10), yaxis_tickfont=dict(size=10),
                     margin=dict(r=50)
                 )
-                figs.append(fig)
-
-            fft_html_dict[component] = figs
+                fft_plots.append(fig)
 
         # --- WRITE HTML FILES ---
         if iterSplit:
             # One HTML per component
-            for component, figs in signals_html_dict.items():
-                html_path = f"{html_base}_{component}_{UTC}.html"
-                write_html_report(html_path, figs, base64_img, script_name, date, UTC, iterSplit=True)
+            for idx, component in enumerate(headers_array):
+                start = idx * len(fixed_combos)
+                end = start + len(fixed_combos)
+                component_plots = list_of_plots[start:end]
+                if component_plots:
+                    html_path = f"{html_base}_{component}_{UTC}.html"
+                    write_html_report(html_path, component_plots, base64_img, script_name, date, UTC, iterSplit=True)
 
-            for component, figs in fft_html_dict.items():
-                html_path = f"{html_base}_FFT_{component}_{UTC}.html"
-                write_html_report(html_path, figs, base64_img, script_name, date, UTC, iterSplit=True)
+            for idx, component in enumerate(FFT_headers):
+                start = idx * len(fixed_combos)
+                end = start + len(fixed_combos)
+                component_plots = fft_plots[start:end]
+                if component_plots:
+                    html_path = f"{html_base}_FFT_{component}_{UTC}.html"
+                    write_html_report(html_path, component_plots, base64_img, script_name, date, UTC, iterSplit=True)
         else:
-            # One HTML for all signals
-            all_signal_figs = sum(signals_html_dict.values(), [])
-            write_html_report(f"{html_base}_{UTC}.html", all_signal_figs, base64_img, script_name, date, UTC, iterSplit=True)
+            # Group figures by their original categories
+            category_groups = dict(zip(mat_names, headers_lists))
+            fft_categories = {"FFT_Current": FFT_headers[:len(headers_lists[6])],
+                            "FFT_Voltage": FFT_headers[len(headers_lists[6]):]}
 
-            # One HTML for all FFTs
-            all_fft_figs = sum(fft_html_dict.values(), [])
-            write_html_report(f"{html_base}_FFT_{UTC}.html", all_fft_figs, base64_img, script_name, date, UTC, iterSplit=True)
+            # Build category-based plot lists
+            grouped_signal_figs = {cat: [] for cat in category_groups.keys()}
+            grouped_fft_figs = {cat: [] for cat in fft_categories.keys()}
+
+            for idx, component in enumerate(headers_array):
+                start = idx * len(fixed_combos)
+                end = start + len(fixed_combos)
+                component_plots = list_of_plots[start:end]
+                
+                for cat, comps in category_groups.items():
+                    if component in comps:
+                        grouped_signal_figs[cat].extend(component_plots)
+                        break
+
+            for idx, component in enumerate(FFT_headers):
+                start = idx * len(fixed_combos)
+                end = start + len(fixed_combos)
+                component_plots = fft_plots[start:end]
+                
+                for cat, comps in fft_categories.items():
+                    if component in comps:
+                        grouped_fft_figs[cat].extend(component_plots)
+                        break
+
+            # Write separate HTMLs per category
+            for cat, figs in grouped_signal_figs.items():
+                if figs:
+                    write_html_report(f"{html_base}_{UTC}_{cat}.html",
+                                    figs, base64_img, script_name, date, UTC, iterSplit=False)
+
+            for cat, figs in grouped_fft_figs.items():
+                if figs:
+                    write_html_report(f"{html_base}_{UTC}_{cat}.html",
+                                    figs, base64_img, script_name, date, UTC, iterSplit=False)
+
     else:
         #?------------------------------------------------
         #?  3D case: prepare fixed combos
@@ -347,10 +353,10 @@ def repo_3d(header_path=header_path, CSV_MAPS_folder=CSV_MAPS_folder,input_json=
                 fft_rows                =  fft_rows_dict[tuple(fixed_values)]
                 if len(fft_rows)        == 0: continue
                 y_vals                  =  fft_rows[:,2]
-                x_vals                  =  np.tile(np.array(harmonics)*F_fund, int(np.ceil(len(y_vals)/len(harmonics))))[:len(y_vals)]
+                x_vals                  =  np.tile(np.array(harmonics), int(np.ceil(len(y_vals)/len(harmonics))))[:len(y_vals)]
                 z_vals                  =  combined_fft_matrix[fft_rows[:,0].astype(int), z_column]
                 full_title              =  f'{component}<br>{format_fixed_title(fixed_dict, sweepNames)}'
-                fig                     =  barchart3D(x_vals, y_vals, z_vals, full_title, 'Magnitude',x_title='Frequency [Hz]',y_title=sweepNames[int(re.search(r'\d+', var2).group())-1])
+                fig                     =  barchart3D(x_vals, y_vals, z_vals, full_title, 'Magnitude',x_title='Harmonic Order',y_title=sweepNames[int(re.search(r'\d+', var2).group())-1])
                 fft_plots.append(fig)
 
             # Write multiple html files
@@ -375,7 +381,7 @@ def repo_3d(header_path=header_path, CSV_MAPS_folder=CSV_MAPS_folder,input_json=
             - Each group of traces is initially hidden except the first group.
             - Dropdown menu entries are dynamically generated using the `fixed_dict` values.
             - Figure layout is automatically adjusted for scene axis titles and font sizes.
-            - For `plot_type="FFT"`, x-axis is labeled as "Frequency [Hz]" and z-axis as "Magnitude".
+            - For `plot_type="FFT"`, x-axis is labeled as "Harmonic Order" and z-axis as "Magnitude".
             - For `plot_type="3D"`, axis titles use `sweepNames` from the global `config` dictionary.
 
             Parameters :
@@ -399,7 +405,7 @@ def repo_3d(header_path=header_path, CSV_MAPS_folder=CSV_MAPS_folder,input_json=
                 x_vals, y_vals, z_vals, fixed_dict = data
 
                 if plot_type == "FFT":
-                    temp_fig = barchart3D(x_vals, y_vals, z_vals, full_title, 'Magnitude',x_title='Frequency [Hz]',y_title=sweepNames[int(re.search(r'\d+', var2).group())-1])
+                    temp_fig = barchart3D(x_vals, y_vals, z_vals, full_title, 'Magnitude',x_title='Harmonic Order',y_title=sweepNames[int(re.search(r'\d+', var2).group())-1])
                     for trace in temp_fig.data:
                         trace.visible = False  # initially hidden
                         fig.add_trace(trace)
@@ -445,7 +451,7 @@ def repo_3d(header_path=header_path, CSV_MAPS_folder=CSV_MAPS_folder,input_json=
             # Set the scene configuration:
             if plot_type == "3D": layout_base['scene'] = dict(xaxis_title=sweepNames[int(re.search(r'\d+', var1).group())-1],yaxis_title=sweepNames[int(re.search(r'\d+', var2).group())-1],zaxis_title=component,
                                                             xaxis_title_font=dict(size=10),yaxis_title_font=dict(size=10),zaxis_title_font=dict(size=10),xaxis_tickfont=dict(size=10),yaxis_tickfont=dict(size=10),zaxis_tickfont=dict(size=10))
-            if plot_type == "FFT":layout_base['scene'] = dict(xaxis_title='Frequency [Hz]',yaxis_title=sweepNames[int(re.search(r'\d+', var2).group())-1],zaxis_title='Magnitude',xaxis_title_font=dict(size=10),
+            if plot_type == "FFT":layout_base['scene'] = dict(xaxis_title='Harmonic Order',yaxis_title=sweepNames[int(re.search(r'\d+', var2).group())-1],zaxis_title='Magnitude',xaxis_title_font=dict(size=10),
                                                             yaxis_title_font=dict(size=10),zaxis_title_font=dict(size=10),xaxis_tickfont=dict(size=10),yaxis_tickfont=dict(size=10),zaxis_tickfont=dict(size=10))
 
             fig.update_layout(**layout_base)
@@ -473,7 +479,7 @@ def repo_3d(header_path=header_path, CSV_MAPS_folder=CSV_MAPS_folder,input_json=
                 fft_rows                    =  fft_rows_dict[tuple(fixed_values)]
                 if len(fft_rows)            == 0: continue
                 y_vals                      =  fft_rows[:,2]
-                x_vals                      =  np.tile(np.array(harmonics)*F_fund, int(np.ceil(len(y_vals)/len(harmonics))))[:len(y_vals)]
+                x_vals                      =  np.tile(np.array(harmonics), int(np.ceil(len(y_vals)/len(harmonics))))[:len(y_vals)]
                 z_vals                      =  combined_fft_matrix[fft_rows[:,0].astype(int), FFT_headers.index(component)]
                 comp_data[str(fixed_dict)]  =  (x_vals, y_vals, z_vals, fixed_dict)
             fft_dropdown_data[component]    =  comp_data
@@ -487,7 +493,42 @@ def repo_3d(header_path=header_path, CSV_MAPS_folder=CSV_MAPS_folder,input_json=
             if fft_dropdown_data[component]:
                 fft_plots.append(make_dropdown(full_title, component, fft_dropdown_data[component], plot_type="FFT"))
 
-        write_html_report(f"{html_base}_{UTC}.html", list_of_plots[:4], base64_img, script_name, date, UTC, iterSplit=False)
-        write_html_report(f"{html_base}_FFT_{UTC}.html", fft_plots[:4], base64_img, script_name, date, UTC, iterSplit=False)
+        # write_html_report(f"{html_base}_{UTC}.html", list_of_plots[:4], base64_img, script_name, date, UTC, iterSplit=False)
+        # write_html_report(f"{html_base}_FFT_{UTC}.html", fft_plots[:4], base64_img, script_name, date, UTC, iterSplit=False)
+        # #?------------------------------------------------
+        #?  Group figures by their original categories
+        #?------------------------------------------------
+        category_groups = dict(zip(mat_names, headers_lists))
+        fft_categories  = {"FFT_Current": FFT_headers[:len(headers_lists[6])],
+                            "FFT_Voltage": FFT_headers[len(headers_lists[6]):]}
+
+        # Build category-based plot lists
+        grouped_signal_figs = {cat: [] for cat in category_groups.keys()}
+        grouped_fft_figs    = {cat: [] for cat in fft_categories.keys()}
+
+        for component, figs in zip(headers_array, list_of_plots):
+                for cat, comps in category_groups.items():
+                    if component in comps:
+                        grouped_signal_figs[cat].append(figs)
+                        break
+
+        for component, figs in zip(FFT_headers, fft_plots):
+                for cat, comps in fft_categories.items():
+                    if component in comps:
+                        grouped_fft_figs[cat].append(figs)
+                        break
+
+        #?------------------------------------------------
+        #?  Write separate HTMLs per category
+        #?------------------------------------------------
+        for cat, figs in grouped_signal_figs.items():
+                if figs:
+                    write_html_report(f"{html_base}_{UTC}_{cat}.html",
+                                    figs, base64_img, script_name, date, UTC, iterSplit=False)
+
+        for cat, figs in grouped_fft_figs.items():
+                if figs:
+                    write_html_report(f"{html_base}_{UTC}_{cat}.html",
+                                    figs, base64_img, script_name, date, UTC, iterSplit=False)
 
 repo_3d()
