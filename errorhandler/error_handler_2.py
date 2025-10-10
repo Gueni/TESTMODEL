@@ -4,7 +4,9 @@ from rich.panel import Panel
 import threading
 import sys
 
+# ------------------------------------------------------------
 # Global console + lock
+# ------------------------------------------------------------
 if "GLOBAL_CONSOLE" not in globals():
     GLOBAL_CONSOLE = Console()
 if "CONSOLE_LOCK" not in globals():
@@ -13,34 +15,36 @@ console = GLOBAL_CONSOLE
 console_lock = CONSOLE_LOCK
 
 # Silent global exceptions
-def _silent_excepthook(exc_type, exc_value, exc_traceback):
-    pass
-sys.excepthook = _silent_excepthook
+sys.excepthook = lambda *args: None
 
+# ------------------------------------------------------------
+# ErrorHint class
+# ------------------------------------------------------------
 class ErrorHint:
     def __init__(self):
-        self.hints = []
+        self.hints = []  # list of (message, force_skip)
         self.shown = set()
 
     def add(self, message, force_skip=False):
-        self.hints.append((force_skip, message))
+        self.hints.append((message, force_skip))
 
-    def get_force_skip(self):
-        return any(force for force, _ in self.hints)
-
-    def show_hints(self):
-        for _, msg in self.hints:
+    def get_panel_hint(self):
+        """Return first hint that hasn’t been shown yet."""
+        for msg, _ in self.hints:
             if msg not in self.shown:
-                with console_lock:
-                    console.print(
-                        Panel.fit(
-                            f"[bold yellow]{msg}[/bold yellow]",
-                            title="[bright_red]Hint[/bright_red]",
-                            border_style="red",
-                        )
-                    )
-                self.shown.add(msg)
+                return msg
+        return None
 
+    def has_force_skip(self):
+        return any(force for _, force in self.hints)
+
+    def mark_shown(self):
+        for msg, _ in self.hints:
+            self.shown.add(msg)
+
+# ------------------------------------------------------------
+# Recovery runner
+# ------------------------------------------------------------
 def _run_recovery(obj, func_name):
     rules = getattr(obj.__class__, "_safe_rules", {})
     recovery_name = rules.get(func_name)
@@ -59,17 +63,21 @@ def _run_recovery(obj, func_name):
                 console.print(
                     Panel.fit(
                         f"[bold yellow]{suggestion}[/bold yellow]",
-                        title="[bright_red]Exception in recovery — HALT[/bright_red]",
-                        border_style="red",
+                        title="[bright_red]Recovery Error[/bright_red]",
+                        border_style="red"
                     )
                 )
             with obj._skip_lock:
                 obj._skip_next_steps = True
 
+# ------------------------------------------------------------
+# Safe function wrapper
+# ------------------------------------------------------------
 def safe_function(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         self_obj = args[0] if args else None
+
         if not self_obj:
             try:
                 return func(*args, **kwargs)
@@ -78,35 +86,36 @@ def safe_function(func):
 
         if not hasattr(self_obj, "_skip_lock"):
             self_obj._skip_lock = threading.Lock()
-        if not hasattr(self_obj, "_current_hint"):
-            self_obj._current_hint = ErrorHint()
         if not hasattr(self_obj, "_skip_next_steps"):
             self_obj._skip_next_steps = False
+        if not hasattr(self_obj, "_current_hint"):
+            self_obj._current_hint = ErrorHint()
 
         with self_obj._skip_lock:
             if self_obj._skip_next_steps:
-                return None  # skip function if flagged
+                return None  # skip everything if flagged
 
         try:
             return func(*args, **kwargs)
-        except Exception as e:
-            # show hints if any
-            self_obj._current_hint.show_hints()
-            force_skip = self_obj._current_hint.get_force_skip()
+        except Exception:
+            # Show panel with hint if exists
+            msg = self_obj._current_hint.get_panel_hint()
+            if not msg:
+                msg = f"{func.__name__} failed"
 
-            # show exception if no hints
-            if not self_obj._current_hint.hints:
-                with console_lock:
-                    console.print(
-                        Panel.fit(
-                            f"[bold yellow]{type(e).__name__}: {e}[/bold yellow]",
-                            title=f"[bright_red]Exception in {func.__name__}[/bright_red]",
-                            border_style="red",
-                        )
+            with console_lock:
+                console.print(
+                    Panel.fit(
+                        f"[bold yellow]{msg}[/bold yellow]",
+                        title=f"[bright_red]Exception in {func.__name__}[/bright_red]",
+                        border_style="red"
                     )
+                )
 
-            # trigger skip/recovery if forced
-            if force_skip:
+            self_obj._current_hint.mark_shown()
+
+            # If any hint is force_skip → skip rest and run recovery
+            if self_obj._current_hint.has_force_skip():
                 with self_obj._skip_lock:
                     self_obj._skip_next_steps = True
                 _run_recovery(self_obj, func.__name__)
@@ -115,6 +124,9 @@ def safe_function(func):
 
     return wrapper
 
+# ------------------------------------------------------------
+# safe_class decorator
+# ------------------------------------------------------------
 def safe_class(skip_rules):
     def decorator(cls):
         if getattr(cls, "_already_wrapped", False):
