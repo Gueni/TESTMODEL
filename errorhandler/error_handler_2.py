@@ -4,9 +4,7 @@ from rich.panel import Panel
 import threading
 import sys
 
-# ----------------------------
-# Global console + lock
-# ----------------------------
+# Global console and lock
 if "GLOBAL_CONSOLE" not in globals():
     GLOBAL_CONSOLE = Console()
 if "CONSOLE_LOCK" not in globals():
@@ -14,14 +12,13 @@ if "CONSOLE_LOCK" not in globals():
 console = GLOBAL_CONSOLE
 console_lock = CONSOLE_LOCK
 
-# Silent tracebacks
-sys.excepthook = lambda *args: None
+sys.excepthook = lambda *args: None  # silence global tracebacks
 
-# ----------------------------
-# ErrorHint
-# ----------------------------
+# -------------------------
+# Hint storage per function call
+# -------------------------
 class ErrorHint:
-    """Stores hints per function call."""
+    """Stores hints added dynamically during function execution."""
     def __init__(self):
         self.hints = []  # list of (message, force_skip)
         self.shown = set()
@@ -42,9 +39,9 @@ class ErrorHint:
         for msg, _ in self.hints:
             self.shown.add(msg)
 
-# ----------------------------
+# -------------------------
 # Recovery runner
-# ----------------------------
+# -------------------------
 def _run_recovery(obj, func_name):
     rules = getattr(obj.__class__, "_safe_rules", {})
     recovery_name = rules.get(func_name)
@@ -57,21 +54,20 @@ def _run_recovery(obj, func_name):
             getattr(obj, orig_name)()
             setattr(obj, ran_flag, True)
         except Exception:
-            msg = f"Recovery {recovery_name} failed"
             with console_lock:
                 console.print(
                     Panel.fit(
-                        f"[bold yellow]{msg}[/bold yellow]",
+                        f"Recovery {recovery_name} failed",
                         title="[bright_red]Recovery Error[/bright_red]",
-                        border_style="red"
+                        border_style="red",
                     )
                 )
             with obj._skip_lock:
                 obj._skip_next_steps = True
 
-# ----------------------------
+# -------------------------
 # Safe function wrapper
-# ----------------------------
+# -------------------------
 def safe_function(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -82,12 +78,13 @@ def safe_function(func):
             except Exception:
                 return None
 
+        # Initialize skip lock and flag
         if not hasattr(self_obj, "_skip_lock"):
             self_obj._skip_lock = threading.Lock()
         if not hasattr(self_obj, "_skip_next_steps"):
             self_obj._skip_next_steps = False
 
-        # Create a new hint container per function call
+        # Assign fresh hint for this call
         self_obj._current_hint = ErrorHint()
 
         with self_obj._skip_lock:
@@ -95,39 +92,42 @@ def safe_function(func):
                 return None
 
         try:
-            return func(*args, **kwargs)
-        except Exception:
+            result = func(*args, **kwargs)
+        except Exception as e:
             hint_msg = self_obj._current_hint.get_first_unshown()
             if not hint_msg:
-                hint_msg = f"{func.__name__} failed"
+                hint_msg = f"{func.__name__} failed: {type(e).__name__}: {e}"
 
             with console_lock:
                 console.print(
                     Panel.fit(
                         f"[bold yellow]{hint_msg}[/bold yellow]",
                         title=f"[bright_red]Exception in {func.__name__}[/bright_red]",
-                        border_style="red"
+                        border_style="red",
                     )
                 )
 
             self_obj._current_hint.mark_shown()
 
+            # Trigger skip & recovery only if any hint had force_skip
             if self_obj._current_hint.has_force_skip():
                 with self_obj._skip_lock:
                     self_obj._skip_next_steps = True
                 _run_recovery(self_obj, func.__name__)
-
             return None
+
+        return result
 
     return wrapper
 
-# ----------------------------
+# -------------------------
 # Safe class decorator
-# ----------------------------
+# -------------------------
 def safe_class(skip_rules):
     def decorator(cls):
         if getattr(cls, "_already_wrapped", False):
             return cls
+
         cls._safe_rules = skip_rules
 
         for name, method in list(cls.__dict__.items()):
