@@ -90,60 +90,63 @@ def _run_recovery(obj, current_func_name):
             sys.exit(0)  # clean exit
 
 
-# -------------------- SAFE FUNCTION WRAPPER ----------------
 def safe_function(func):
-    """Wrap method with exception handling and skip/recovery logic."""
     @wraps(func)
     def wrapper(*args, **kwargs):
         self_obj = args[0] if args else None
-
-        # if standalone function
         if not self_obj:
             try:
                 return func(*args, **kwargs)
             except Exception:
                 return None
 
+        # Initialize skip lock
         if not hasattr(self_obj, "_skip_lock"):
             self_obj._skip_lock = threading.Lock()
 
-        # skip flag
+        # Check skip flag
         with self_obj._skip_lock:
-            skip_now = getattr(self_obj, "_skip_next_steps", False)
-        if skip_now:
-            return None
+            if getattr(self_obj, "_skip_next_steps", False):
+                return None
 
-        try:
-            return func(*args, **kwargs)
+        # Check for function-specific hint
+        force_skip = False
+        func_hint = None
+        if hasattr(self_obj, "hint"):
+            hint_data = self_obj.hint.get_for_func(func.__name__)
+            if hint_data:
+                _, force_skip, func_hint = hint_data
 
-        except Exception as e:
-            func_hint = None
-            force_skip = False
-
-            if hasattr(self_obj, "hint"):
-                last_hint = self_obj.hint.get_for_func(func.__name__)
-                if last_hint:
-                    _, force_skip, func_hint = last_hint
-
-            suggestion = func_hint if func_hint else f"{type(e).__name__}: {e}"
-
-            # display panel once
-            if hasattr(self_obj, "hint") and self_obj.hint.should_show(suggestion):
+        # If force_skip is True, jump immediately to recovery
+        if force_skip:
+            with self_obj._skip_lock:
+                self_obj._skip_next_steps = True
+            if func_hint:
                 with console_lock:
                     console.print(
                         Panel.fit(
-                            f"[bold yellow]{suggestion}[/bold yellow]",
+                            f"[bold yellow]{func_hint}[/bold yellow]",
+                            title=f"[bright_red]Forced skip in {func.__name__}[/bright_red]",
+                            border_style="red",
+                        )
+                    )
+            _run_recovery(self_obj, func.__name__)
+            return None
+
+        # Run function normally
+        try:
+            return func(*args, **kwargs)
+        except Exception:
+            # Show panel for the hint (if any)
+            if func_hint:
+                with console_lock:
+                    console.print(
+                        Panel.fit(
+                            f"[bold yellow]{func_hint}[/bold yellow]",
                             title=f"[bright_red]Exception caught in {func.__name__}[/bright_red]",
                             border_style="red",
                         )
                     )
-
-            # force skip → run recovery
-            if force_skip:
-                with self_obj._skip_lock:
-                    self_obj._skip_next_steps = True
-                _run_recovery(self_obj, func.__name__)
-
             return None
 
     return wrapper
