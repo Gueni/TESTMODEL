@@ -9,6 +9,7 @@ import re
 import plotly.graph_objects as go
 import datetime
 from plotly.io import to_html
+from torch import layout
 
 header_path         = r"D:\WORKSPACE\BJT-MODEL\assets\HEADER_FILES"
 CSV_MAPS_folder     = r"D:\WORKSPACE\BJT-MODEL\CSV_MAPS"
@@ -26,8 +27,22 @@ def barchart3D(x_vals, y_vals, z_vals, title, z_title, x_title, y_title,
     x_vals, y_vals, z_vals = map(lambda arr: np.array(arr, dtype=float),
                                  (x_vals, y_vals, z_vals))
 
-    dx = np.min(np.diff(np.unique(x_vals))) * 0.4 if len(np.unique(x_vals)) > 1 else 1.0
-    dy = np.min(np.diff(np.unique(y_vals))) * 0.4 if len(np.unique(y_vals)) > 1 else 1.0
+    x_unique = np.unique(x_vals)
+    y_unique = np.unique(y_vals)
+
+    # Base spacing between unique points
+    dx_base = np.min(np.diff(x_unique)) if len(x_unique) > 1 else 1.0
+    dy_base = np.min(np.diff(y_unique)) if len(y_unique) > 1 else 1.0
+
+    # Scale width inversely with the number of unique bars
+    # e.g. if you have 100 bars, bars will be thinner than if you have 10
+    nx, ny = len(x_unique), len(y_unique)
+    scale_factor = 0.6 / np.sqrt(max(nx, ny))  # adjustable constant, tweak as needed
+
+    dx = dx_base * (0.8 * scale_factor + 0.2)  # prevent being too thin
+    dy = dy_base * (0.8 * scale_factor + 0.2)
+
+    # Keep small minimums to avoid division errors
     dx, dy = max(dx, 1e-6), max(dy, 1e-6)
 
     for i, z_max in enumerate(z_vals):
@@ -66,6 +81,7 @@ def barchart3D(x_vals, y_vals, z_vals, title, z_title, x_title, y_title,
                 font_color='white',
                 bordercolor='white'
             ),
+            
             showlegend=False
         ))
 
@@ -92,8 +108,8 @@ def barchart3D(x_vals, y_vals, z_vals, title, z_title, x_title, y_title,
             xaxis_tickfont=dict(size=10),
             yaxis_tickfont=dict(size=10),
             zaxis_tickfont=dict(size=10),
+    
 
-       
         ),
         hoverlabel=dict(
             bgcolor='rgba(50,50,50,0.8)',
@@ -101,6 +117,7 @@ def barchart3D(x_vals, y_vals, z_vals, title, z_title, x_title, y_title,
             bordercolor='white'
         )
     )
+
 
     return fig
 
@@ -118,8 +135,10 @@ def repo_3d(header_path=header_path, CSV_MAPS_folder=CSV_MAPS_folder,input_json=
     #?------------------------------------------------
     #?  Initialize variables and read inputs
     #?------------------------------------------------
+    relative_tol    = 0.001
+    absolute_tol    = 1e-12
     headers_array, list_of_plots, fft_plots     = [], [], []
-    iterSplit                                   = True
+    iterSplit                                   = False
     with open(input_json) as f:config           = json.load(f)
     var1, var2                                  = config["Var1"], config["Var2"]
     sweepNames                                  = config["sweepNames"]
@@ -215,11 +234,20 @@ def repo_3d(header_path=header_path, CSV_MAPS_folder=CSV_MAPS_folder,input_json=
                 z_column = headers_array.index(component)
                 z_vals = combined_matrix[:len(sweep_values), z_column]
 
+                # If all Z values are nearly the same
+                if np.allclose(z_vals, z_vals[0], rtol=relative_tol, atol=absolute_tol):
+                    x_plot = np.array([sweep_values[0], sweep_values[-1]])
+                    z_plot = np.array([z_vals[0], z_vals[-1]])
+                else:
+                    x_plot = sweep_values
+                    z_plot = z_vals
+
                 fig = go.Figure()
                 fig.add_trace(go.Scatter(
-                    x=sweep_values, y=z_vals, mode='lines',
+                    x=x_plot, y=z_plot, mode='lines+markers',
                     name=f"{component} {format_fixed_title(fixed_dict, sweepNames)}"
                 ))
+
                 fig.update_layout(
                     title=dict(text=f"{component}<br>{format_fixed_title(fixed_dict, sweepNames)}", x=0.5),
                     xaxis_title=sweep_label, yaxis_title=component,
@@ -236,6 +264,7 @@ def repo_3d(header_path=header_path, CSV_MAPS_folder=CSV_MAPS_folder,input_json=
                 z_column = FFT_headers.index(component)
                 z_vals = combined_fft_matrix[:len(sweep_values), z_column]
                 x_vals = np.array(harmonics)
+
                 x_plot = np.tile(x_vals, int(np.ceil(len(sweep_values)/len(x_vals))))[:len(sweep_values)]
 
                 fig = go.Figure()
@@ -340,6 +369,13 @@ def repo_3d(header_path=header_path, CSV_MAPS_folder=CSV_MAPS_folder,input_json=
                 Z                       =  np.full_like(X, np.nan, dtype=float)
                 Xi , Yi                 =  np.searchsorted(np.unique(y_vals), y_vals), np.searchsorted(np.unique(x_vals), x_vals)
                 Z[Xi,Yi]                =  z_vals
+                # If all Y values are nearly the same
+                if np.allclose(z_vals, Z[0, 0], rtol=relative_tol, atol=absolute_tol):
+                        # Keep only first and last rows and columns
+                        X = np.array([X[0, :], X[-1, :]])       # first & last row
+                        Y = np.array([Y[0, :], Y[-1, :]])
+                        Z = np.array([Z[0, :], Z[-1, :]])
+
                 full_title              =  f'{component}<br>{format_fixed_title(fixed_dict, sweepNames)}'
                 fig                     =  go.Figure(data=[go.Surface(x=X, y=Y, z=Z, colorscale='Viridis', colorbar=dict(title=component))])
                 fig.update_layout(  title=dict(text=full_title, x=0.5, xanchor='center', yanchor='top'),
@@ -412,10 +448,19 @@ def repo_3d(header_path=header_path, CSV_MAPS_folder=CSV_MAPS_folder,input_json=
                     n_traces = len(temp_fig.data)
 
                 else:  # 3D Surface mode
+
                     X, Y    = np.meshgrid(np.unique(x_vals), np.unique(y_vals))
                     Z       = np.full_like(X, np.nan, dtype=float)
                     Z[np.searchsorted(np.unique(y_vals), y_vals),
                     np.searchsorted(np.unique(x_vals), x_vals)] = z_vals
+                    
+                    # If all Y values are nearly the same
+                    if np.allclose(z_vals, Z[0, 0], rtol=relative_tol, atol=absolute_tol):
+                        # Keep only first and last rows and columns
+                        X = np.array([X[0, :], X[-1, :]])       # first & last row
+                        Y = np.array([Y[0, :], Y[-1, :]])
+                        Z = np.array([Z[0, :], Z[-1, :]])
+
                     fig.add_trace(go.Surface(x=X, y=Y, z=Z, colorscale='Viridis',visible=False))
                     n_traces = 1
                 # store which traces belong to this group
@@ -468,7 +513,9 @@ def repo_3d(header_path=header_path, CSV_MAPS_folder=CSV_MAPS_folder,input_json=
                 rows                        =  rows_dict[tuple(fixed_values)]
                 if len(rows)                == 0: continue
                 x_vals, y_vals, z_vals      =  rows[:,1], rows[:,2], combined_matrix[rows[:,0].astype(int), headers_array.index(component)]
+
                 comp_data[str(fixed_dict)]  =  (x_vals, y_vals, z_vals, fixed_dict)
+                
             dropdown_data[component]        =  comp_data
 
         for component in FFT_headers:
