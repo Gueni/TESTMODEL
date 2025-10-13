@@ -97,7 +97,7 @@ def barchart3D(x_vals, y_vals, z_vals, title, z_title, x_title, y_title,
 
     fig.update_layout(
         title=dict(text=title, x=0.5, xanchor='center', yanchor='top'),
-        scene=dict(
+        scene=dict(xaxis=dict(autorange='reversed') ,  yaxis=dict(autorange='reversed') ,
             xaxis_title=x_title,
             yaxis_title=y_title,
             zaxis_title=z_title,
@@ -379,7 +379,7 @@ def repo_3d(header_path=header_path, CSV_MAPS_folder=CSV_MAPS_folder,input_json=
                 full_title              =  f'{component}<br>{format_fixed_title(fixed_dict, sweepNames)}'
                 fig                     =  go.Figure(data=[go.Surface(x=X, y=Y, z=Z, colorscale='Viridis', colorbar=dict(title=component))])
                 fig.update_layout(  title=dict(text=full_title, x=0.5, xanchor='center', yanchor='top'),
-                                    scene=dict(xaxis_title=sweepNames[int(re.search(r'\d+', var1).group())-1],yaxis_title=sweepNames[int(re.search(r'\d+', var2).group())-1],zaxis_title=component,
+                                    scene=dict(xaxis=dict(autorange='reversed') ,  yaxis=dict(autorange='reversed') ,xaxis_title=sweepNames[int(re.search(r'\d+', var1).group())-1],yaxis_title=sweepNames[int(re.search(r'\d+', var2).group())-1],zaxis_title=component,
                                             xaxis_title_font=dict(size=10),yaxis_title_font=dict(size=10),zaxis_title_font=dict(size=10),xaxis_tickfont=dict(size=10),yaxis_tickfont=dict(size=10),zaxis_tickfont=dict(size=10)))
                 list_of_plots.append(fig)
 
@@ -461,6 +461,11 @@ def repo_3d(header_path=header_path, CSV_MAPS_folder=CSV_MAPS_folder,input_json=
                         Y = np.array([Y[0, :], Y[-1, :]])
                         Z = np.array([Z[0, :], Z[-1, :]])
 
+                    # Add this line to flip the x-axis:
+                    X = np.flip(X, axis=1)  # Flip horizontally (along columns)
+                    # Also flip Z accordingly to maintain data alignment
+                    Z = np.flip(Z, axis=1)
+
                     fig.add_trace(go.Surface(x=X, y=Y, z=Z, colorscale='Viridis',visible=False))
                     n_traces = 1
                 # store which traces belong to this group
@@ -489,19 +494,21 @@ def repo_3d(header_path=header_path, CSV_MAPS_folder=CSV_MAPS_folder,input_json=
             first_title = format_fixed_title(first_dict, sweepNames)
 
             # In the make_dropdown function, update the layout_base:
-            layout_base = dict(
+            layout_base = dict(           
+
                 title=dict( text=f'{component}<br>{first_title}',x=0.5, xanchor='center', yanchor='top'),updatemenus=[dict(type='dropdown', x=1.15, y=0.5,xanchor='left', yanchor='middle',
                             buttons=dropdown_buttons,direction='down', showactive=True,bgcolor='lightgray', bordercolor='black',font={'size': 12}, pad={'r': 20})],margin=dict(r=200))
 
             # Set the scene configuration:
-            if plot_type == "3D": layout_base['scene'] = dict(xaxis_title=sweepNames[int(re.search(r'\d+', var1).group())-1],yaxis_title=sweepNames[int(re.search(r'\d+', var2).group())-1],zaxis_title=component,
+            if plot_type == "3D": layout_base['scene'] = dict(xaxis=dict(autorange='reversed') ,  yaxis=dict(autorange='reversed') ,xaxis_title=sweepNames[int(re.search(r'\d+', var1).group())-1],yaxis_title=sweepNames[int(re.search(r'\d+', var2).group())-1],zaxis_title=component,
                                                             xaxis_title_font=dict(size=10),yaxis_title_font=dict(size=10),zaxis_title_font=dict(size=10),xaxis_tickfont=dict(size=10),yaxis_tickfont=dict(size=10),zaxis_tickfont=dict(size=10))
-            if plot_type == "FFT":layout_base['scene'] = dict(xaxis_title='Harmonic Order',yaxis_title=sweepNames[int(re.search(r'\d+', var2).group())-1],zaxis_title='Magnitude',xaxis_title_font=dict(size=10),
+            if plot_type == "FFT":layout_base['scene'] = dict(xaxis=dict(autorange='reversed') ,  yaxis=dict(autorange='reversed') ,xaxis_title='Harmonic Order',yaxis_title=sweepNames[int(re.search(r'\d+', var2).group())-1],zaxis_title='Magnitude',xaxis_title_font=dict(size=10),
                                                             yaxis_title_font=dict(size=10),zaxis_title_font=dict(size=10),xaxis_tickfont=dict(size=10),yaxis_tickfont=dict(size=10),zaxis_tickfont=dict(size=10))
 
             fig.update_layout(**layout_base)
             return fig
 
+        #?------------------------------------------------
         # Prepare dropdown data
         dropdown_data, fft_dropdown_data    = {}, {}
 
