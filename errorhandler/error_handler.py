@@ -1,8 +1,21 @@
+# ============================================================ 
+# enhanced_error_handler.py — Simple error handling with hints
 # ============================================================
-# enhanced_error_handler.py — Silent error handling with hints only
-# ============================================================
+import sys, traceback
+
+def suppress_tracebacks_to_file(exc_type, exc_value, exc_traceback):
+    """Redirect unhandled (not user-caught) exceptions to file, not console."""
+    with open("error_log.log", "w", encoding="utf-8") as f:
+        f.write("=== Unhandled Exception ===\n")
+        f.write("*" * 80 + "\n")
+        traceback.print_exception(exc_type, exc_value, exc_traceback, file=f)
+        f.write("*" * 80 + "\n")
+        f.write("\n")
+
+sys.excepthook = suppress_tracebacks_to_file
 
 from functools import wraps
+import sys
 from rich.console import Console
 from rich.panel import Panel
 
@@ -12,95 +25,179 @@ from rich.panel import Panel
 console = Console()
 
 # ------------------------------------------------------------
-# ✅ Hint Decorator
+# ✅ Simple ErrorHint class
+# ------------------------------------------------------------
+class ErrorHint:
+    """Stores and manages hint messages for functions."""
+    def __init__(self):
+        self._function_hints = {}  # function_name -> message
+        self._shown_messages = set()
+
+    def add_hint(self, func_name, message):
+        """Add hint for a function."""
+        self._function_hints[func_name] = message
+
+    def get_hint(self, func_name):
+        """Get hint message for a function."""
+        return self._function_hints.get(func_name)
+
+    def mark_shown(self, func_name, message):
+        """Mark a message as shown."""
+        self._shown_messages.add(f"{func_name}:{message}")
+
+    def was_shown(self, func_name, message):
+        """Check if message was already shown."""
+        return f"{func_name}:{message}" in self._shown_messages
+
+
+# ------------------------------------------------------------
+# ✅ Hint Decorator for Individual Functions
 # ------------------------------------------------------------
 def hint(message):
-    """Decorator to add hints to functions."""
+    """Decorator to attach a user-friendly hint to a function."""
     def decorator(func):
         func._hint_message = message
-        
+
         @wraps(func)
         def wrapper(*args, **kwargs):
             self_obj = args[0] if args else None
-            
-            if not self_obj or not hasattr(self_obj, 'hint'):
-                # For non-class functions, behave normally
-                return func(*args, **kwargs)
-                
-            try:
-                # Store the hint for this function
-                self_obj.hint._current_hint = message
-                self_obj.hint._current_function = func.__name__
-                
-                # Call the function
-                result = func(*args, **kwargs)
-                return result
-                
-            except Exception as e:
-                # Check if this function has a hint
-                if hasattr(self_obj.hint, '_current_hint') and self_obj.hint._current_function == func.__name__:
-                    custom_message = self_obj.hint._current_hint
-                    
-                    # Show panel for functions with hints
-                    panel = Panel.fit(
-                        f"[bold yellow]{custom_message}[/bold yellow]",
-                        title=f"[bright_red]Exception in {func.__name__}[/bright_red]",
-                        border_style="red",
-                    )
-                    console.print(panel)
-                    
-                    # Clear the current hint
-                    self_obj.hint._current_hint = None
-                    self_obj.hint._current_function = None
-                    
-                    # Return None to suppress exception
-                    return None
-                else:
-                    # No hint - re-raise for other try/except blocks
-                    raise
-                    
+            if self_obj and hasattr(self_obj, 'hint'):
+                self_obj.hint.add_hint(func.__name__, message)
+            return func(*args, **kwargs)
         return wrapper
     return decorator
 
+
 # ------------------------------------------------------------
-# ✅ Safe Class Decorator (wraps only once)
+# ✅ Safe Function Wrapper
 # ------------------------------------------------------------
-def safe_class(cls):
-    """
-    Decorator to make all class methods safe.
-    Wraps only once to prevent multiple wrapping.
-    """
-    if getattr(cls, "_already_wrapped", False):
+def safe_function(func):
+    """Wraps a function with error handling and hint display."""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        self_obj = args[0] if args else None
+
+        if not self_obj or not hasattr(self_obj, 'hint'):
+            # normal function, not a safe_class instance
+            return func(*args, **kwargs)
+
+        try:
+            return func(*args, **kwargs)
+
+        except Exception as e:
+            custom_message = self_obj.hint.get_hint(func.__name__)
+
+            # Always show Rich panel for user clarity
+            if custom_message and not self_obj.hint.was_shown(func.__name__, custom_message):
+                console.print(Panel.fit(
+                    f"[bold yellow]{custom_message}[/bold yellow]",
+                    title=f"[bright_red]Exception in {func.__name__}[/bright_red]",
+                    border_style="red",
+                ))
+                self_obj.hint.mark_shown(func.__name__, custom_message)
+            else:
+                console.print(Panel.fit(
+                    f"[bold yellow]{type(e).__name__}: {e}[/bold yellow]",
+                    title=f"[bright_red]Exception in {func.__name__}[/bright_red]",
+                    border_style="red",
+                ))
+
+            # ✅ Don’t print Python traceback here
+            # ✅ Re-raise silently so user `try/except` still catches it
+            raise e
+
+    return wrapper
+
+# ------------------------------------------------------------
+# ✅ Safe Class Decorator
+# ------------------------------------------------------------
+def safe_class():
+    """Decorator to make all methods in a class safe with hint/error display."""
+    def decorator(cls):
+        if getattr(cls, "_already_wrapped", False):
+            return cls
+
+        # Patch __init__ to include the hint manager
+        original_init = getattr(cls, '__init__', lambda self: None)
+        def new_init(self, *args, **kwargs):
+            self.hint = ErrorHint()
+            original_init(self, *args, **kwargs)
+        cls.__init__ = new_init
+
+        # Wrap all methods (except __init__)
+        for attr_name in dir(cls):
+            if attr_name.startswith('__'):
+                continue
+
+            attr_value = getattr(cls, attr_name)
+            if callable(attr_value):
+                setattr(cls, f"__orig_{attr_name}", attr_value)
+                setattr(cls, attr_name, safe_function(attr_value))
+
+        cls._already_wrapped = True
         return cls
-    
-    # Add hint attribute to class
-    original_init = getattr(cls, '__init__', lambda self: None)
-    
-    def new_init(self, *args, **kwargs):
-        # Create simple hint storage
-        self.hint = type('SimpleHint', (), {
-            '_current_hint': None,
-            '_current_function': None
-        })()
-        original_init(self, *args, **kwargs)
-        
-    cls.__init__ = new_init
+    return decorator
 
-    # Apply hint decorator to methods that have it
-    for attr_name in dir(cls):
-        if attr_name.startswith('__'):
-            continue
-            
-        attr_value = getattr(cls, attr_name)
-        if callable(attr_value) and attr_name != '__init__':
-            # If method has _hint_message, it already has @hint decorator
-            if hasattr(attr_value, '_hint_message'):
-                # Only wrap if not already wrapped
-                if not hasattr(attr_value, '_wrapped'):
-                    # Re-apply the hint decorator to ensure it's wrapped
-                    hinted_func = hint(attr_value._hint_message)(attr_value)
-                    hinted_func._wrapped = True
-                    setattr(cls, attr_name, hinted_func)
 
-    cls._already_wrapped = True
-    return cls
+# ============================================================
+@safe_class()
+class TestSystem:
+    def __init__(self):
+        self.data = []
+        self.counter = 0
+        print("🚀 TestSystem initialized")
+
+    @hint("Database connection issue - will retry")
+    def database_operation(self):
+        self.counter += 1
+        raise ConnectionError("Database connection failed")
+
+    @hint("Network timeout - will continue")
+    def network_operation(self):
+        self.counter += 1
+        raise TimeoutError("Network request timed out")
+
+    @hint("CRITICAL: System failure! Entering recovery mode.")
+    def critical_operation(self):
+        self.counter += 1
+        raise RuntimeError("Critical system failure!")
+
+    @hint("File not found - will use defaults")
+    def file_operation(self):
+        self.counter += 1
+        raise FileNotFoundError("Config file missing")
+
+    def should_be_skipped(self):
+        self.counter += 1
+        print("✅ This runs normally now (no skip logic).")
+
+    def emergency_recovery(self):
+        raise ValueError("Recovery database is unavailable!")
+
+
+def main():
+    system = TestSystem()
+
+    try:
+        system.critical_operation()
+
+    except Exception as e:
+        print("\n--- Emergency Recovery Triggered ---")
+        system.emergency_recovery()
+        sys.exit(1)
+
+    for i in range(2):
+        print(f"\n--- Iteration {i+1} ---")
+        system.database_operation()
+
+        system.network_operation()
+
+        system.critical_operation()
+
+        system.file_operation()
+
+        system.should_be_skipped()
+
+
+if __name__ == "__main__":
+    main()
