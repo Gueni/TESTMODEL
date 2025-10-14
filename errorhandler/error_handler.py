@@ -13,15 +13,6 @@ import sys
 console = Console()
 
 # ------------------------------------------------------------
-# ✅ Global exception suppression
-# ------------------------------------------------------------
-def _silent_excepthook(exc_type, exc_value, exc_traceback):
-    """Prevent Python from showing unwanted tracebacks globally."""
-    pass
-
-sys.excepthook = _silent_excepthook
-
-# ------------------------------------------------------------
 # ✅ Simple ErrorHint class
 # ------------------------------------------------------------
 class ErrorHint:
