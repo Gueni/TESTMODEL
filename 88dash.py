@@ -1,16 +1,13 @@
 import dash
 from dash import dcc, html, Input, Output, State, callback_context
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import pandas as pd
 import numpy as np
 import json
 import os
 import datetime
-from natsort import natsorted
 from itertools import product, zip_longest
 import re
-import base64
 
 # Initialize the Dash app
 app = dash.Dash(__name__)
@@ -19,7 +16,7 @@ server = app.server  # For deployment
 # Configuration
 header_path = r"D:\WORKSPACE\BJT-MODEL\assets\HEADER_FILES"
 CSV_MAPS_folder = r"D:\WORKSPACE\BJT-MODEL\CSV_MAPS"
-input_json = r"D:\WORKSPACE\BJT-MODEL\assets\2DInput_vars.json"
+input_json = r"D:\WORKSPACE\BJT-MODEL\assets\3DInput_vars.json"
 Y_Lengths = [1, 77, 77, 77, 69, 69, 69, 69, 69, 62, 15, 18, 8, 148]
 permute = True
 harmonics = [1, 2]
@@ -787,7 +784,6 @@ app.index_string = '''
                 background-color: #ecf0f1;
             }
             .dashboard-container {
-                max-width: 1200px;
                 margin: 0 auto;
                 background-color: white;
                 padding: 20px;
