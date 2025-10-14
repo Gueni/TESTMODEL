@@ -12,76 +12,55 @@ from rich.panel import Panel
 console = Console()
 
 # ------------------------------------------------------------
-# ✅ Simple ErrorHint class
+# ✅ Hint Decorator
 # ------------------------------------------------------------
-class ErrorHint:
-    """Stores hints for functions."""
-    def __init__(self):
-        self._function_hints = {}  # function_name -> message
-        self._shown_messages = set()
-
-    def add(self, message):
-        """Add hint for the current function."""
-        import inspect
-        # Get the calling function name
-        frame = inspect.currentframe()
-        try:
-            caller_frame = frame.f_back.f_back  # Go back through wrapper
-            func_name = caller_frame.f_code.co_name
-            self._function_hints[func_name] = message
-        finally:
-            del frame
-
-    def get_hint(self, func_name):
-        """Get hint for a function."""
-        return self._function_hints.get(func_name, None)
-
-    def mark_shown(self, func_name, message):
-        """Mark a message as shown."""
-        self._shown_messages.add(f"{func_name}:{message}")
-
-    def was_shown(self, func_name, message):
-        """Check if message was shown."""
-        return f"{func_name}:{message}" in self._shown_messages
-
-# ------------------------------------------------------------
-# ✅ Safe Function Wrapper
-# ------------------------------------------------------------
-def safe_function(func):
-    """Wraps a function with error handling."""
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        self_obj = args[0] if args else None
+def hint(message):
+    """Decorator to add hints to functions."""
+    def decorator(func):
+        func._hint_message = message
         
-        if not self_obj or not hasattr(self_obj, 'hint'):
-            # For non-class functions or classes without hint, behave normally
-            return func(*args, **kwargs)
-
-        try:
-            # Call the function
-            result = func(*args, **kwargs)
-            return result
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            self_obj = args[0] if args else None
             
-        except Exception as e:
-            # Get any hint that was set for this function
-            custom_message = self_obj.hint.get_hint(func.__name__)
-            
-            # Show custom hint panel if available
-            if custom_message and not self_obj.hint.was_shown(func.__name__, custom_message):
-                panel = Panel.fit(
-                    f"[bold yellow]{custom_message}[/bold yellow]",
-                    title=f"[bright_red]Exception in {func.__name__}[/bright_red]",
-                    border_style="red",
-                )
-                console.print(panel)
-                self_obj.hint.mark_shown(func.__name__, custom_message)
-                # Return None to suppress the exception for functions with hints
-                return None
-            else:
-                # If no custom hint, re-raise the exception so other try/except can catch it
-                raise
-            
-    return wrapper
+            if not self_obj or not hasattr(self_obj, 'hint'):
+                # For non-class functions, behave normally
+                return func(*args, **kwargs)
+                
+            try:
+                # Store the hint for this function
+                self_obj.hint._current_hint = message
+                self_obj.hint._current_function = func.__name__
+                
+                # Call the function
+                result = func(*args, **kwargs)
+                return result
+                
+            except Exception as e:
+                # Check if this function has a hint
+                if hasattr(self_obj.hint, '_current_hint') and self_obj.hint._current_function == func.__name__:
+                    custom_message = self_obj.hint._current_hint
+                    
+                    # Show panel for functions with hints
+                    panel = Panel.fit(
+                        f"[bold yellow]{custom_message}[/bold yellow]",
+                        title=f"[bright_red]Exception in {func.__name__}[/bright_red]",
+                        border_style="red",
+                    )
+                    console.print(panel)
+                    
+                    # Clear the current hint
+                    self_obj.hint._current_hint = None
+                    self_obj.hint._current_function = None
+                    
+                    # Return None to suppress exception
+                    return None
+                else:
+                    # No hint - re-raise for other try/except blocks
+                    raise
+                    
+        return wrapper
+    return decorator
 
 # ------------------------------------------------------------
 # ✅ Safe Class Decorator (wraps only once)
@@ -94,27 +73,34 @@ def safe_class(cls):
     if getattr(cls, "_already_wrapped", False):
         return cls
     
-    # Store original init
+    # Add hint attribute to class
     original_init = getattr(cls, '__init__', lambda self: None)
     
     def new_init(self, *args, **kwargs):
-        self.hint = ErrorHint()
+        # Create simple hint storage
+        self.hint = type('SimpleHint', (), {
+            '_current_hint': None,
+            '_current_function': None
+        })()
         original_init(self, *args, **kwargs)
         
     cls.__init__ = new_init
 
-    # Wrap all methods only once
+    # Apply hint decorator to methods that have it
     for attr_name in dir(cls):
         if attr_name.startswith('__'):
             continue
             
         attr_value = getattr(cls, attr_name)
         if callable(attr_value) and attr_name != '__init__':
-            # Only wrap if not already wrapped
-            if not hasattr(attr_value, '_wrapped'):
-                wrapped = safe_function(attr_value)
-                wrapped._wrapped = True  # Mark as wrapped
-                setattr(cls, attr_name, wrapped)
+            # If method has _hint_message, it already has @hint decorator
+            if hasattr(attr_value, '_hint_message'):
+                # Only wrap if not already wrapped
+                if not hasattr(attr_value, '_wrapped'):
+                    # Re-apply the hint decorator to ensure it's wrapped
+                    hinted_func = hint(attr_value._hint_message)(attr_value)
+                    hinted_func._wrapped = True
+                    setattr(cls, attr_name, hinted_func)
 
     cls._already_wrapped = True
     return cls
