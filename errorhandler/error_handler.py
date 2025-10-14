@@ -17,12 +17,20 @@ console = Console()
 class ErrorHint:
     """Stores hints for functions."""
     def __init__(self):
-        self._function_hints = {}  # function_name -> (message, force_skip)
+        self._function_hints = {}  # function_name -> message
         self._shown_messages = set()
 
-    def add_hint(self, func_name, message):
-        """Add hint for a function."""
-        self._function_hints[func_name] = message
+    def add(self, message):
+        """Add hint for the current function."""
+        import inspect
+        # Get the calling function name
+        frame = inspect.currentframe()
+        try:
+            caller_frame = frame.f_back.f_back  # Go back through wrapper
+            func_name = caller_frame.f_code.co_name
+            self._function_hints[func_name] = message
+        finally:
+            del frame
 
     def get_hint(self, func_name):
         """Get hint for a function."""
@@ -35,25 +43,6 @@ class ErrorHint:
     def was_shown(self, func_name, message):
         """Check if message was shown."""
         return f"{func_name}:{message}" in self._shown_messages
-
-# ------------------------------------------------------------
-# ✅ Hint Decorator for Individual Functions
-# ------------------------------------------------------------
-def hint(message):
-    """Decorator to add hints to individual functions."""
-    def decorator(func):
-        # Store the hint information in the function itself
-        func._hint_message = message
-        
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            # Store hint in instance for this execution
-            self_obj = args[0] if args else None
-            if self_obj and hasattr(self_obj, 'hint'):
-                self_obj.hint.add_hint(func.__name__, message)
-            return func(*args, **kwargs)
-        return wrapper
-    return decorator
 
 # ------------------------------------------------------------
 # ✅ Safe Function Wrapper
@@ -71,7 +60,7 @@ def safe_function(func):
                 return None
 
         try:
-            # Call the function (which sets hints via decorator)
+            # Call the function
             result = func(*args, **kwargs)
             return result
             
@@ -79,7 +68,7 @@ def safe_function(func):
             # Get any hint that was set for this function
             custom_message = self_obj.hint.get_hint(func.__name__)
             
-            # Show custom hint panel if available, otherwise show nothing
+            # Show custom hint panel if available
             if custom_message and not self_obj.hint.was_shown(func.__name__, custom_message):
                 panel = Panel.fit(
                     f"[bold yellow]{custom_message}[/bold yellow]",
@@ -95,108 +84,37 @@ def safe_function(func):
     return wrapper
 
 # ------------------------------------------------------------
-# ✅ Safe Class Decorator
+# ✅ Safe Class Decorator (wraps only once)
 # ------------------------------------------------------------
 def safe_class(cls):
     """
     Decorator to make all class methods safe.
+    Wraps only once to prevent multiple wrapping.
     """
-    def decorator(cls):
-        if getattr(cls, "_already_wrapped", False):
-            return cls
-        
-        # Store original init
-        original_init = getattr(cls, '__init__', lambda self: None)
-        
-        def new_init(self, *args, **kwargs):
-            self.hint = ErrorHint()
-            original_init(self, *args, **kwargs)
-            
-        cls.__init__ = new_init
-
-        # Wrap all methods
-        for attr_name in dir(cls):
-            if attr_name.startswith('__'):
-                continue
-                
-            attr_value = getattr(cls, attr_name)
-            if callable(attr_value) and attr_name != '__init__':
-                # Wrap with safe function
-                wrapped = safe_function(attr_value)
-                setattr(cls, attr_name, wrapped)
-
-        cls._already_wrapped = True
+    if getattr(cls, "_already_wrapped", False):
         return cls
     
-    return decorator(cls)
-
-# ------------------------------------------------------------
-# ✅ DEMONSTRATION
-# ------------------------------------------------------------
-
-@safe_class
-class TestSystem:
-    def __init__(self):
-        self.data = []
-        self.counter = 0
-        print("🚀 TestSystem initialized")
-
-    @hint("Database connection issue - will retry")
-    def database_operation(self):
-        print("🗄️  Database operation running...")
-        self.counter += 1
-        raise ConnectionError("Database connection failed")
-
-    @hint("Network timeout - will continue")
-    def network_operation(self):
-        print("🌐 Network operation running...")
-        self.counter += 1
-        raise TimeoutError("Network request timed out")
-
-    @hint("File not found - will use defaults")
-    def file_operation(self):
-        print("📁 File operation running...")
-        self.counter += 1
-        raise FileNotFoundError("Config file missing")
-
-    def normal_operation(self):
-        print("✅ Normal operation running...")
-        self.counter += 1
-        # This will show no panel since no hint is defined
-        raise ValueError("This error has no custom hint")
-
-    def successful_operation(self):
-        print("🎉 Successful operation completed!")
-        self.counter += 1
-        return "Success"
+    # Store original init
+    original_init = getattr(cls, '__init__', lambda self: None)
     
+    def new_init(self, *args, **kwargs):
+        self.hint = ErrorHint()
+        original_init(self, *args, **kwargs)
+        
+    cls.__init__ = new_init
 
+    # Wrap all methods only once
+    for attr_name in dir(cls):
+        if attr_name.startswith('__'):
+            continue
+            
+        attr_value = getattr(cls, attr_name)
+        if callable(attr_value) and attr_name != '__init__':
+            # Only wrap if not already wrapped
+            if not hasattr(attr_value, '_wrapped'):
+                wrapped = safe_function(attr_value)
+                wrapped._wrapped = True  # Mark as wrapped
+                setattr(cls, attr_name, wrapped)
 
-
-
-def main():
-    print("Starting main program...")
-    
-    system = TestSystem()
-    
-    print("\n1. Calling database_operation (has custom hint)...")
-    system.database_operation()
-    
-    print("\n2. Calling network_operation (has custom hint)...") 
-    system.network_operation()
-    
-    print("\n3. Calling file_operation (has custom hint)...")
-    system.file_operation()
-    
-    print("\n4. Calling normal_operation (no custom hint)...")
-    system.normal_operation()  # No panel shown
-    
-    print("\n5. Calling successful_operation (no error)...")
-    result = system.successful_operation()
-    print(f"   Result: {result}")
-    
-    print(f"\nFinal counter: {system.counter}")
-    print("Program completed!")
-
-if __name__ == "__main__":
-    main()
+    cls._already_wrapped = True
+    return cls
