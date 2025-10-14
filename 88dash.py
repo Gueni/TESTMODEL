@@ -169,7 +169,8 @@ def barchart3D(x_vals, y_vals, z_vals, title, z_title, x_title, y_title,
 def format_fixed_title(fixed_dict, sweepNames):
     """Format the fixed title"""
     items = list(fixed_dict.items())
-    return "<br>".join(" | ".join(f"{sweepNames[int(re.search(r'\d+', k).group())-1]} = {v}" 
+    pattern = re.compile(r'\d+')  # Pre-compile regex
+    return "<br>".join(" | ".join(f"{sweepNames[int(pattern.search(k).group())-1]} = {v}" 
                                   for k, v in items[j:j+2]) 
                       for j in range(0, len(items), 2))
 
