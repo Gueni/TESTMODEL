@@ -54,10 +54,8 @@ def safe_function(func):
         self_obj = args[0] if args else None
         
         if not self_obj or not hasattr(self_obj, 'hint'):
-            try:
-                return func(*args, **kwargs)
-            except Exception:
-                return None
+            # For non-class functions or classes without hint, behave normally
+            return func(*args, **kwargs)
 
         try:
             # Call the function
@@ -77,10 +75,12 @@ def safe_function(func):
                 )
                 console.print(panel)
                 self_obj.hint.mark_shown(func.__name__, custom_message)
-            # If no custom hint, do nothing (no Python traceback)
+                # Return None to suppress the exception for functions with hints
+                return None
+            else:
+                # If no custom hint, re-raise the exception so other try/except can catch it
+                raise
             
-            return None
-
     return wrapper
 
 # ------------------------------------------------------------
@@ -118,6 +118,3 @@ def safe_class(cls):
 
     cls._already_wrapped = True
     return cls
-
-
-
