@@ -18,7 +18,6 @@ class ErrorHint:
     """Stores hints for functions."""
     def __init__(self):
         self._function_hints = {}  # function_name -> message
-        self._shown_messages = set()
 
     def add(self, message):
         """Add hint for the current function."""
@@ -36,14 +35,6 @@ class ErrorHint:
         """Get hint for a function."""
         return self._function_hints.get(func_name, None)
 
-    def mark_shown(self, func_name, message):
-        """Mark a message as shown."""
-        self._shown_messages.add(f"{func_name}:{message}")
-
-    def was_shown(self, func_name, message):
-        """Check if message was shown."""
-        return f"{func_name}:{message}" in self._shown_messages
-
 # ------------------------------------------------------------
 # ✅ Safe Function Wrapper
 # ------------------------------------------------------------
@@ -54,10 +45,8 @@ def safe_function(func):
         self_obj = args[0] if args else None
         
         if not self_obj or not hasattr(self_obj, 'hint'):
-            try:
-                return func(*args, **kwargs)
-            except Exception:
-                return None
+            # For non-class functions or classes without hint, behave normally
+            return func(*args, **kwargs)
 
         try:
             # Call the function
@@ -65,22 +54,24 @@ def safe_function(func):
             return result
             
         except Exception as e:
-            # Get any hint that was set for this function
+            # Check if this exception should be shown as a panel
+            # Only show panel if the function has a custom hint
             custom_message = self_obj.hint.get_hint(func.__name__)
             
-            # Show custom hint panel if available
-            if custom_message and not self_obj.hint.was_shown(func.__name__, custom_message):
+            if custom_message:
+                # Show custom hint panel
                 panel = Panel.fit(
                     f"[bold yellow]{custom_message}[/bold yellow]",
                     title=f"[bright_red]Exception in {func.__name__}[/bright_red]",
                     border_style="red",
                 )
                 console.print(panel)
-                self_obj.hint.mark_shown(func.__name__, custom_message)
-            # If no custom hint, do nothing (no Python traceback)
+                # Return None to continue execution silently
+                return None
+            else:
+                # No custom hint - re-raise the exception so it can be caught by normal try/except
+                raise
             
-            return None
-
     return wrapper
 
 # ------------------------------------------------------------
@@ -118,6 +109,3 @@ def safe_class(cls):
 
     cls._already_wrapped = True
     return cls
-
-
-
