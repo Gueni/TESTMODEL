@@ -189,7 +189,7 @@ def get_fixed_vars():
 # Define the app layout with dynamic mode selection
 app.layout = html.Div([
     html.Div([
-        html.H1("BJT Model Simulation Dashboard", 
+        html.H1("PYPLECS DASHBOARD", 
                 style={'textAlign': 'center', 'color': '#2c3e50', 'marginBottom': 30}),
         
         html.Div([
@@ -199,7 +199,7 @@ app.layout = html.Div([
                        style={'color': '#e74c3c', 'marginBottom': 20}),
                 html.P(f"Active Sweep Variables: {len(active_sweep_keys)}", 
                       style={'marginBottom': 10}),
-                html.P(f"Sweep Variables: {', '.join([config['sweepNames'][int(re.search(r'\d+', k).group())-1] for k in active_sweep_keys])}",
+                html.P(f"Sweep Variables: {', '.join([config['sweepNames'][int(re.search(r'\d+', str(k)).group())-1] if k and re.search(r'\d+', str(k)) else 'Unknown' for k in active_sweep_keys])}",
                       style={'marginBottom': 20}),
             ], style={'backgroundColor': '#fff3cd', 'padding': '15px', 'borderRadius': '5px', 
                      'border': '1px solid #ffeaa7', 'marginBottom': 20}),
@@ -773,7 +773,7 @@ app.index_string = '''
 <html>
     <head>
         {%metas%}
-        <title>BJT Model Simulation Dashboard</title>
+        <title>PYPLECS DASHBOARD</title>
         {%favicon%}
         {%css%}
         <style>
