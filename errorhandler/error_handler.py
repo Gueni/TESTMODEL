@@ -78,7 +78,6 @@ def safe_function(func):
         self_obj = args[0] if args else None
 
         if not self_obj or not hasattr(self_obj, 'hint'):
-            # normal function, not a safe_class instance
             return func(*args, **kwargs)
 
         try:
@@ -102,9 +101,20 @@ def safe_function(func):
                     border_style="red",
                 ))
 
-            # ✅ Don’t print Python traceback here
-            # ✅ Re-raise silently so user `try/except` still catches it
-            raise e
+            # 🔹 Always log the error quietly
+            with open("error_log.log", "a", encoding="utf-8") as f:
+                traceback.print_exception(type(e), e, e.__traceback__, file=f)
+                f.write("\n")
+
+            # 🔹 If we’re inside a user try/except, re-raise
+            # otherwise, swallow it to keep program running
+            exc_type, _, _ = sys.exc_info()
+            if exc_type:
+                # inside a user try/except, re-raise normally
+                raise
+            else:
+                # outside try/except -> swallow safely
+                return None
 
     return wrapper
 

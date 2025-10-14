@@ -1,33 +1,29 @@
 === Unhandled Exception ===
 ********************************************************************************
 Traceback (most recent call last):
-  File "d:\WORKSPACE\BJT-MODEL\errorhandler\error_handler.py", line 182, in main
+  File "d:\WORKSPACE\BJT-MODEL\errorhandler\error_handler.py", line 192, in main
     system.critical_operation()
     ~~~~~~~~~~~~~~~~~~~~~~~~~^^
-  File "d:\WORKSPACE\BJT-MODEL\errorhandler\error_handler.py", line 107, in wrapper
-    raise e
-  File "d:\WORKSPACE\BJT-MODEL\errorhandler\error_handler.py", line 85, in wrapper
+  File "d:\WORKSPACE\BJT-MODEL\errorhandler\error_handler.py", line 84, in wrapper
     return func(*args, **kwargs)
   File "d:\WORKSPACE\BJT-MODEL\errorhandler\error_handler.py", line 66, in wrapper
     return func(*args, **kwargs)
-  File "d:\WORKSPACE\BJT-MODEL\errorhandler\error_handler.py", line 163, in critical_operation
+  File "d:\WORKSPACE\BJT-MODEL\errorhandler\error_handler.py", line 173, in critical_operation
     raise RuntimeError("Critical system failure!")
 RuntimeError: Critical system failure!
 
 During handling of the above exception, another exception occurred:
 
 Traceback (most recent call last):
-  File "d:\WORKSPACE\BJT-MODEL\errorhandler\error_handler.py", line 203, in <module>
+  File "d:\WORKSPACE\BJT-MODEL\errorhandler\error_handler.py", line 213, in <module>
     main()
     ~~~~^^
-  File "d:\WORKSPACE\BJT-MODEL\errorhandler\error_handler.py", line 186, in main
+  File "d:\WORKSPACE\BJT-MODEL\errorhandler\error_handler.py", line 196, in main
     system.emergency_recovery()
     ~~~~~~~~~~~~~~~~~~~~~~~~~^^
-  File "d:\WORKSPACE\BJT-MODEL\errorhandler\error_handler.py", line 107, in wrapper
-    raise e
-  File "d:\WORKSPACE\BJT-MODEL\errorhandler\error_handler.py", line 85, in wrapper
+  File "d:\WORKSPACE\BJT-MODEL\errorhandler\error_handler.py", line 84, in wrapper
     return func(*args, **kwargs)
-  File "d:\WORKSPACE\BJT-MODEL\errorhandler\error_handler.py", line 175, in emergency_recovery
+  File "d:\WORKSPACE\BJT-MODEL\errorhandler\error_handler.py", line 185, in emergency_recovery
     raise ValueError("Recovery database is unavailable!")
 ValueError: Recovery database is unavailable!
 ********************************************************************************
