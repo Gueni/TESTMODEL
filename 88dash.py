@@ -183,11 +183,13 @@ def get_fixed_vars():
         # For 3D: all variables except Var1 and Var2
         var1, var2 = config["Var1"], config["Var2"]
         sweepNames = config["sweepNames"]
+        pattern = re.compile(r'\d+')  # Pre-compile regex
         return {k: v for k, v in sweep_vars.items() 
                 if k not in [var1, var2] and v != [0] 
-                and not sweepNames[int(re.search(r'\d+', k).group())-1].startswith("X")}
+                and not sweepNames[int(pattern.search(k).group())-1].startswith("X")}
 
 # Define the app layout with dynamic mode selection
+pattern = re.compile(r'\d+')  # Pre-compile regex
 app.layout = html.Div([
     html.Div([
         html.H1("PYPLECS DASHBOARD", 
@@ -200,7 +202,7 @@ app.layout = html.Div([
                        style={'color': '#e74c3c', 'marginBottom': 20}),
                 html.P(f"Active Sweep Variables: {len(active_sweep_keys)}", 
                       style={'marginBottom': 10}),
-                html.P(f"Sweep Variables: {', '.join([config['sweepNames'][int(re.search(r'\d+', str(k)).group())-1] if k and re.search(r'\d+', str(k)) else 'Unknown' for k in active_sweep_keys])}",
+                html.P(f"Sweep Variables: {', '.join([config['sweepNames'][int(pattern.search(str(k)).group())-1] if k and pattern.search(str(k)) else 'Unknown' for k in active_sweep_keys])}",
                       style={'marginBottom': 20}),
             ], style={'backgroundColor': '#fff3cd', 'padding': '15px', 'borderRadius': '5px', 
                      'border': '1px solid #ffeaa7', 'marginBottom': 20}),
@@ -308,13 +310,13 @@ def set_default_component(options):
 def update_fixed_params_controls(data_category):
     """Create controls for fixed parameters based on plot mode"""
     fixed_vars = get_fixed_vars()
-    
+    pattern = re.compile(r'\d+')  # Pre-compile regex
     if not fixed_vars:
         return html.P("No fixed parameters available for this configuration.")
     
     controls = []
     for i, (key, values) in enumerate(fixed_vars.items()):
-        param_name = config["sweepNames"][int(re.search(r'\d+', key).group())-1]
+        param_name = config["sweepNames"][int(pattern.search(key).group())-1]
         controls.append(
             html.Div([
                 html.Label(f"{param_name}:", style={'fontWeight': 'bold'}),
@@ -394,8 +396,8 @@ def generate_2d_plot(component, fixed_params, selected_points_data=None):
     absolute_tol = 1e-12
     
     sweep_values = sweep_vars[single_X_key]
-    sweep_label = config["sweepNames"][int(re.search(r'\d+', single_X_key).group())-1]
-    
+    sweep_label = config["sweepNames"][int(pattern.search(single_X_key).group())-1]
+
     # Find rows that match the fixed parameters
     matching_rows = []
     for i, combo in enumerate(all_combos):
@@ -549,7 +551,7 @@ def generate_3d_plot(component, fixed_params, selected_points_data=None):
             x_plot, y_plot, z_plot, 
             full_title, 'Magnitude', 
             'Harmonic Order', 
-            sweepNames[int(re.search(r'\d+', var2).group())-1]
+            sweepNames[int(pattern.search(var2).group())-1]
         )
         
     else:
@@ -605,8 +607,8 @@ def generate_3d_plot(component, fixed_params, selected_points_data=None):
             scene=dict(
                 xaxis=dict(autorange='reversed'),
                 yaxis=dict(autorange='reversed'),
-                xaxis_title=sweepNames[int(re.search(r'\d+', var1).group())-1],
-                yaxis_title=sweepNames[int(re.search(r'\d+', var2).group())-1],
+                xaxis_title=sweepNames[int(pattern.search(var1).group())-1],
+                yaxis_title=sweepNames[int(pattern.search(var2).group())-1],
                 zaxis_title=component,
                 xaxis_title_font=dict(size=10),
                 yaxis_title_font=dict(size=10),
@@ -683,7 +685,8 @@ def update_plot(n_clicks_generate, n_clicks_clear, click_data, data_category, co
         
         # Create selection info
         if plot_2D:
-            sweep_label = config["sweepNames"][int(re.search(r'\d+', single_X_key).group())-1]
+            pattern = re.compile(r'\d+')  # Pre-compile regex
+            sweep_label = config["sweepNames"][int(pattern.search(single_X_key).group())-1]
             info_text = f"Selected Point {len(stored_selections[component]['x'])}: {sweep_label} = {point_data['x']:.4f}, {component} = {point_data['y']:.4f}"
         else:
             info_text = f"Selected Point {len(stored_selections[component]['x'])}: X = {point_data['x']:.4f}, Y = {point_data['y']:.4f}, Z = {point_data['z']:.4f}"
