@@ -118,3 +118,27 @@ def safe_class(cls):
 
     cls._already_wrapped = True
     return cls
+
+
+
+import psutil
+
+def is_plecs_ok():
+    """Quick check if PLECS is running normally"""
+    plecs_processes = []
+    
+    for proc in psutil.process_iter(['pid', 'name', 'status']):
+        if proc.info['name'] and 'plecs' in proc.info['name'].lower():
+            plecs_processes.append(proc)
+    
+    if not plecs_processes:
+        print("PLECS is not running")
+        return False
+    
+    for proc in plecs_processes:
+        print(f"PLECS Process: PID {proc.info['pid']}, Status: {proc.info['status']}")
+    
+    return True
+
+# Run the check
+is_plecs_ok()
