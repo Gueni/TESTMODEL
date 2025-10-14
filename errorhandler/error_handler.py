@@ -1,265 +1,374 @@
+# ============================================================
+# enhanced_error_handler.py — Silent error handling with hints and recovery
+# ============================================================
 
-#?------------------------------------------------------------------------------------------------
-import sys
-import traceback
 from functools import wraps
 from rich.console import Console
 from rich.panel import Panel
+import sys
+import threading
 import inspect
-#?------------------------------------------------------------------------------------------------
-console = Console()  # Rich console object for pretty printing panels
-#?------------------------------------------------------------------------------------------------
+
+# ------------------------------------------------------------
+# ✅ MULTITHREAD FLAG
+# ------------------------------------------------------------
+USE_MULTITHREAD = False
+
+# ------------------------------------------------------------
+# ✅ GLOBAL CONSOLE + LOCK
+# ------------------------------------------------------------
+if "GLOBAL_CONSOLE" not in globals():
+    GLOBAL_CONSOLE = Console()
+
+if "CONSOLE_LOCK" not in globals() and USE_MULTITHREAD:
+    CONSOLE_LOCK = threading.Lock()
+
+console = GLOBAL_CONSOLE
+console_lock = CONSOLE_LOCK if USE_MULTITHREAD else None
+
+# ------------------------------------------------------------
+# ✅ Global exception suppression
+# ------------------------------------------------------------
+def _silent_excepthook(exc_type, exc_value, exc_traceback):
+    """Prevent Python from showing unwanted tracebacks globally."""
+    pass
+
+sys.excepthook = _silent_excepthook
+
+# ------------------------------------------------------------
+# ✅ Enhanced ErrorHint class
+# ------------------------------------------------------------
 class ErrorHint:
-    """
-    Stores custom suggestions per variable.Or add variable-specific hints which will be used by the
-    error handler to provide custom suggestions when exceptions occur.
-    """
+    """Stores variable hints for exceptions and warnings with context tracking."""
     def __init__(self):
-        # Dictionary to store variable as suggestion mapping
-        self.hints      = {} 
+        self.hints = []
+        self.shown_hints = set()
 
-    def add(self, var_name, suggestion):
+    def add(self, var, message, force_skip=False):
         """
-        Add a custom suggestion for a specific variable.
-
-        Args:
-            var_name    (str): Name of the variable.
-            suggestion  (str): Suggestion message to display if this variable causes an error.
+        Add a hint for a variable with automatic function context detection.
         """
-        self.hints[var_name] = suggestion
+        # Get calling function name for context
+        frame = inspect.currentframe()
+        try:
+            caller_frame = frame.f_back
+            func_name = caller_frame.f_code.co_name
+            self.hints.append((var, force_skip, message, func_name))
+        finally:
+            del frame
 
-    def get(self, var_name):
+    def get_hint_for_function(self, func_name):
+        """Get the most recent hint for a specific function."""
+        for var, force_skip, message, hint_func in reversed(self.hints):
+            if hint_func == func_name:
+                return (var, force_skip, message)
+        return None
+
+    def get_last(self):
+        """Return the last added hint."""
+        return self.hints[-1] if self.hints else None
+
+    def clear(self):
+        """Clear all hints and printed records."""
+        self.hints.clear()
+        self.shown_hints.clear()
+
+    def should_show(self, msg):
+        """Prevent duplicate messages."""
+        if msg in self.shown_hints:
+            return False
+        self.shown_hints.add(msg)
+        return True
+
+# ------------------------------------------------------------
+# ✅ Recovery System
+# ------------------------------------------------------------
+class RecoverySystem:
+    """Manages recovery functions and execution flow."""
+    
+    @staticmethod
+    def run_recovery(obj, triggering_func_name):
         """
-        Retrieve the custom suggestion for a variable, if any.
-
-        Args    :
-                     var_name (str): Name of the variable.
-
-        Returns :    str or None: The suggestion message, or None if not set.
+        Execute recovery for a specific function failure.
+        Returns True if recovery was successful, False otherwise.
         """
-        return self.hints.get(var_name, None)
-#?------------------------------------------------------------------------------------------------
-def safe_class(cls):
-    """
-    Decorator to automatically wrap all methods of a class with the safe_function
-    wrapper, providing automatic Rich error panels and hint handling.
+        if not hasattr(obj.__class__, "_safe_rules"):
+            return False
 
-    Args    :   cls (type)  : The class to wrap.
+        rules = obj.__class__._safe_rules
+        recovery_func_name = rules.get(triggering_func_name)
+        
+        # If no specific recovery, check for global recovery
+        if not recovery_func_name:
+            recovery_func_name = rules.get("__global__")
+        
+        if not recovery_func_name or not hasattr(obj, recovery_func_name):
+            RecoverySystem._show_info(f"No recovery function found for {triggering_func_name}")
+            return False
 
-    Returns :   type        : The same class with all callable methods wrapped.
-    """
-    for attr_name, attr_value in cls.__dict__.items():
-        # Wrap all callable methods, excluding dunder methods (methods with double underscores like __init__ ...) 
-        if callable(attr_value) and not attr_name.startswith("__"): setattr(cls, attr_name, safe_function(attr_value))
-    return cls
-#?------------------------------------------------------------------------------------------------
+        # Prevent infinite recursion
+        ran_flag = f"_{recovery_func_name}_ran"
+        if getattr(obj, ran_flag, False):
+            RecoverySystem._show_info(f"Recovery {recovery_func_name} already ran")
+            return True
+
+        try:
+            # RecoverySystem._show_info(f"🔄 Executing recovery: {recovery_func_name}")
+            setattr(obj, ran_flag, True)
+            recovery_func = getattr(obj, recovery_func_name)
+            recovery_func()
+            
+            # Set global skip to jump over remaining functions
+            if USE_MULTITHREAD:
+                with getattr(obj, "_skip_lock", threading.Lock()):
+                    obj._skip_next_steps = True
+            else:
+                obj._skip_next_steps = True
+                
+            # RecoverySystem._show_success(f"✅ Recovery {recovery_func_name} completed successfully")
+            return True
+            
+        except Exception as e:
+            # Recovery itself failed - show error and halt completely
+            hint_msg = RecoverySystem._get_recovery_error_message(obj, e)
+            RecoverySystem._show_recovery_failure(hint_msg)
+            return False
+
+    @staticmethod
+    def _get_recovery_error_message(obj, exception):
+        """Get meaningful message for recovery failure."""
+        if hasattr(obj, "hint"):
+            last_hint = obj.hint.get_last()
+            if last_hint:
+                return last_hint[2]  # Return the message part
+        return f"Recovery failed: {type(exception).__name__}: {exception}"
+
+    @staticmethod
+    def _show_recovery_failure(message):
+        """Display recovery failure panel."""
+        panel = Panel.fit(
+            f"[bold yellow]{message}[/bold yellow]",
+            title="[bright_red]CRITICAL: Recovery Failed - Stopping Execution[/bright_red]",
+            border_style="red",
+        )
+        
+        if USE_MULTITHREAD and console_lock:
+            with console_lock:
+                console.print(panel)
+        else:
+            console.print(panel)
+
+    @staticmethod
+    def _show_info(message):
+        """Show informational message."""
+        if USE_MULTITHREAD and console_lock:
+            with console_lock:
+                console.print(f"[blue]ℹ️ {message}[/blue]")
+        else:
+            console.print(f"[blue]ℹ️ {message}[/blue]")
+
+    @staticmethod
+    def _show_success(message):
+        """Show success message."""
+        if USE_MULTITHREAD and console_lock:
+            with console_lock:
+                console.print(f"[green]{message}[/green]")
+        else:
+            console.print(f"[green]{message}[/green]")
+
+# ------------------------------------------------------------
+# ✅ Enhanced Safe Function Wrapper
+# ------------------------------------------------------------
 def safe_function(func):
-    """
-    Wrap a function to catch exceptions, analyze them, and display
-    a clean Rich panel with error information, cause, and suggestions.
-    Excludes the error handler's own frames from the stack trace.
-
-    Args    :   func (callable) : The function to wrap.
-
-    Returns :   callable        : The wrapped function.
-    """
+    """Wraps a function with comprehensive error handling."""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        try:
-            # Call the original function
-            return func(*args, **kwargs)
-        
-        except Exception as e:
+        self_obj = args[0] if args and hasattr(args[0], 'hint') else None
 
-            # Capture exception info and extract exception name
-            exc_type, exc_value, tb = sys.exc_info()
-            exc_name                = exc_type.__name__
+        # Handle non-class functions
+        if not self_obj:
+            try:
+                return func(*args, **kwargs)
+            except Exception:
+                return None
 
-            # Inspect function signature and arguments
-            sig         = inspect.signature(func)
-            bound_args  = sig.bind(*args, **kwargs)
+        # Initialize threading support if needed
+        if USE_MULTITHREAD and not hasattr(self_obj, "_skip_lock"):
+            self_obj._skip_lock = threading.Lock()
 
-            # Inspect function signature if self is used or not.
-            sig             = inspect.signature(func)
-            bound_args      = sig.bind(*args, **kwargs)
-            bound_args.apply_defaults()
-            arguments       = bound_args.arguments
-
-            # Determine if there is a custom hint: function-level
-            local_hint  = None
-            frame       = tb.tb_frame
-            local_vars  = frame.f_locals
-
-            # Check function-level hint first
-            if "hint" in local_vars and isinstance(local_vars["hint"], ErrorHint):          local_hint  = local_vars["hint"]
-
-            # If method, check self.hint
-            elif args:
-                first_arg   = args[0]
-                if hasattr(first_arg, "hint") and isinstance(first_arg.hint, ErrorHint):    local_hint = first_arg.hint
-
-            # Default fall back cause & suggestion
-            cause_msg       = "Could not automatically determine the cause."
-            suggestion_msg  = "Check variable values and types."
-
-            # Determine if this is a method with self
-            arg_items = list(arguments.items())
-            if args and hasattr(args[0], "__class__"):  # first arg looks like 'self'
-                arg_items_to_check = arg_items[1:]      # skip 'self'
-            else:
-                arg_items_to_check = arg_items           # normal function
-
-            # --- Basic automatic analysis for common errors (max 15 cases) ---
-            # Handle ZeroDivisionError: Occurs when dividing by zero
-            if exc_name == "ZeroDivisionError":
-                for name, val in arg_items_to_check:
-                    if isinstance(val, (int, float)) and val == 0:
-                        cause_msg = f"The variable '{name}' is zero."
-                        if local_hint and local_hint.get(name):
-                            suggestion_msg = local_hint.get(name)
-                        else:
-                            suggestion_msg = f"Ensure '{name}' is not zero before division."
-                        break
-
-            # Handle FileNotFoundError: Occurs when trying to access a file that doesn't exist
-            elif exc_name == "FileNotFoundError":
-                filename = getattr(exc_value, 'filename', None)
-                if filename:
-                    cause_msg = f"The file '{filename}' does not exist."
-                    if local_hint and local_hint.get("filename"):
-                        suggestion_msg = local_hint.get("filename")
-                    else:
-                        suggestion_msg = f"Ensure the file '{filename}' exists in the correct path."
-
-            # Handle TypeError: Occurs when an operation uses wrong data type
-            elif exc_name == "TypeError":
-                for name, val in arg_items_to_check:
-                    cause_msg = f"Variable '{name}' has wrong type: {type(val).__name__}."
-                    if local_hint and local_hint.get(name):
-                        suggestion_msg = local_hint.get(name)
-                    else:
-                        suggestion_msg = f"Ensure '{name}' has the correct type for this operation."
-                    break
-
-            # Handle ValueError: Occurs when a function receives argument of right type but inappropriate value
-            elif exc_name == "ValueError":
-                for name, val in arg_items_to_check:
-                    cause_msg = f"Variable '{name}' has invalid value: {val}."
-                    if local_hint and local_hint.get(name):
-                        suggestion_msg = local_hint.get(name)
-                    else:
-                        suggestion_msg = f"Ensure '{name}' has a valid value."
-                    break
-
-            # Handle IndexError: Occurs when trying to access list/sequence with invalid index
-            elif exc_name == "IndexError":
-                for name, val in arg_items_to_check:
-                    cause_msg = f"Index used in '{name}' is out of range."
-                    if local_hint and local_hint.get(name):
-                        suggestion_msg = local_hint.get(name)
-                    else:
-                        suggestion_msg = f"Check that the index for '{name}' is within valid range."
-                    break
-
-            # Handle KeyError: Occurs when dictionary key is not found
-            elif exc_name == "KeyError":
-                key = getattr(exc_value, 'args', [None])[0]
-                cause_msg = f"Dictionary key '{key}' not found."
-                if local_hint and local_hint.get(str(key)):
-                    suggestion_msg = local_hint.get(str(key))
-                else:
-                    suggestion_msg = f"Check that the key '{key}' exists before accessing."
-
-            # Handle AttributeError: Occurs when object doesn't have the requested attribute
-            elif exc_name == "AttributeError":
-                attr = getattr(exc_value, 'args', [None])[0]
-                cause_msg = f"Attribute error: {attr}."
-                if local_hint and local_hint.get(str(attr)):
-                    suggestion_msg = local_hint.get(str(attr))
-                else:
-                    suggestion_msg = f"Ensure the object has the required attribute."
-
-            # Handle NameError: Occurs when variable is not defined in current scope
-            elif exc_name == "NameError":
-                var_name = getattr(exc_value, 'name', None)
-                cause_msg = f"The variable '{var_name}' is not defined."
-                if local_hint and local_hint.get(var_name):
-                    suggestion_msg = local_hint.get(var_name)
-                else:
-                    suggestion_msg = f"Define '{var_name}' before using it."
-
-            # Handle ImportError: Occurs when import statement fails to find module
-            elif exc_name == "ImportError":
-                module = getattr(exc_value, 'name', None)
-                cause_msg = f"Cannot import module '{module}'."
-                if local_hint and local_hint.get(module):
-                    suggestion_msg = local_hint.get(module)
-                else:
-                    suggestion_msg = f"Install or check the module '{module}'."
-
-            # Handle ModuleNotFoundError: Specific case of ImportError for missing modules
-            elif exc_name == "ModuleNotFoundError":
-                module = getattr(exc_value, 'name', None)
-                cause_msg = f"Module '{module}' not found."
-                if local_hint and local_hint.get(module):
-                    suggestion_msg = local_hint.get(module)
-                else:
-                    suggestion_msg = f"Ensure '{module}' is installed and importable."
-
-            # Handle OverflowError: Occurs when numeric calculation exceeds maximum representable value
-            elif exc_name == "OverflowError":
-                cause_msg = "A numeric calculation exceeded the maximum limit."
-                if local_hint:
-                    suggestion_msg = local_hint.get("overflow") or "Check numeric ranges and calculations."
-                else:
-                    suggestion_msg = "Check numeric ranges and calculations."
-
-            # Handle MemoryError: Occurs when operation runs out of memory
-            elif exc_name == "MemoryError":
-                cause_msg = "Memory insufficient for this operation."
-                if local_hint:
-                    suggestion_msg = local_hint.get("memory") or "Reduce data size or optimize memory usage."
-                else:
-                    suggestion_msg = "Reduce data size or optimize memory usage."
-
-            # Handle IOError: Occurs when input/output operation fails (file operations, etc.)
-            elif exc_name == "IOError":
-                cause_msg = f"Input/output operation failed: {exc_value}."
-                if local_hint:
-                    suggestion_msg = local_hint.get("io") or "Check file paths, permissions, and availability."
-                else:
-                    suggestion_msg = "Check file paths, permissions, and availability."
-
-            # Handle ArithmeticError: Base class for various arithmetic-related errors
-            elif exc_name == "ArithmeticError":
-                cause_msg = "Generic arithmetic error."
-                if local_hint:
-                    suggestion_msg = local_hint.get("arithmetic") or "Check math operations and variable values."
-                else:
-                    suggestion_msg = "Check math operations and variable values."
-
-            # Filter stack trace to exclude frames from error_handler.py
-            stack_list  = traceback.extract_tb(tb)
-            stack_list  = [frame for frame in stack_list if "error_handler.py" not in frame.filename]
-            stack_str   = "".join(traceback.format_list(stack_list))
-
-            # Define label width to align colons vertically
-            label_width = 15
-
-            # Create the Rich panel text with aligned labels
-            panel_text  = (
-                            f"[bold red]{'Error         :'.ljust(label_width)}[/bold red] {exc_name}: {exc_value}\n"
-                            f"[yellow]{'Cause         :'.ljust(label_width)}[/yellow] {cause_msg}\n"
-                            f"[green]{'Suggested fix :'.ljust(label_width)}[/green] {suggestion_msg}\n"
-                            f"[magenta]{'Stack trace   :'.ljust(label_width)}[/magenta]\n{stack_str}"
-                        )
-
-            # Create a Rich panel with the formatted text and title
-            Panel_title = "[bright_red] Exception caught[/bright_red]"
-            console.print(Panel.fit(panel_text, title=Panel_title,border_style="red"))
-
-            # Return None to avoid breaking the program flow
+        # Check if we should skip execution
+        if getattr(self_obj, "_skip_next_steps", False):
+            ErrorHandler._show_skipped(func.__name__)
             return None
+
+        try:
+            return func(*args, **kwargs)
             
+        except Exception as e:
+            return ErrorHandler.handle_exception(self_obj, func, e)
+
     return wrapper
-#?------------------------------------------------------------------------------------------------
+
+class ErrorHandler:
+    """Centralized exception handling logic."""
+    
+    @staticmethod
+    def handle_exception(obj, func, exception):
+        """Process an exception and determine the appropriate response."""
+        func_name = func.__name__
+        hint_info = ErrorHandler._get_hint_info(obj, func_name, exception)
+        message, force_skip = hint_info
+
+        # Show error panel if appropriate
+        if ErrorHandler._should_show_panel(obj, message):
+            ErrorHandler._show_error_panel(func_name, message)
+
+        # Handle recovery if needed
+        if force_skip:
+            ErrorHandler._trigger_recovery(obj, func_name)
+            
+        return None
+
+    @staticmethod
+    def _get_hint_info(obj, func_name, exception):
+        """Extract hint information for the current context."""
+        default_msg = f"{type(exception).__name__}: {exception}"
+        force_skip = False
+
+        if hasattr(obj, "hint"):
+            # Try to get hint for current function
+            specific_hint = obj.hint.get_hint_for_function(func_name)
+            if specific_hint:
+                _, force_skip, msg = specific_hint
+                return msg, force_skip
+            
+            # Fall back to last hint
+            last_hint = obj.hint.get_last()
+            if last_hint:
+                _, force_skip, msg, _ = last_hint
+                return msg, force_skip
+
+        return default_msg, force_skip
+
+    @staticmethod
+    def _should_show_panel(obj, message):
+        """Determine if we should display an error panel."""
+        return hasattr(obj, "hint") and obj.hint.should_show(message)
+
+    @staticmethod
+    def _show_error_panel(func_name, message):
+        """Display the error panel."""
+        panel = Panel.fit(
+            f"[bold yellow]{message}[/bold yellow]",
+            title=f"[bright_red]Exception in {func_name}[/bright_red]",
+            border_style="red",
+        )
+        
+        if USE_MULTITHREAD and console_lock:
+            with console_lock:
+                console.print(panel)
+        else:
+            console.print(panel)
+
+    @staticmethod
+    def _show_skipped(func_name):
+        """Show that a function was skipped."""
+        if USE_MULTITHREAD and console_lock:
+            with console_lock:
+                # console.print(f"[yellow]⏭️ {func_name} skipped due to recovery mode[/yellow]")
+                pass
+        else:
+            # console.print(f"[yellow]⏭️ {func_name} skipped due to recovery mode[/yellow]")
+            pass
+
+    @staticmethod
+    def _trigger_recovery(obj, func_name):
+        """Initiate recovery process for critical errors."""
+        if USE_MULTITHREAD:
+            with getattr(obj, "_skip_lock", threading.Lock()):
+                obj._skip_next_steps = True
+        else:
+            obj._skip_next_steps = True
+            
+        RecoverySystem.run_recovery(obj, func_name)
+
+# ------------------------------------------------------------
+# ✅ Enhanced Safe Class Decorator
+# ------------------------------------------------------------
+def safe_class(recovery_rules=None):
+    """
+    Decorator to make all class methods safe.
+    
+    Args:
+        recovery_rules: Dict mapping {method_name: recovery_method}
+                        Use "__global__" for a catch-all recovery
+    """
+    if recovery_rules is None:
+        recovery_rules = {}
+
+    def decorator(cls):
+        if getattr(cls, "_already_wrapped", False):
+            return cls
+
+        cls._safe_rules = recovery_rules
+        
+        # Add ErrorHint instance to class
+        original_init = cls.__init__ if hasattr(cls, '__init__') else lambda self: None
+        
+        def new_init(self, *args, **kwargs):
+            self.hint = ErrorHint()
+            if USE_MULTITHREAD and not hasattr(self, "_skip_lock"):
+                self._skip_lock = threading.Lock()
+            self._skip_next_steps = False
+            original_init(self, *args, **kwargs)
+            
+        cls.__init__ = new_init
+
+        # Wrap all callable methods
+        for name, method in list(cls.__dict__.items()):
+            if callable(method) and not name.startswith("__") and name != "__init__":
+                setattr(cls, f"__orig_{name}", method)
+                setattr(cls, name, safe_function(method))
+
+        cls._already_wrapped = True
+        return cls
+    return decorator
+
+# ------------------------------------------------------------
+# ✅ DEMONSTRATION - Fixed to show the complete flow
+# ------------------------------------------------------------
+if __name__ == "__main__":
+    
+    @safe_class({"func_1": "func_5"})
+    class ExampleSystem:
+        def __init__(self):
+            self.hint = ErrorHint()
+
+        def func_1(self):
+            self.hint.add("data", "This is a normal hint - will show panel but continue", force_skip=True)
+            print("✅ func_1")
+            raise ValueError("Something went terribly wrong in func_2!")
+            
+        def func_2(self):
+            self.hint.add("critical_var", "This will trigger recovery")
+            print("🔥 func_2")
+            
+        def func_3(self):
+            print("📝 func_3")
+            
+        def func_4(self):
+            print("❌ func_4")
+            
+        def func_5(self):
+            print("🛡️ func_5")
+            
+    
+    system = ExampleSystem()
+    
+    system.func_1()
+    system.func_2()
+    system.func_3()
+    system.func_4()
+    system.func_5()
+    
+   
