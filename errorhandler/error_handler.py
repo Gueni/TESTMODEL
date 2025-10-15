@@ -2,7 +2,7 @@
 # enhanced_error_handler.py — Simple error handling with hints
 # ============================================================
 import sys, traceback
-
+falg = False
 def suppress_tracebacks_to_file(exc_type, exc_value, exc_traceback):
     """Redirect unhandled (not user-caught) exceptions to file, not console."""
     with open("error_log.log", "w", encoding="utf-8") as f:
@@ -76,44 +76,50 @@ def safe_function(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         self_obj = args[0] if args else None
+        
+        self.flag =flag
+
+        if not self_obj or not hasattr(self_obj, 'hint'):
+            return func(*args, **kwargs)
 
         try:
             return func(*args, **kwargs)
 
         except Exception as e:
-            # Show panel
-            if self_obj and hasattr(self_obj, 'hint'):
-                msg = self_obj.hint.get_hint(func.__name__)
-                if msg and not self_obj.hint.was_shown(func.__name__, msg):
-                    console.print(Panel.fit(
-                        f"[bold yellow]{msg}[/bold yellow]",
-                        title=f"[bright_red]Exception in {func.__name__}[/bright_red]",
-                        border_style="red"
-                    ))
-                    self_obj.hint.mark_shown(func.__name__, msg)
-                else:
-                    console.print(Panel.fit(
-                        f"[bold yellow]{type(e).__name__}: {e}[/bold yellow]",
-                        title=f"[bright_red]Exception in {func.__name__}[/bright_red]",
-                        border_style="red"
-                    ))
+            custom_message = self_obj.hint.get_hint(func.__name__)
+
+            # Always show Rich panel for user clarity
+            if custom_message and not self_obj.hint.was_shown(func.__name__, custom_message):
+                console.print(Panel.fit(
+                    f"[bold yellow]{custom_message}[/bold yellow]",
+                    title=f"[bright_red]Exception in {func.__name__}[/bright_red]",
+                    border_style="red",
+                ))
+                self_obj.hint.mark_shown(func.__name__, custom_message)
             else:
-                # fallback if no hint object
                 console.print(Panel.fit(
                     f"[bold yellow]{type(e).__name__}: {e}[/bold yellow]",
                     title=f"[bright_red]Exception in {func.__name__}[/bright_red]",
-                    border_style="red"
+                    border_style="red",
                 ))
 
-            # Always log quietly
+            # 🔹 Always log the error quietly
             with open("error_log.log", "a", encoding="utf-8") as f:
                 traceback.print_exception(type(e), e, e.__traceback__, file=f)
                 f.write("\n")
 
-            # NEVER re-raise
-            return None
+            # 🔹 If we’re inside a user try/except, re-raise
+            # otherwise, swallow it to keep program running
+            exc_type, _, _ = sys.exc_info()
+            if exc_type and flag :
+                # inside a user try/except, re-raise normally
+                raise
+            else:
+                # outside try/except -> swallow safely
+                return None
 
     return wrapper
+
 
 # ------------------------------------------------------------
 # ✅ Safe Class Decorator
