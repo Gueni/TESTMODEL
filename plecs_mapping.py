@@ -283,7 +283,7 @@ def tofile_map_gen(mapping_Raw, lengths):
 
 	return Tofile_mapping_3D, Tofile_mapping_multiple
 
-def gen_pmap_plt():
+def gen_pmap_plt(Ctrl_plt, pmap_plt):
     """
     Generates plot mapping dictionaries for the HTML report.
     
@@ -291,6 +291,10 @@ def gen_pmap_plt():
     - pmap_plt_dict: Maps power stage measurements (currents, voltages) to plot configurations
     - pmap_plt_ctrl_dict: Maps control loop measurements to plot configurations
     
+    Args:
+        Ctrl_plt: Control plot configuration (single or dual DC-DC converter)
+        pmap_plt: Power stage plot configuration (single or dual DC-DC converter)
+        
     Returns:
         tuple: (pmap_plt_dict, pmap_plt_ctrl_dict) - Two ordered dictionaries containing plot mappings
     """
@@ -304,44 +308,44 @@ def gen_pmap_plt():
         case 'DCDC_S':  # Single DC-DC Converter
 
             # Process control loop plots for single DC-DC converter
-            for i in range(1, len(DCDC_Ctrl_plt)):  # Skip header row (index 0) ["PWM", "Measurments", "ADC", "Sampling", "SW Protection", "HW Protection"],
+            for i in range(1, len(Ctrl_plt)):  # Skip header row (index 0) ["PWM", "Measurments", "ADC", "Sampling", "SW Protection", "HW Protection"],
 
                 # Create dictionary entry for each control plot category
-                pmap_plt_ctrl_dict[f'{DCDC_Ctrl_plt[0][i-1]}'] = [
+                pmap_plt_ctrl_dict[f'{Ctrl_plt[0][i-1]}'] = [
                     [
                         # Parameter names
-                        DCDC_Ctrl_plt[i][j][1],
+                        Ctrl_plt[i][j][1],
 
                         # Plot title with parameter mappings
-                        [f"{str(DCDC_Ctrl_plt[i][j][0])} ({', '.join(str(item) for item in [str(dp.pmapping[f'{DCDC_Ctrl_plt[i][j][1][k]}']) for k in range(len(DCDC_Ctrl_plt[i][j][1]))])})"],
+                        [f"{str(Ctrl_plt[i][j][0])} ({', '.join(str(item) for item in [str(dp.pmapping[f'{Ctrl_plt[i][j][1][k]}']) for k in range(len(Ctrl_plt[i][j][1]))])})"],
                         
-						# Parameter indices from pmapping
-                        [dp.pmapping[f'{DCDC_Ctrl_plt[i][j][1][k]}'] for k in range(len(DCDC_Ctrl_plt[i][j][1]))],
+                        # Parameter indices from pmapping
+                        [dp.pmapping[f'{Ctrl_plt[i][j][1][k]}'] for k in range(len(Ctrl_plt[i][j][1]))],
                         
-						# Y-axis labels (repeated for each parameter)
-                        DCDC_Ctrl_plt[i][j][2] * len(DCDC_Ctrl_plt[i][j][1])
+                        # Y-axis labels (repeated for each parameter)
+                        Ctrl_plt[i][j][2] * len(Ctrl_plt[i][j][1])
                    
-				    ] for j in range(len(DCDC_Ctrl_plt[i]))
+                    ] for j in range(len(Ctrl_plt[i]))
                 ]
 
             # Process power stage plots for single DC-DC converter
-            for i in range(len(DCDC_pmap_plt)):
+            for i in range(len(pmap_plt)):
 
-                pmap_plt_dict[f'{DCDC_pmap_plt[i][0]}'] = [
+                pmap_plt_dict[f'{pmap_plt[i][0]}'] = [
 
                     # Current plot configuration
                     [
-                        [f'{DCDC_pmap_plt[i][1]}'],  # Current parameter
-                        [f'{DCDC_pmap_plt[i][0]}' + " Current" + '(' + str(dp.pmapping[f'{DCDC_pmap_plt[i][1]}']+1) + ')'],  # Title with mapping
-                        [dp.pmapping[f'{DCDC_pmap_plt[i][1]}']],  # Parameter index
+                        [f'{pmap_plt[i][1]}'],  # Current parameter
+                        [f'{pmap_plt[i][0]}' + " Current" + '(' + str(dp.pmapping[f'{pmap_plt[i][1]}']+1) + ')'],  # Title with mapping
+                        [dp.pmapping[f'{pmap_plt[i][1]}']],  # Parameter index
                         ['[ A ]']  # Y-axis unit
                     ],
 
                     # Voltage plot configuration  
                     [
-                        [f'{DCDC_pmap_plt[i][2]}'],  # Voltage parameter
-                        [f'{DCDC_pmap_plt[i][0]}' + " Voltage" + '(' + str(dp.pmapping[f'{DCDC_pmap_plt[i][2]}']+1) + ')'],  # Title with mapping
-                        [dp.pmapping[f'{DCDC_pmap_plt[i][2]}']],  # Parameter index
+                        [f'{pmap_plt[i][2]}'],  # Voltage parameter
+                        [f'{pmap_plt[i][0]}' + " Voltage" + '(' + str(dp.pmapping[f'{pmap_plt[i][2]}']+1) + ')'],  # Title with mapping
+                        [dp.pmapping[f'{pmap_plt[i][2]}']],  # Parameter index
                         ['[ V ]']  # Y-axis unit
                     ]
                 ]
@@ -350,67 +354,67 @@ def gen_pmap_plt():
         case 'DCDC_D':  # Dual DC-DC Converter
 
             # Process control loop plots for dual DC-DC converter
-            for i in range(1, len(DCDC_DUAL_Ctrl_plt)):  # Skip header row (index 0) ["PWM", "Measurments", "ADC", "Sampling", "SW Protection", "HW Protection"],
+            for i in range(1, len(Ctrl_plt)):  # Skip header row (index 0) ["PWM", "Measurments", "ADC", "Sampling", "SW Protection", "HW Protection"],
 
-                pmap_plt_ctrl_dict[f'{DCDC_DUAL_Ctrl_plt[0][i-1]}'] = [
+                pmap_plt_ctrl_dict[f'{Ctrl_plt[0][i-1]}'] = [
                     [
                         # Parameter names
-                        DCDC_DUAL_Ctrl_plt[i][j][1],
+                        Ctrl_plt[i][j][1],
 
                         # Plot title with parameter mappings
-                        [f"{str(DCDC_DUAL_Ctrl_plt[i][j][0])} ({', '.join(str(item) for item in [str(dp.pmapping[f'{DCDC_DUAL_Ctrl_plt[i][j][1][k]}']) for k in range(len(DCDC_DUAL_Ctrl_plt[i][j][1]))])})"],
+                        [f"{str(Ctrl_plt[i][j][0])} ({', '.join(str(item) for item in [str(dp.pmapping[f'{Ctrl_plt[i][j][1][k]}']) for k in range(len(Ctrl_plt[i][j][1]))])})"],
                        
-					    # Parameter indices from pmapping
-                        [dp.pmapping[f'{DCDC_DUAL_Ctrl_plt[i][j][1][k]}'] for k in range(len(DCDC_DUAL_Ctrl_plt[i][j][1]))],
+                        # Parameter indices from pmapping
+                        [dp.pmapping[f'{Ctrl_plt[i][j][1][k]}'] for k in range(len(Ctrl_plt[i][j][1]))],
                        
-					    # Y-axis labels (repeated for each parameter)
-                        DCDC_DUAL_Ctrl_plt[i][j][2] * len(DCDC_DUAL_Ctrl_plt[i][j][1])
+                        # Y-axis labels (repeated for each parameter)
+                        Ctrl_plt[i][j][2] * len(Ctrl_plt[i][j][1])
 
-                    ] for j in range(len(DCDC_DUAL_Ctrl_plt[i]))
+                    ] for j in range(len(Ctrl_plt[i]))
                 ]
 
             # Process power stage plots for dual DC-DC converter
-            for i in range(len(DCDC_DUAL_pmap_plt)):
+            for i in range(len(pmap_plt)):
 
-                if len(DCDC_DUAL_pmap_plt[i]) == 5:
+                if len(pmap_plt[i]) == 5:
                     # Configuration for dual measurements (two currents, two voltages)
-                    pmap_plt_dict[f'{DCDC_DUAL_pmap_plt[i][0]}'] = [
+                    pmap_plt_dict[f'{pmap_plt[i][0]}'] = [
                      
-					    # Dual current plot configuration
+                        # Dual current plot configuration
                         [
-                            [f'{DCDC_DUAL_pmap_plt[i][1]}', f'{DCDC_DUAL_pmap_plt[i][2]}'],  # Two current parameters
-                            [f'{DCDC_DUAL_pmap_plt[i][0]}' + " Current" + '(' + str(dp.pmapping[f'{DCDC_DUAL_pmap_plt[i][1]}']+1) + ')' +
-                             '(' + str(dp.pmapping[f'{DCDC_DUAL_pmap_plt[i][2]}']+1) + ')'],  # Combined title
-                            [dp.pmapping[f'{DCDC_DUAL_pmap_plt[i][1]}'], dp.pmapping[f'{DCDC_DUAL_pmap_plt[i][2]}']],  # Parameter indices
+                            [f'{pmap_plt[i][1]}', f'{pmap_plt[i][2]}'],  # Two current parameters
+                            [f'{pmap_plt[i][0]}' + " Current" + '(' + str(dp.pmapping[f'{pmap_plt[i][1]}']+1) + ')' +
+                             '(' + str(dp.pmapping[f'{pmap_plt[i][2]}']+1) + ')'],  # Combined title
+                            [dp.pmapping[f'{pmap_plt[i][1]}'], dp.pmapping[f'{pmap_plt[i][2]}']],  # Parameter indices
                             ['[ A ]', '[ A ]']  # Y-axis units
                         ],
                        
-					    # Dual voltage plot configuration
+                        # Dual voltage plot configuration
                         [
-                            [f'{DCDC_DUAL_pmap_plt[i][3]}', f'{DCDC_DUAL_pmap_plt[i][4]}'],  # Two voltage parameters
-                            [f'{DCDC_DUAL_pmap_plt[i][0]}' + " Voltage" + '(' + str(dp.pmapping[f'{DCDC_DUAL_pmap_plt[i][3]}']+1) + ')' +
-                             '(' + str(dp.pmapping[f'{DCDC_DUAL_pmap_plt[i][4]}']+1) + ')'],  # Combined title
-                            [dp.pmapping[f'{DCDC_DUAL_pmap_plt[i][3]}'], dp.pmapping[f'{DCDC_DUAL_pmap_plt[i][4]}']],  # Parameter indices
+                            [f'{pmap_plt[i][3]}', f'{pmap_plt[i][4]}'],  # Two voltage parameters
+                            [f'{pmap_plt[i][0]}' + " Voltage" + '(' + str(dp.pmapping[f'{pmap_plt[i][3]}']+1) + ')' +
+                             '(' + str(dp.pmapping[f'{pmap_plt[i][4]}']+1) + ')'],  # Combined title
+                            [dp.pmapping[f'{pmap_plt[i][3]}'], dp.pmapping[f'{pmap_plt[i][4]}']],  # Parameter indices
                             ['[ V ]', '[ V ]']  # Y-axis units
                         ]
                     ]
                 else:
                     # Configuration for single measurements (one current, one voltage)
-                    pmap_plt_dict[f'{DCDC_DUAL_pmap_plt[i][0]}'] = [
+                    pmap_plt_dict[f'{pmap_plt[i][0]}'] = [
                        
-					    # Current plot configuration
+                        # Current plot configuration
                         [
-                            [f'{DCDC_DUAL_pmap_plt[i][1]}'],  # Current parameter
-                            [f'{DCDC_DUAL_pmap_plt[i][0]}' + " Current" + '(' + str(dp.pmapping[f'{DCDC_DUAL_pmap_plt[i][1]}']+1) + ')'],  # Title
-                            [dp.pmapping[f'{DCDC_DUAL_pmap_plt[i][1]}']],  # Parameter index
+                            [f'{pmap_plt[i][1]}'],  # Current parameter
+                            [f'{pmap_plt[i][0]}' + " Current" + '(' + str(dp.pmapping[f'{pmap_plt[i][1]}']+1) + ')'],  # Title
+                            [dp.pmapping[f'{pmap_plt[i][1]}']],  # Parameter index
                             ['[ A ]']  # Y-axis unit
                         ],
                        
-					    # Voltage plot configuration
+                        # Voltage plot configuration
                         [
-                            [f'{DCDC_DUAL_pmap_plt[i][2]}'],  # Voltage parameter
-                            [f'{DCDC_DUAL_pmap_plt[i][0]}' + " Voltage" + '(' + str(dp.pmapping[f'{DCDC_DUAL_pmap_plt[i][2]}']+1) + ')'],  # Title
-                            [dp.pmapping[f'{DCDC_DUAL_pmap_plt[i][2]}']],  # Parameter index
+                            [f'{pmap_plt[i][2]}'],  # Voltage parameter
+                            [f'{pmap_plt[i][0]}' + " Voltage" + '(' + str(dp.pmapping[f'{pmap_plt[i][2]}']+1) + ')'],  # Title
+                            [dp.pmapping[f'{pmap_plt[i][2]}']],  # Parameter index
                             ['[ V ]']  # Y-axis unit
                         ],
                     ]
@@ -421,7 +425,7 @@ def gen_pmap_plt():
             dp.sys.exit()
 
     return pmap_plt_dict, pmap_plt_ctrl_dict
-	
+
 def dump_headers(raw_dict, names):
     """
     Process and dump header information to JSON files.
@@ -553,8 +557,8 @@ def select_mapping(DCDC_pmap_Raw):
 			dp.pwm_dict 				= dp.OrderedDict(zip(pwm_slice, map(DCDC_pmap_Raw.index, pwm_slice)))
 			
 			# Generate DCDC html plots mapping dict & ctrls mapping.
-			dp.pmap_plt,dp.pmap_plt_ctrl= gen_pmap_plt()	
-			
+			dp.pmap_plt,dp.pmap_plt_ctrl= gen_pmap_plt(DCDC_Ctrl_plt, DCDC_pmap_plt)
+
 			# Generate constant dictionary 
 			dp.constant_dict 			= collections.OrderedDict((sub[0], [sub[0], dp.pmapping[sub[0]], sub[1]]) for sub in DCDC_Constants)
 
@@ -622,7 +626,7 @@ def select_mapping(DCDC_pmap_Raw):
 			dp.pwm_dict 				= dp.OrderedDict(zip(pwm_slice, map(DCDC_DUAL_pmap_Raw.index, pwm_slice)))
 			
 			# Generate DCDC html plots mapping dict & ctrls mapping.
-			dp.pmap_plt,dp.pmap_plt_ctrl= gen_pmap_plt()
+			dp.pmap_plt,dp.pmap_plt_ctrl= gen_pmap_plt(DCDC_DUAL_Ctrl_plt, DCDC_DUAL_pmap_plt)
 			
 			# Generate constant dictionary 
 			dp.constant_dict 			= collections.OrderedDict((sub[0], [sub[0], dp.pmapping[sub[0]], sub[1]]) for sub in DCDC_DUAL_Constants)
