@@ -445,12 +445,16 @@ def dump_headers(raw_dict, names):
 	# Delete additional range from Ycumsum[2] to Ycumsum[2] + Y_Length[9]
     ts_header   	= dp.np.delete(ts_header,dp.np.r_[Ycumsum[2]:Ycumsum[2]+dp.Y_Length[9]]).tolist()
     
-    # Save the processed time series header to file with each element on new line
-    with open(dp.Header_File, 'w') as f:
-        for item in ts_header:
-            dp.json.dump(item, f)
-            f.write('\n')
-    
+	# Save the processed time series header to file with each element on new line
+	with open(dp.Header_File, 'w') as f:
+		f.write('[\n')
+		for i, item in enumerate(ts_header):
+			dp.json.dump(item, f)
+			if i < len(ts_header) - 1:
+				f.write(',')
+			f.write('\n')
+		f.write(']')
+		
     # Define slices for different data categories with corresponding suffixes
     slices 			= [
     				slice(1, dp.Y_list[1]+1)		,	# 
@@ -472,16 +476,23 @@ def dump_headers(raw_dict, names):
     temp_raw_dict 	= functools.reduce(lambda acc, x: dp.np.insert(acc, x[1], dp.np.array(x[0])), sublists, dp.np.array(raw_dict)).tolist()
     
     # Save each data category to separate JSON files with each element on new line
-    for i, length in enumerate(dp.Y_Length[1:], 1):
-        # Generate filename based on mapping index
-        header_file = f"Script/assets/HEADER_FILES/{Maps_index[names][i-1]}.json"
-    
-	    # Write segment data to file with each element on new line
-        with open(header_file, 'w') as file:
-            for item in temp_raw_dict[c+1:c+1+length]:
-                dp.json.dump(item, file)
-                file.write('\n')
-        c += length
+	# Save each data category to separate JSON files with each element on new line
+	for i, length in enumerate(dp.Y_Length[1:], 1):
+		# Generate filename based on mapping index
+		header_file = f"Script/assets/HEADER_FILES/{Maps_index[names][i-1]}.json"
+
+		# Write segment data to file as a list with each element on new line
+		with open(header_file, 'w') as file:
+			file.write('[\n')
+			segment_data = temp_raw_dict[c+1:c+1+length]
+			for j, item in enumerate(segment_data):
+				file.write('  ')
+				dp.json.dump(item, file)
+				if j < len(segment_data) - 1:
+					file.write(',')
+				file.write('\n')
+			file.write(']')
+		c += length
 
 def select_mapping(DCDC_pmap_Raw):
 	"""
