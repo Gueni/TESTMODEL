@@ -43,16 +43,16 @@ Maps_index 			= {
 load_json 			= lambda subdir, name: json.load(open(next((pathlib.Path.cwd() / "SIGNAL_MAPPING" / subdir).rglob(name))))
 
 # Get Single DC-DC Converter Mappings
-DCDC_pmap_Raw       = load_json("DCDC_SINGLE"	, "DCDC_pmap_Raw.json")
-DCDC_pmap_plt       = load_json("DCDC_SINGLE"	, "DCDC_pmap_plt.json")
-DCDC_Constants      = load_json("DCDC_SINGLE"	, "DCDC_Constants.json")
-DCDC_Ctrl_plt       = load_json("DCDC_SINGLE"	, "DCDC_Ctrl_plt.json")
+DCDC_pmap_Raw       = load_json("DCDC_SINGLE"	, "pmap_Raw.json")
+DCDC_pmap_plt       = load_json("DCDC_SINGLE"	, "pmap_plt.json")
+DCDC_Constants      = load_json("DCDC_SINGLE"	, "Constants.json")
+DCDC_Ctrl_plt       = load_json("DCDC_SINGLE"	, "Ctrl_plt.json")
 
 # Get Dual DC-DC Converter Mappings
-DCDC_DUAL_pmap_Raw  = load_json("DCDC_DUAL"		, "DCDC_DUAL_pmap_Raw.json")
-DCDC_DUAL_pmap_plt  = load_json("DCDC_DUAL"		, "DCDC_DUAL_pmap_plt.json")
-DCDC_DUAL_Constants = load_json("DCDC_DUAL"		, "DCDC_DUAL_Constants.json")
-DCDC_DUAL_Ctrl_plt  = load_json("DCDC_DUAL"		, "DCDC_DUAL_Ctrl_plt.json")
+DCDC_DUAL_pmap_Raw  = load_json("DCDC_DUAL"		, "pmap_Raw.json")
+DCDC_DUAL_pmap_plt  = load_json("DCDC_DUAL"		, "pmap_plt.json")
+DCDC_DUAL_Constants = load_json("DCDC_DUAL"		, "Constants.json")
+DCDC_DUAL_Ctrl_plt  = load_json("DCDC_DUAL"		, "Ctrl_plt.json")
 #?-------------------------------------------------------------------------------------------------------------------------------------------------------------
 def return_mags(op_dict):
 	"""
