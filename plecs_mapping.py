@@ -40,7 +40,7 @@ Maps_index 			= {
 						}
 
 # Load JSON mapping files
-load_json = lambda subdir, name: json.load(open([file for file in (pathlib.Path.cwd() / "SIGNAL_MAPPING" / subdir).rglob(name)][0]))
+load_json = lambda subdir, name: json.load(open((pathlib.Path.cwd() / "SIGNAL_MAPPING" / subdir / name)))
 
 # Get Single DC-DC Converter Mappings
 DCDC_pmap_Raw       = load_json("DCDC_SINGLE"	, "pmap_Raw.json")
