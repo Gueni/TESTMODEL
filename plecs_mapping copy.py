@@ -1,10 +1,8 @@
-delete_segments = lambda arr, seglen, segdel: np.delete(
-    np.array(arr),
-    np.hstack([np.r_[np.cumsum([0]+seglen[:-1])[i] : np.cumsum([0]+seglen[:-1])[i] + seglen[i]] for i in segdel])
-).tolist()
+import json
+from pathlib import Path
 
-segments = [1, 77, 69, 62, 15, 18, 8, 148]
-DCDC_pmap_Raw = list(range(sum(segments)))  # [0..397]
+fix_json_strings = lambda folder: [f.write_text(json.dumps([s.replace(" ", "_").replace("-", "_") for s in json.loads(f.read_text())], indent=2)) for f in Path(folder).glob("*.json")]
 
-DCDC_pmap_Raw = delete_segments(DCDC_pmap_Raw, segments, [3, 6])
-print(len(DCDC_pmap_Raw))  # → 328 ✅
+fix_json_strings(r"D:\WORKSPACE\TESTMODEL\SIGNAL_MAPPING\DCDC_DUAL")
+
+
