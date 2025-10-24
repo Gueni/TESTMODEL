@@ -109,7 +109,6 @@
     font-size: 14px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    font-size: 12px;
 }
 
 .info-value {
@@ -120,5 +119,5 @@
     background: #f7fafc;
     padding: 6px 12px;
     border-radius: 6px;
-    border: 1px solid #e2e8f0;
+    border: 0.5px solid #e2e8f0;
 }

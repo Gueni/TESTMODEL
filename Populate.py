@@ -1,7 +1,7 @@
 import plotly.graph_objects as go
 from datetime import datetime
 
-def create_parameter_table(data_dict, title="Parameters Table"):
+def create_parameter_table(data_dict, title=""):
     
     def flatten_dict_with_brackets(d, parent_keys=None):
         """Flatten a nested dictionary using bracket notation"""
@@ -100,15 +100,15 @@ def create_parameter_table(data_dict, title="Parameters Table"):
         annotations=[
             # Main title
             dict(
-                text=f"<b>{title}</b>",
-                x=0.02,
+                text=f"{title}",
+                x=0.0,
                 y=0.95,
                 xref="paper",
                 yref="paper",
                 xanchor="left",
                 yanchor="middle",
                 showarrow=False,
-                font=dict(size=22, color="black", family="Arial Black"),
+                font=dict(size=20, color="darkslategray"),
                 align="left"
             ),
            
@@ -155,7 +155,7 @@ def populate_html_template(template_path, output_path, script_name, date_time, s
     # Add parameters table if provided
     if parameters_dict:
         # Use the first version with level-one dropdown only
-        param_table = create_parameter_table(parameters_dict, "Simulation Parameters")
+        param_table = create_parameter_table(parameters_dict, "Simulation Model Configurations & Parameters:")
         # Convert Plotly figure to HTML
         param_table_html = param_table.to_html(include_plotlyjs='cdn', div_id="parameters-table")
         plot_items = param_table_html + param_table_html + plot_items
