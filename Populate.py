@@ -1,7 +1,15 @@
 import plotly.graph_objects as go
 from datetime import datetime
 
-def create_parameter_table(data_dict, title=""):
+def create_parameter_table(data_dict, title="", dropdown_level=1):
+    """
+    Create a parameter table with dropdown menu at specified level
+    
+    Args:
+        data_dict: Nested dictionary of parameters
+        title: Table title
+        dropdown_level: Level at which to create dropdown options (1 = top level, 2 = second level, etc.)
+    """
     
     def flatten_dict_with_brackets(d, parent_keys=None):
         """Flatten a nested dictionary using bracket notation"""
@@ -19,16 +27,47 @@ def create_parameter_table(data_dict, title=""):
                 items.append((bracket_path, v))
         return items
     
-    def get_level_one_paths(d):
-        """Get only the top-level dictionary paths"""
-        paths = ["all"]
-        for key, value in d.items():
-            if isinstance(value, dict):
-                paths.append(key)
+    def get_paths_at_level(d, current_level=1, target_level=1, current_path=None):
+        """Get dictionary paths at specified level"""
+        if current_path is None:
+            current_path = []
+            
+        paths = []
+        
+        # If we've reached the target level, return current path as an option
+        if current_level == target_level:
+            if current_path:  # Only add if we have a path
+                path_str = "->".join(current_path)
+                paths.append(("->".join(current_path), current_path.copy()))
+        else:
+            # If we haven't reached target level yet, continue traversing
+            for key, value in d.items():
+                if isinstance(value, dict):
+                    new_path = current_path + [key]
+                    paths.extend(get_paths_at_level(value, current_level + 1, target_level, new_path))
+        
+        # Always include "all" option at any level
+        if current_level == 1:
+            paths.insert(0, ("all", []))
+            
         return paths
     
-    # Get only level-one dictionary paths for dropdown
-    available_paths = get_level_one_paths(data_dict)
+    def get_subdict_by_path(d, path_keys):
+        """Get sub-dictionary by path keys"""
+        if not path_keys:
+            return d
+            
+        current = d
+        for key in path_keys:
+            if isinstance(current, dict) and key in current:
+                current = current[key]
+            else:
+                return {}
+        return current if isinstance(current, dict) else {path_keys[-1]: current}
+    
+    # Get paths at specified level for dropdown
+    available_paths = get_paths_at_level(data_dict, target_level=dropdown_level)
+    
     # Create initial table data (show all by default)
     flattened_items = flatten_dict_with_brackets(data_dict)
     parameters = [item[0] for item in flattened_items]
@@ -56,27 +95,32 @@ def create_parameter_table(data_dict, title=""):
     # Create dropdown buttons
     dropdown_buttons = []
     
-    for path in available_paths:
-        if path == "all":
+    for path_label, path_keys in available_paths:
+        if path_label == "all":
             # Show all parameters
             flattened_items = flatten_dict_with_brackets(data_dict)
             params = [item[0] for item in flattened_items]
             vals = [str(item[1]) for item in flattened_items]
         else:
-            # Get specific level-one sub-dictionary
-            sub_dict = data_dict.get(path, {})
-            if isinstance(sub_dict, dict):
-                flattened_items = flatten_dict_with_brackets(sub_dict, [path])
+            # Get specific sub-dictionary at the chosen level
+            sub_dict = get_subdict_by_path(data_dict, path_keys)
+            if isinstance(sub_dict, dict) and sub_dict:
+                flattened_items = flatten_dict_with_brackets(sub_dict, path_keys)
                 params = [item[0] for item in flattened_items]
                 vals = [str(item[1]) for item in flattened_items]
             else:
-                # If it's not a dict, show it as a single parameter
-                params = [f'["{path}"]']
-                vals = [str(sub_dict)]
+                # If it's not a dict or empty, show it as a single parameter
+                if path_keys:
+                    bracket_path = ''.join([f'["{key}"]' for key in path_keys])
+                    params = [bracket_path]
+                    vals = [str(sub_dict)]
+                else:
+                    params = []
+                    vals = []
         
         dropdown_buttons.append(
             dict(
-                label=path,
+                label=path_label,
                 method="update",
                 args=[
                     {
@@ -135,7 +179,7 @@ def create_parameter_table(data_dict, title=""):
 
 # Updated populate_html_template function
 def populate_html_template(template_path, output_path, script_name, date_time, simulation_id, 
-                         logo_file_path=None, plot_items="", parameters_dict=None):
+                         logo_file_path=None, plot_items="", parameters_dict=None, dropdown_level=1):
     
     with open(template_path, 'r', encoding='utf-8') as file:
         html_content = file.read()
@@ -154,11 +198,11 @@ def populate_html_template(template_path, output_path, script_name, date_time, s
     
     # Add parameters table if provided
     if parameters_dict:
-        # Use the first version with level-one dropdown only
-        param_table = create_parameter_table(parameters_dict, "Simulation Model Configurations & Parameters:")
+        # Use the version with configurable dropdown level
+        param_table = create_parameter_table(parameters_dict, "Simulation Model Configurations & Parameters:", dropdown_level)
         # Convert Plotly figure to HTML
         param_table_html = param_table.to_html(include_plotlyjs='cdn', div_id="parameters-table")
-        plot_items = param_table_html + param_table_html + plot_items
+        plot_items = param_table_html + plot_items
     
     # Replace plot items
     html_content = html_content.replace("{{PLOT_ITEMS}}", plot_items)
@@ -167,7 +211,7 @@ def populate_html_template(template_path, output_path, script_name, date_time, s
     with open(output_path, 'w', encoding='utf-8') as file:
         file.write(html_content)
 
-# Example usage
+# Example usage with different levels
 if __name__ == "__main__":
     # Your variables
     script_name = "standalone_cs555555555555555555555555555555555555v.py"
@@ -205,7 +249,8 @@ if __name__ == "__main__":
                 "validation": 0.2,
                 "test": 0.1
             }
-        },"datddd": {
+        },
+        "datddd": {
             "samples": 50000,
             "features": 784,
             "split": {
@@ -226,48 +271,6 @@ if __name__ == "__main__":
                     "detailC": 789,
                     "detailD": 101
                 }
-            },
-            "additional": {
-                "part1": {
-                    "segmentA": {
-                        "itemX": "foo",
-                        "itemY": "bar"
-                    },
-                    "segmentB": {
-                        "itemZ": "baz"
-                    }
-                },
-                "part2": {
-                    "segmentC": {
-                        "itemW": "qux"
-                    }
-                }   
-            },
-            "final_section": {
-                "element1": {
-                    "sub_elementA": {
-                        "detailX": 111,
-                        "detailY": 222
-                    }
-                },
-                "element2": {
-                    "sub_elementB": {
-                        "detailZ": 333
-                    }
-                }
-            }   ,
-            "ultimate": {
-                "layer1": {
-                    "componentA": {
-                        "feature1": "alpha",
-                        "feature2": "beta"
-                    }
-                },
-                "layer2": {
-                    "componentB": {
-                        "feature3": "gamma"
-                    }
-                }
             }
         }
     }
@@ -275,14 +278,43 @@ if __name__ == "__main__":
     # Path to your logo file
     logo_file_path = r"D:\WORKSPACE\TESTMODEL\BMW_Base64_Logo.txt"
     
-    # Populate the template with parameters table
+    # Example 1: Level 1 dropdown (original behavior)
+    print("Creating report with level 1 dropdown...")
     populate_html_template(
         template_path="HTML_REPORT_TEMPLATE.html",
-        output_path="simulation_report.html",
+        output_path="simulation_report_level1.html",
         script_name=script_name,
         date_time=date_time,
         simulation_id=simulation_id,
         logo_file_path=logo_file_path,
-        parameters_dict=sample_parameters
+        parameters_dict=sample_parameters,
+        dropdown_level=1
     )
     
+    # Example 2: Level 2 dropdown
+    print("Creating report with level 2 dropdown...")
+    populate_html_template(
+        template_path="HTML_REPORT_TEMPLATE.html",
+        output_path="simulation_report_level2.html",
+        script_name=script_name,
+        date_time=date_time,
+        simulation_id=simulation_id,
+        logo_file_path=logo_file_path,
+        parameters_dict=sample_parameters,
+        dropdown_level=2
+    )
+    
+    # Example 3: Level 3 dropdown
+    print("Creating report with level 3 dropdown...")
+    populate_html_template(
+        template_path="HTML_REPORT_TEMPLATE.html",
+        output_path="simulation_report_level3.html",
+        script_name=script_name,
+        date_time=date_time,
+        simulation_id=simulation_id,
+        logo_file_path=logo_file_path,
+        parameters_dict=sample_parameters,
+        dropdown_level=3
+    )
+    
+    print("Reports created with different dropdown levels!")
