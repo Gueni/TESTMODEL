@@ -27,6 +27,27 @@
     <div class="plot-container">
         {{PLOT_ITEMS}}
     </div>
+<div class="download_section">
+    <h3>Data Download</h3>
+    
+    <!-- JSON File Upload for Headers -->
+    <div>
+        <label for="LoadJasonFile">Upload JSON Headers File:</label>
+        <input type="file" id="LoadJasonFile" accept=".json,.csv" onchange="uploadJson()">
+    </div>
+    
+    <!-- CSV File Upload for Data -->
+    <div style="margin-top: 10px;">
+        <label for="fileInput">Upload CSV Data File:</label>
+        <input type="file" id="fileInput" accept=".csv" onchange="uploadFile()">
+    </div>
+    
+    <!-- Checkbox Container -->
+    <div id="checkboxContainer" style="margin: 15px 0; max-height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 10px;"></div>
+    
+    <!-- Download Button -->
+    <button id="downloadButton" disabled>Download Selected Columns</button>
+</div>
     <script src="scripts.js"></script>
 </body>
 </html>
