@@ -17,75 +17,6 @@
     object-fit: contain;
 }
 
-/* .info-grid {
-    position: absolute;
-    left: 20px;
-    top: 40px;
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: 8px 15px;
-    align-items: center;
-    font-family: Arial, sans-serif;
-}
-
-.info-item {
-    display: contents;
-}
-
-.info-label {
-    
-    font-weight: bold;
-    text-align: left;
-    white-space: nowrap;
-    color: #080808;
-    font-size: 16px;
-}
-
-.info-value {
-    font-weight: normal;
-    white-space: nowrap;
-    color: #666;
-    font-size: 14px;
-} */
-
-.plot-container {
-    display: flex;
-    flex-direction: column;
-    gap: 40px;
-    margin-top: 20px;
-    padding: 0 20px;
-}
-
-.plot-item {
-    width: 100%;
-    margin-bottom: 40px;
-    border-bottom: 1px solid #eee;
-    padding-bottom: 40px;
-    background-color: #f9f9f9;
-    border-radius: 8px;
-    padding: 20px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.plot-item:last-child {
-    border-bottom: none;
-    margin-bottom: 0;
-}
-
-.plot-item h3 {
-    margin-top: 0;
-    color: #2c3e50;
-    border-bottom: 2px solid #3498db;
-    padding-bottom: 10px;
-    font-family: Arial, sans-serif;
-}
-
-.plot-item p {
-    color: #7f8c8d;
-    line-height: 1.6;
-    font-family: Arial, sans-serif;
-}
-
 .info-grid {
     position: absolute;
     left: 25px;
@@ -120,4 +51,51 @@
     padding: 6px 12px;
     border-radius: 6px;
     border: 0.5px solid #e2e8f0;
+}
+
+/* Add these styles for plot containers */
+.plot-container {
+    display: flex;
+    flex-direction: column;
+    gap: 40px;
+    margin-top: 20px;
+    width: 100%;
+}
+
+.plot-item {
+    width: 100%;
+    margin-bottom: 40px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 40px;
+    min-height: 500px; /* Ensure minimum height */
+}
+
+.plot-item:last-child {
+    border-bottom: none;
+}
+
+/* Ensure Plotly figures have proper dimensions */
+.js-plotly-plot {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.plotly-graph-div {
+    width: 100% !important;
+    height: 500px !important; /* Fixed height for consistency */
+}
+
+/* For 2-column layout */
+.plot-grid-2col {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    margin-top: 20px;
+    width: 100%;
+}
+
+.plot-grid-item {
+    flex: 0 0 calc(50% - 10px);
+    min-height: 500px;
+    margin-bottom: 40px;
 }
