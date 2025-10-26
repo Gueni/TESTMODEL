@@ -1,32 +1,29 @@
+from bs4 import BeautifulSoup
+
 def remove_div(html_content):
     """
-    Remove specific sections from HTML content
-    
-    Args:
-        html_content (str): The HTML content
-    
-    Returns:
-        str: HTML content with sections removed
+    Remove specific sections from HTML content using BeautifulSoup
     """
-    # Remove table container with all nested content
-    html_content = re.sub(r'<!-- table Container -->\s*<div class="table-container">.*?</div>', '', html_content, flags=re.DOTALL)
+    soup = BeautifulSoup(html_content, 'html.parser')
     
-    # Remove note section with all nested content
-    html_content = re.sub(r'<!-- Note Section -->\s*<div class="note-section">.*?</div>', '', html_content, flags=re.DOTALL)
+    # Remove all the containers we want to remove
+    containers_to_remove = [
+        ('div', 'table-container'),
+        ('div', 'note-section'), 
+        ('div', 'multiplot-container'),
+        ('div', 'plot-container'),
+        ('div', 'constants-container'),
+        ('div', 'download_section')
+    ]
     
-    # Remove multiplot container with all nested content
-    html_content = re.sub(r'<!-- multiplot Container -->\s*<div class="multiplot-container">.*?</div>', '', html_content, flags=re.DOTALL)
+    for tag, class_name in containers_to_remove:
+        element = soup.find(tag, class_=class_name)
+        if element:
+            element.decompose()
     
-    # Remove plot container with all nested content
-    html_content = re.sub(r'<!-- Plot Container -->\s*<div class="plot-container">.*?</div>', '', html_content, flags=re.DOTALL)
+    # Remove scripts.js
+    script = soup.find('script', {'src': 'scripts.js'})
+    if script:
+        script.decompose()
     
-    # Remove constants container with all nested content
-    html_content = re.sub(r'<!-- constants Container -->\s*<div class="constants-container">.*?</div>', '', html_content, flags=re.DOTALL)
-    
-    # Remove download section with all nested content
-    html_content = re.sub(r'<div class="download_section">.*?</div>\s*<script src="scripts.js"></script>', '', html_content, flags=re.DOTALL)
-    
-    # Clean up any leftover template variables
-    html_content = re.sub(r'\{\{.*?\}\}', '', html_content)
-    
-    return html_content
+    return str(soup)
