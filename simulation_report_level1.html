@@ -8,12 +8,23 @@ def remove_div(html_content):
     Returns:
         str: HTML content with sections removed
     """
-    # Remove the main containers
-    html_content = re.sub(r'<div class="table-container">.*?</div>', '', html_content, flags=re.DOTALL)
-    html_content = re.sub(r'<!-- Note Section -->.*?<div class="note-section">.*?</div>', '', html_content, flags=re.DOTALL)
-    html_content = re.sub(r'<!-- multiplot Container -->.*?<div class="multiplot-container">.*?</div>', '', html_content, flags=re.DOTALL)
-    html_content = re.sub(r'<!-- constants Container -->.*?<div class="constants-container">.*?</div>', '', html_content, flags=re.DOTALL)
-    html_content = re.sub(r'<div class="download_section">.*?</div>.*?<script src="scripts.js"></script>', '', html_content, flags=re.DOTALL)
+    # Remove table container with all nested content
+    html_content = re.sub(r'<!-- table Container -->\s*<div class="table-container">.*?</div>', '', html_content, flags=re.DOTALL)
+    
+    # Remove note section with all nested content
+    html_content = re.sub(r'<!-- Note Section -->\s*<div class="note-section">.*?</div>', '', html_content, flags=re.DOTALL)
+    
+    # Remove multiplot container with all nested content
+    html_content = re.sub(r'<!-- multiplot Container -->\s*<div class="multiplot-container">.*?</div>', '', html_content, flags=re.DOTALL)
+    
+    # Remove plot container with all nested content
+    html_content = re.sub(r'<!-- Plot Container -->\s*<div class="plot-container">.*?</div>', '', html_content, flags=re.DOTALL)
+    
+    # Remove constants container with all nested content
+    html_content = re.sub(r'<!-- constants Container -->\s*<div class="constants-container">.*?</div>', '', html_content, flags=re.DOTALL)
+    
+    # Remove download section with all nested content
+    html_content = re.sub(r'<div class="download_section">.*?</div>\s*<script src="scripts.js"></script>', '', html_content, flags=re.DOTALL)
     
     # Clean up any leftover template variables
     html_content = re.sub(r'\{\{.*?\}\}', '', html_content)
