@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{TITLE}}</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <img class="logo" src="data:image/png;base64,{{LOGO_BASE64}}" alt="BMW Logo"/>
+        <div class="info-grid">
+            <div class="info-item">
+                <span class="info-label">Simulation</span>
+                <span class="info-value">{{SCRIPT_NAME}}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Date & Time</span>
+                <span class="info-value">{{DATE_TIME}}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Simulation ID</span>
+                <span class="info-value">{{SIMULATION_ID}}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- table Container -->
+    <div class="table-container">
+        <div class="table-header">
+            <h3 class="table-title">Simulation Model Configurations & Parameters</h3>
+        </div>
+        {{PLOT_ITEMS_TABLE}}
+    </div>
+
+    <!-- Note Section -->
+    <div class="note-section">
+        <div class="note-header">
+            <h3 class="note-title">Simulation Notes</h3>
+        </div>
+        <div class="note-content">
+            {{NOTE_TEXT}}
+        </div>
+    </div>
+    <!-- multiplot Container -->
+    <div class="multiplot-container">
+        <div class="multiplot-header">
+            <h3 class="multiplot-title">Plots Overlay (Currents , Voltages , PWM Signals)</h3>
+        </div>
+        {{multiplot_ITEMS_TABLE}}
+    </div>
+
+    <!-- Plot Container -->
+    <div class="plot-container">
+        <div class="plot-header">
+            <h3 class="plot-title">Simulation Model Waveforms</h3>
+        </div>
+        {{PLOT_ITEMS}}
+    </div>
+    
+    <!-- constants Container -->
+    <div class="constants-container">
+        <div class="constants-header">
+            <h3 class="constants-title">Operational Steady State Parameters</h3>
+        </div>
+        {{constants_ITEMS_TABLE}}
+    </div>
+
+    <div class="download_section">
+        <h3>Plot Data Download</h3>
+        
+        <!-- File Uploads Container - Horizontal Layout -->
+        <div class="file-uploads-horizontal">
+            <!-- JSON File Upload for Headers -->
+            <div class="file-upload-row">
+                <label for="LoadJasonFile">Upload JSON Headers File:</label>
+                <input type="file" id="LoadJasonFile" accept=".json,.csv" onchange="uploadJson()">
+            </div>
+            
+            <!-- CSV File Upload for Data -->
+            <div class="file-upload-row">
+                <label for="fileInput">Upload CSV Data File:</label>
+                <input type="file" id="fileInput" accept=".csv" onchange="uploadFile()">
+            </div>
+        </div>
+        
+        <!-- Checkbox Container -->
+        <div id="checkboxContainer" class="checkbox-container"></div>
+        
+        <!-- Download Button -->
+        <button id="downloadButton" disabled>Download Selected Signals</button>
+    </div>
+    <script src="scripts.js"></script>
+</body>
+</html>
