@@ -16,7 +16,7 @@
             </div>
             <div class="info-item">
                 <span class="info-label">Date & Time</span>
-                <span class="info-value">:  2025-10-26 16:02:40</span>
+                <span class="info-value">:  2025-10-26 16:41:20</span>
             </div>
             <div class="info-item">
                 <span class="info-label">Simulation ID</span>
@@ -26,26 +26,30 @@
     </div>
 
     <!-- table Container -->
-    <div class="table-container">
-        <div class="table-header">
-            <h3 class="table-title">Simulation Model Configurations & Parameters</h3>
-        </div>
-        {{PLOT_ITEMS_TABLE}}
+    
+        
     </div>
 
     
+        <div class="note-content">
+            {{NOTE_TEXT}}
+        </div>
     </div>
     
+        {{multiplot_ITEMS_TABLE}}
+    </div>
 
     <!-- Plot Container -->
     <div class="plot-container">
         <div class="plot-header">
             <h3 class="plot-title">Simulation Model Waveforms</h3>
         </div>
-        
+        {{PLOT_ITEMS}}
     </div>
     
     
+        {{constants_ITEMS_TABLE}}
+    </div>
 
     
 </body>
