@@ -12,21 +12,21 @@ def remove_div(html_content):
     
     Returns:
         str: HTML content with sections removed
-    """
-    # Remove table container (regardless of content)
-    html_content = re.sub(r'<div class="table-container">[\s\S]*?</div>', '', html_content)
+    # """
+    # # Remove table container (regardless of content)
+    # html_content = re.sub(r'<div class="table-container">[\s\S]*?</div>', '', html_content)
     
-    # Remove note section (regardless of content)
-    html_content = re.sub(r'<!-- Note Section -->\s*<div class="note-section">[\s\S]*?</div>', '', html_content)
+    # # Remove note section (regardless of content)
+    # html_content = re.sub(r'<!-- Note Section -->\s*<div class="note-section">[\s\S]*?</div>', '', html_content)
     
-    # Remove multiplot container (regardless of content)
-    html_content = re.sub(r'<!-- multiplot Container -->\s*<div class="multiplot-container">[\s\S]*?</div>', '', html_content)
+    # # Remove multiplot container (regardless of content)
+    # html_content = re.sub(r'<!-- multiplot Container -->\s*<div class="multiplot-container">[\s\S]*?</div>', '', html_content)
     
-    # Remove constants container (regardless of content)
-    html_content = re.sub(r'<!-- constants Container -->\s*<div class="constants-container">[\s\S]*?</div>', '', html_content)
+    # # Remove constants container (regardless of content)
+    # html_content = re.sub(r'<!-- constants Container -->\s*<div class="constants-container">[\s\S]*?</div>', '', html_content)
     
-    # Remove download section (regardless of content)
-    html_content = re.sub(r'<div class="download_section">[\s\S]*?</div>\s*<script src="scripts.js"></script>', '', html_content)
+    # # Remove download section (regardless of content)
+    # html_content = re.sub(r'<div class="download_section">[\s\S]*?</div>\s*<script src="scripts.js"></script>', '', html_content)
     
     return html_content
 
@@ -227,16 +227,15 @@ def populate_html_template(template_path, output_path, script_name, date_time, s
             logo_base64 = logo_file.read().strip()
         html_content = html_content.replace("{{LOGO_BASE64}}", logo_base64)
     
-    # if parameters_dict:
-    #     # Use the version with configurable dropdown level
-    #     param_table = create_parameter_table(parameters_dict, "", dropdown_level)
-    #     # Convert Plotly figure to HTML
-    #     param_table_html = param_table.to_html(include_plotlyjs='cdn', div_id="parameters-table")
-    #     plot_items = param_table_html + plot_items
+    if parameters_dict:
+        # Use the version with configurable dropdown level
+        param_table = create_parameter_table(parameters_dict, "", dropdown_level)
+        # Convert Plotly figure to HTML
+        param_table_html = param_table.to_html(include_plotlyjs='cdn', div_id="parameters-table")
+        plot_items = param_table_html + plot_items
     
     # Replace plot items
     html_content = html_content.replace("{{PLOT_ITEMS_TABLE}}", plot_items)
-    html_content = remove_div(html_content)
     # Write the populated HTML
     with open(output_path, 'w', encoding='utf-8') as file:
         file.write(html_content)
