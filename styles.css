@@ -30,7 +30,11 @@ body {
 
 /* Header Container */
 .container {
-  position: relative; /* Position relative for absolute child positioning */
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    
+  /* position: relative; Position relative for absolute child positioning */
   width: 100%; /* Full width */
   height: 180px; /* Fixed height */
   background: var(--bmw-white); /* White background */
