@@ -1,148 +1,54 @@
-def auto_plot(self, simutil, fileLog, misc, open=False, iterReport=False):
+import pandas as pd
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+
+def create_signal_figures(csv_file, units):
     """
-    Generates an HTML report containing multiple plots using multiprocessing.
+    Create Plotly figures from CSV data with Time as x-axis and signals as y-axis.
+    
+    Parameters:
+    csv_file (str): Path to the CSV file
+    units (list): List of units for each signal (excluding Time column)
+    
+    Returns:
+    list: List of Plotly figure objects
     """
-    misc.tic()
-    ResDir = (dp.os.getcwd()).replace("\\","/") + "/Script/" + "D".upper() + "ata/Res/"+self.script_name+ "_"+self.utc+dp.suffix +"/CSV_TIME_SERIES"
-    MAPS_dir = (dp.os.getcwd()).replace("\\","/") + "/Script/" + "D".upper() + "ata/Res/"+self.script_name+ "_"+self.utc+dp.suffix +"/CSV_MAPS"
-    FFT_curr_path = MAPS_dir+"/FFT_Current_Map.csv"
-    FFT_volt_path = MAPS_dir+"/FFT_Voltage_Map.csv"
+    # Read CSV file
+    df = pd.read_csv(csv_file)
     
-    file_list = fileLog.natsort_files(ResDir)
-    legend = True if dp.JSON['TF_Config'] == 'DCDC_D' else False
+    # Get signal names (all columns except first)
+    time_col = df.columns[0]
+    signal_names = df.columns[1:]
     
-    if dp.JSON['TF_Config'] in ['DCDC_S', 'DCDC_D']:
-        simutil.postProcessing.drop_Extra_Cols(FFT_curr_path, dp.idx_start, dp.idx_end)
-
-    if iterReport:
-        self.gen_iter_report(ResDir, dp.pmap_multi['Peak_Currents'], fileLog.resultfolder + "/HTML_REPORTS/" + "HTML_Report_" + self.utc, "[ A ]", "Currents", open)
-        self.gen_iter_report(ResDir, dp.pmap_multi['Peak_Voltages'], fileLog.resultfolder + "/HTML_REPORTS/" + "HTML_Report_" + self.utc, "[ V ]", "Voltages", open)
+    # Validate units list length
+    if len(units) != len(signal_names):
+        raise ValueError(f"Number of units ({len(units)}) must match number of signals ({len(signal_names)})")
     
-    if iterReport and dp.JSON['FFT']:
-        self.fft_gen_iter_report("FFT_Current.json", " Currents_FFT", FFT_curr_path, fileLog.resultfolder + "/HTML_REPORTS/" + "HTML_Report_" + self.utc, "Currents_FFT", open)
-        self.fft_gen_iter_report("FFT_Voltage.json", "Voltages_FFT", FFT_volt_path, fileLog.resultfolder + "/HTML_REPORTS/" + "HTML_Report_" + self.utc, "Voltages_FFT", open)
-
-    # Prepare data for multiprocessing
-    processing_data = []
-    for x in range(len(file_list)):
-        processing_data.append({
-            'file_path': file_list[x],
-            'index': x,
-            'FFT_curr_path': FFT_curr_path,
-            'FFT_volt_path': FFT_volt_path,
-            'legend': legend,
-            'result_folder': fileLog.resultfolder,
-            'utc': self.utc,
-            'open_flag': open
-        })
-
-    # Process files in parallel
-    with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
-        results = pool.map(self.process_single_file, processing_data)
-
-    fileLog.log("--------------------------------------------------------------------------------------------------------------------------")
-    fileLog.log(f"Generating HTML Report    {'= '.rjust(49+17, ' ')}{str(misc.toc())} seconds.\n")
-
-def process_single_file(self, data):
-    """
-    Process a single file for HTML generation (to be used with multiprocessing)
-    """
-    file_path = data['file_path']
-    index = data['index']
-    FFT_curr_path = data['FFT_curr_path']
-    FFT_volt_path = data['FFT_volt_path']
-    legend = data['legend']
-    result_folder = data['result_folder']
-    utc = data['utc']
-    open_flag = data['open_flag']
+    figures = []
     
-    try:
-        # Generate FFT figures
-        FFT_figs = self.fft_bar_plot(FFT_curr_path, FFT_volt_path, index)
+    # Create individual figure for each signal
+    for i, (signal_name, unit) in enumerate(zip(signal_names, units)):
+        fig = go.Figure()
         
-        # Generate main figures
-        figures_list = self.plot_scopes(file_path, dp.pmap_plt, Legend=legend)
-        figures_list_ = self.shuffle_lists(figures_list, FFT_figs)
+        fig.add_trace(go.Scatter(
+            x=df[time_col],
+            y=df[signal_name],
+            mode='lines',
+            showlegend=False,  # No legend
+            line=dict(color='blue')
+        ))
         
-        if dp.JSON['TF_Config'] in ['DCDC_S', 'DCDC_D']:
-            # Drop extra columns if needed
-            # simutil.postProcessing.drop_Extra_Cols(file_path, sum(dp.Y_list[0:3]), sum(dp.Y_list[0:4]))
-            figures_list_ctrl = self.plot_scopes(file_path, dp.pmap_plt_ctrl, Legend=True)
-            figures_list_.extend(figures_list_ctrl)
+        # Set layout
+        fig.update_layout(
+            title=signal_name,  # Title is the signal name from header
+            xaxis_title=time_col,
+            yaxis_title=f"{signal_name} ({unit})",
+            template="plotly_white"
+        )
         
-        # Generate HTML file
-        output_path = f"{result_folder}/HTML_REPORTS/HTML_REPORT_{utc}_{index + 1}.html"
-        self.append_to_html(file_path, figures_list_, output_path, auto_open=open_flag, i=index)
-        
-        # Clear temporary data
-        self.constants_list.clear()
-        self.constants_vals.clear()
-        self.constants_units.clear()
-        figures_list_.clear()
-        
-        return f"Successfully processed {file_path}"
-        
-    except Exception as e:
-        return f"Error processing {file_path}: {str(e)}"
+        figures.append(fig)
     
+    return figures
 
-
-
-
-
-
-
-
-
-
-    from concurrent.futures import ThreadPoolExecutor, as_completed
-import multiprocessing
-
-def auto_plot_threaded(self, simutil, fileLog, misc, open=False, iterReport=False):
-    """
-    Threaded version - often better for I/O-bound tasks like file writing
-    """
-    # ... (same setup code as above)
-    
-    # Prepare data for threading
-    processing_data = []
-    for x in range(len(file_list)):
-        processing_data.append({
-            'file_path': file_list[x],
-            'index': x,
-            # ... other parameters
-        })
-
-    # Use ThreadPoolExecutor (often better for I/O operations)
-    max_workers = min(multiprocessing.cpu_count(), len(file_list))
-    
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        # Submit all tasks
-        future_to_file = {
-            executor.submit(self.process_single_file, data): data['file_path'] 
-            for data in processing_data
-        }
-        
-        # Collect results as they complete
-        for future in as_completed(future_to_file):
-            file_path = future_to_file[future]
-            try:
-                result = future.result()
-                print(result)
-            except Exception as exc:
-                print(f'{file_path} generated an exception: {exc}')
-
-
-
-
-
-Key Points:
-multiprocessing.Pool - Uses separate processes (good for CPU-bound tasks)
-
-ThreadPoolExecutor - Uses threads (good for I/O-bound tasks like file writing)
-
-Process isolation - Each worker gets its own memory space
-
-Error handling - Important when running in parallel
-
-Resource limits - Don't use more workers than available CPU cores
+# Example usage:
+# figures = create_signal_figures("data.csv", ["V", "A", "Pa", "°C"])
