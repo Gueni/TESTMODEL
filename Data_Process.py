@@ -157,6 +157,7 @@ class Processing:
         # Convert the selected portion of matrix to a numpy array, transpose it, and convert it back to a list
         ParametersMap = dp.np.array(matrix[index[-1]:]).T.tolist()
         return ParametersMap
+    
     def init_sim(self,maxThreads=1,startPoint=[0,0,0,0,0,0,0,0,0,0],X1=[0],X2=[0],X3=[0],X4=[0],X5=[0],X6=[0],X7=[0],X8=[0],X9=[0],X10=[0],pattern=True,model='DCDC'):
         """
         Initialize a simulation.
