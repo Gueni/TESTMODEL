@@ -36,9 +36,7 @@ class WCAAnalyzer:
             Returns     results     : (list)    List of WCA results for each variable.
                         
         """
-        
         results = []
-        
         for i, var_data in enumerate(Xs):
             if var_data == [[0]]:
                 results.append([0, 0, 0])  # WCA unused variables become [0, 0, 0]
@@ -46,47 +44,16 @@ class WCAAnalyzer:
                 
             wca_values = []
             for j, (nom, tol, min_val, max_val) in enumerate(var_data):
-                wca_value = self._funtol_wca(Abs_rel=True, iteration=iteration, index=i, nom=nom, tol=tol)
+                wca_value = self.funtol(Abs_rel=True, iteration=iteration, index=i, nom=nom, tol=tol)
                 min_value = min(wca_value, min_val)
                 max_value = max(wca_value, max_val)
                 wca_values.append([wca_value, min_value, max_value])
             
             results.append(wca_values)
-        
+            
         return results
-
-    def convert_startpoint_to_wca(self, startPoint, iteration, Xs):
-        """
-            Convert startPoint in [nom, tol, min, max] format to WCA [value, min, max] format.
-            
-            Parameters
-                        startPoint      : (list) List of startpoint data for each variable.
-                        iteration       : (int)  The current iteration number.
-                        Xs              : (list) List of variable data.
-                        
-            Returns     wca_startpoint  : (list) List of converted startpoint data in [value, min, max] WCA format.
-            
-        """
     
-        wca_startpoint = []
-        
-        for i, (sp, var_data) in enumerate(zip(startPoint, Xs)):
-            if var_data == [[0]]:  # Unused variable
-                wca_startpoint.append([0])
-            elif isinstance(sp, list) and len(sp) == 4:  # [nom, tol, min, max]
-                nom, tol, min_val, max_val = sp
-                wca_value = self._funtol_wca(Abs_rel=True, iteration=iteration, index=i, nom=nom, tol=tol)
-                min_value = min(wca_value, min_val)
-                max_value = max(wca_value, max_val)
-                wca_startpoint.append([wca_value, min_value, max_value])
-            elif isinstance(sp, list) and len(sp) == 3:  # Already in [value, min, max] format
-                wca_startpoint.append(sp)
-            else:
-                wca_startpoint.append([0])
-        
-        return wca_startpoint
-    
-    def _funtol_wca(self, Abs_rel, iteration, index, nom, tol):
+    def funtol(self, Abs_rel, iteration, index, nom, tol):
         """
             This internal function calculates worst-case values based on 
             tolerance type and binary index.
@@ -111,6 +78,8 @@ class WCAAnalyzer:
                 return nom * (1 + tol)
             else:
                 return nom * (1 - tol)
+        
+        
         
     def load_variables_from_json(self, filename):
         """Load variables from JSON and return as list of lists"""
@@ -175,6 +144,34 @@ class WCAAnalyzer:
         else:
             # In Normal mode, unused is [0] (list with single zero)
             return var_data == [0]
+
+    def _process_wca_startpoint(self, startPoint, iteration):
+        """
+        Process startPoint for WCA mode.
+        Converts [nom, tol, min, max] to [value, min, max] using WCA calculation.
+        """
+        processed = []
+        
+        for i, sp in enumerate(startPoint):
+            if sp == 0 or sp == [0]:
+                processed.append(0)
+            elif isinstance(sp, list):
+                if len(sp) == 4:  # [nom, tol, min, max]
+                    nom, tol, min_val, max_val = sp
+                    wca_value = self.funtol(Abs_rel=True, iteration=iteration, index=i, nom=nom, tol=tol)
+                    min_value = min(wca_value, min_val)
+                    max_value = max(wca_value, max_val)
+                    processed.append([wca_value, min_value, max_value])
+                elif len(sp) == 3:  # Already [value, min, max]
+                    processed.append(sp)
+                else:
+                    processed.append(0)
+            else:
+                processed.append(0)
+        
+        return processed
+
+
 
     def findIndex(self, points, matrix, mode="Normal"):
         """
@@ -438,32 +435,6 @@ class WCAAnalyzer:
         print("Map: ", self.Map)
                 
         return self.Map, self.Iterations
-    
-    def _process_wca_startpoint(self, startPoint, iteration):
-        """
-        Process startPoint for WCA mode.
-        Converts [nom, tol, min, max] to [value, min, max] using WCA calculation.
-        """
-        processed = []
-        
-        for i, sp in enumerate(startPoint):
-            if sp == 0 or sp == [0]:
-                processed.append(0)
-            elif isinstance(sp, list):
-                if len(sp) == 4:  # [nom, tol, min, max]
-                    nom, tol, min_val, max_val = sp
-                    wca_value = self._funtol_wca(Abs_rel=True, iteration=iteration, index=i, nom=nom, tol=tol)
-                    min_value = min(wca_value, min_val)
-                    max_value = max(wca_value, max_val)
-                    processed.append([wca_value, min_value, max_value])
-                elif len(sp) == 3:  # Already [value, min, max]
-                    processed.append(sp)
-                else:
-                    processed.append(0)
-            else:
-                processed.append(0)
-        
-        return processed
 
 # Main function to loop through all iterations
 def main():
@@ -657,3 +628,14 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
+    
+    
+
+
+can we make the following functions into one function with well commented selctions and shorter code lines so that 
+at the end we have only one function that does the same as these plus the rest of the code 
+
+
+load_variables_from_json ,load_startpoint_from_json ,detect_mode ,is_unused ,_process_wca_startpoint
+       
