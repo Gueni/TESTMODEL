@@ -480,7 +480,9 @@ def main():
                         for var_idx in range(min(3, sample_map.shape[1])):
                             value, min_val, max_val = sample_map[i, var_idx]
                             row_str.append(f"[{value:.2f}, {min_val:.2f}, {max_val:.2f}]")
-            print(f"Total simulations across all iterations: {simulation_map[0]}")
+            # print(f"Total simulations across all iterations: {simulation_map.tolist()}")
+            for i,sublist in enumerate(simulation_map.tolist()) :
+                print(f"Map{i}",sublist,"\n")
         else:  # Normal mode
             # For normal mode, extract nominal values
             normal_matrix = []
