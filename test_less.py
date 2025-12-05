@@ -23,35 +23,47 @@ class WCAAnalyzer:
         bin_idx = math.floor(iteration / (2 ** index)) - 2 * math.floor(iteration / (2 ** (index + 1)))
         return bin_idx
     
-    def WCA(self, iteration, Xs):
+    def WCA(self, Xs):
         """
-            This function calculates the worst-case values for each variable 
-            based on tolerance analysis, considering both absolute and relative 
-            tolerance types.
+            This function calculates all worst-case values for each variable 
+            across all possible binary combinations, considering both absolute 
+            and relative tolerance types.
             
             Parameters
-                        iteration   : (int)     The current iteration number.
                         Xs          : (list)    List of variable data given by user.
                         
-            Returns     results     : (list)    List of WCA results for each variable.
+            Returns     all_results : (list)    List of WCA results for each iteration.
+                                                Shape: [iterations][variables][values]
                         
         """
-        results = []
-        for i, var_data in enumerate(Xs):
-            if var_data == [[0]]:
-                results.append([0, 0, 0])  # WCA unused variables become [0, 0, 0]
-                continue
+        # Count active variables
+        active_vars = sum(1 for var_data in Xs if var_data != [[0]])
+        
+        # Calculate number of iterations needed (2^active_vars)
+        total_iterations = 2 ** active_vars if active_vars > 0 else 1
+        
+        all_results = []
+        
+        # Loop through all iterations internally
+        for iteration in range(total_iterations):
+            iteration_results = []
+            for i, var_data in enumerate(Xs):
+                if var_data == [[0]]:
+                    iteration_results.append([0, 0, 0])  # WCA unused variables become [0, 0, 0]
+                    continue
+                    
+                wca_values = []
+                for j, (nom, tol, min_val, max_val) in enumerate(var_data):
+                    wca_value = self.funtol(Abs_rel=True, iteration=iteration, index=i, nom=nom, tol=tol)
+                    min_value = min(wca_value, min_val)
+                    max_value = max(wca_value, max_val)
+                    wca_values.append([wca_value, min_value, max_value])
                 
-            wca_values = []
-            for j, (nom, tol, min_val, max_val) in enumerate(var_data):
-                wca_value = self.funtol(Abs_rel=True, iteration=iteration, index=i, nom=nom, tol=tol)
-                min_value = min(wca_value, min_val)
-                max_value = max(wca_value, max_val)
-                wca_values.append([wca_value, min_value, max_value])
+                iteration_results.append(wca_values)
             
-            results.append(wca_values)
+            all_results.append(iteration_results)
             
-        return results
+        return all_results
     
     def funtol(self, Abs_rel, iteration, index, nom, tol):
         """
@@ -104,7 +116,8 @@ class WCAAnalyzer:
         # =========================================================================
         # SECTION 1: LOAD DATA FROM JSON FILE
         # =========================================================================
-        with open(json_filename, 'r') as f: data = json.load(f)
+        with open(json_filename, 'r') as f: 
+            data = json.load(f)
         variable_names , Xs , i = [] ,[],1
         
         # Extract all X{i} variables from the JSON
@@ -397,96 +410,122 @@ class WCAAnalyzer:
                 
         return self.Map, self.Iterations
 
-# Main function to loop through all iterations
-def main():
-        analyzer = WCAAnalyzer()
-    
-        # Use the unified function to load and process variables
-        data = analyzer.load_and_process_variables('Input_vars.json')
-        Xs = data['Xs']
-        mode = data['mode']
-        active_vars = data['active_vars']
+    def process_WCA_simulation(self, Xs, json_filename):
+        """
+        Process WCA simulation for all iterations at once.
         
-        if mode == "WCA":
-            # Calculate number of iterations needed
-            total_iterations_needed = 2 ** active_vars
+        Parameters:
+            Xs: Variable data
+            json_filename: Path to JSON file
             
-            # Store all iteration results
-            all_iteration_maps = []
+        Returns:
+            dict: Contains all WCA simulation maps and summary information
+        """
+        # Get ALL WCA results for all iterations at once
+        all_wca_results = self.WCA(Xs)
+        
+        all_iteration_maps = []
+        all_iteration_summaries = []
+        
+        # Process all WCA iterations
+        for iteration_idx, wca_results in enumerate(all_wca_results):
+            # Process startPoint for this specific WCA iteration
+            data_for_iteration = self.load_and_process_variables(
+                json_filename, 
+                iteration=iteration_idx  # Use iteration_idx for binary pattern
+            )
+            wca_startpoint = data_for_iteration['startPoint']
             
-            # Loop through all iterations
-            for iteration in range(total_iterations_needed):
-                
-                # Perform WCA for this iteration
-                results = analyzer.WCA(iteration, Xs)
-                
-                # Process example startPoint for this WCA iteration
-                data_for_iteration = analyzer.load_and_process_variables(
-                    'Input_vars.json', 
-                    iteration=iteration
-                )
-                wca_startpoint = data_for_iteration['startPoint']
-                
-                # For WCA mode, use the full [value, min, max] results
-                wca_matrix = results
-                
-                # Initialize simulation with WCA values, custom startPoint, and add nominal iteration
-                simulation_map, iterations = analyzer.init_sim(
-                    maxThreads=1,
-                    startPoint=wca_startpoint,  # Use processed startPoint
-                    X1=wca_matrix[0]    ,
-                    X2=wca_matrix[1]    ,
-                    X3=wca_matrix[2]    ,
-                    X4=wca_matrix[3]    ,
-                    X5=wca_matrix[4]    ,
-                    X6=wca_matrix[5]    ,
-                    X7=wca_matrix[6]    ,
-                    X8=wca_matrix[7]    ,
-                    X9=wca_matrix[8]    ,
-                    X10=wca_matrix[9]   ,
-                    model='DCDC',
-                    mode="WCA",
-                    iteration=iteration,
-                    original_Xs=Xs
-                )
-                
-            print(f"Total iterations for WCA mode: {iterations}")
-            # print(f"Total simulations across all iterations: {simulation_map.tolist()}")
-            for i,sublist in enumerate(simulation_map.tolist()) :
-                print(f"Map{i}",sublist,"\n")
-        else:  # Normal mode
-            # For normal mode, extract nominal values
-            normal_matrix = []
-            for var_data in Xs:
-                if var_data == [[0]]:
-                    normal_matrix.append([0])
-                else:
-                    normal_values = [item[0] for item in var_data]
-                    normal_matrix.append(normal_values)
-            
-            
-            # Get the already processed startPoint from our unified function
-            normal_startpoint = data['startPoint']
-            
-            # Initialize simulation with normal values
-            simulation_map, iterations = analyzer.init_sim(
+            # Initialize simulation with WCA values for this iteration
+            simulation_map, iterations = self.init_sim(
                 maxThreads=1,
-                startPoint=normal_startpoint,
-                    X1=wca_matrix[0]    ,
-                    X2=wca_matrix[1]    ,
-                    X3=wca_matrix[2]    ,
-                    X4=wca_matrix[3]    ,
-                    X5=wca_matrix[4]    ,
-                    X6=wca_matrix[5]    ,
-                    X7=wca_matrix[6]    ,
-                    X8=wca_matrix[7]    ,
-                    X9=wca_matrix[8]    ,
-                    X10=wca_matrix[9]   ,
+                startPoint=wca_startpoint,
+                X1=wca_results[0] if len(wca_results) > 0 else [0, 0, 0],
+                X2=wca_results[1] if len(wca_results) > 1 else [0, 0, 0],
+                X3=wca_results[2] if len(wca_results) > 2 else [0, 0, 0],
+                X4=wca_results[3] if len(wca_results) > 3 else [0, 0, 0],
+                X5=wca_results[4] if len(wca_results) > 4 else [0, 0, 0],
+                X6=wca_results[5] if len(wca_results) > 5 else [0, 0, 0],
+                X7=wca_results[6] if len(wca_results) > 6 else [0, 0, 0],
+                X8=wca_results[7] if len(wca_results) > 7 else [0, 0, 0],
+                X9=wca_results[8] if len(wca_results) > 8 else [0, 0, 0],
+                X10=wca_results[9] if len(wca_results) > 9 else [0, 0, 0],
                 model='DCDC',
-                mode="Normal",
+                mode="WCA",
+                iteration=iteration_idx,
                 original_Xs=Xs
             )
             
+            all_iteration_maps.append(simulation_map)
+            all_iteration_summaries.append({
+                'iteration': iteration_idx,
+                'total_simulations': iterations,
+                'map': simulation_map.tolist()
+            })
+        
+        return {
+            'all_maps': all_iteration_maps,
+            'all_summaries': all_iteration_summaries,
+            'total_iterations': len(all_wca_results),
+            'binary_combinations': 2**sum(1 for var_data in Xs if var_data != [[0]])
+        }
+
+# Main function
+def main():
+    analyzer = WCAAnalyzer()
+    
+    # Use the unified function to load and process variables
+    data = analyzer.load_and_process_variables('Input_vars.json')
+    Xs = data['Xs']
+    mode = data['mode']
+    
+    if mode == "WCA":
+        # Process ALL WCA simulations at once
+        wca_results = analyzer.process_WCA_simulation(Xs, 'Input_vars.json')
+        
+        print(f"\n=== WCA Simulation Results ===")
+        print(f"Total WCA iterations: {wca_results['total_iterations']}")
+        print(f"Total binary combinations: {wca_results['binary_combinations']}")
+        
+        # Print results for each iteration
+        for summary in wca_results['all_summaries']:
+            print(f"\n--- WCA Iteration {summary['iteration']} ---")
+            print(f"Total simulations: {summary['total_simulations']}")
+            for i, sublist in enumerate(summary['map']):
+                print(f"Map {i}:", sublist)
+        
+    else:  # Normal mode
+        # For normal mode, extract nominal values
+        normal_matrix = []
+        for var_data in Xs:
+            if var_data == [[0]]:
+                normal_matrix.append([0])
+            else:
+                normal_values = [item[0] for item in var_data]
+                normal_matrix.append(normal_values)
+        
+        # Get the already processed startPoint from our unified function
+        normal_startpoint = data['startPoint']
+        
+        # Initialize simulation with normal values
+        simulation_map, iterations = analyzer.init_sim(
+            maxThreads=1,
+            startPoint=normal_startpoint,
+            X1=normal_matrix[0] if len(normal_matrix) > 0 else [0],
+            X2=normal_matrix[1] if len(normal_matrix) > 1 else [0],
+            X3=normal_matrix[2] if len(normal_matrix) > 2 else [0],
+            X4=normal_matrix[3] if len(normal_matrix) > 3 else [0],
+            X5=normal_matrix[4] if len(normal_matrix) > 4 else [0],
+            X6=normal_matrix[5] if len(normal_matrix) > 5 else [0],
+            X7=normal_matrix[6] if len(normal_matrix) > 6 else [0],
+            X8=normal_matrix[7] if len(normal_matrix) > 7 else [0],
+            X9=normal_matrix[8] if len(normal_matrix) > 8 else [0],
+            X10=normal_matrix[9] if len(normal_matrix) > 9 else [0],
+            model='DCDC',
+            mode="Normal",
+            original_Xs=Xs
+        )
+        
                     
 if __name__ == "__main__":
     main()
