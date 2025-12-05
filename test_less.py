@@ -450,36 +450,7 @@ def main():
                     original_Xs=Xs
                 )
                 
-                # Store this iteration's map
-                all_iteration_maps.append({
-                    'iteration': iteration,
-                    'map': simulation_map,
-                    'iterations': iterations,
-                    'shape': simulation_map.shape
-                })
-                
-                if len(simulation_map) > 0:
-                    for var_idx in range(min(3, simulation_map.shape[1])):
-                        value, min_val, max_val = simulation_map[0, var_idx]
-                    
-                    nominal_iteration = len(simulation_map) - 1
-                    for var_idx in range(min(3, simulation_map.shape[1])):
-                        value, min_val, max_val = simulation_map[nominal_iteration, var_idx]
-            
-            
-            total_simulations = 0
-            for iteration_data in all_iteration_maps:
-                total_simulations += iteration_data['iterations']
-            
-            # Show first iteration's first few parameter combinations
-            if all_iteration_maps:
-                sample_map = all_iteration_maps[0]['map']
-                if len(sample_map) > 0:
-                    for i in range(min(3, len(sample_map))):
-                        row_str = []
-                        for var_idx in range(min(3, sample_map.shape[1])):
-                            value, min_val, max_val = sample_map[i, var_idx]
-                            row_str.append(f"[{value:.2f}, {min_val:.2f}, {max_val:.2f}]")
+            print(f"Total iterations for WCA mode: {iterations}")
             # print(f"Total simulations across all iterations: {simulation_map.tolist()}")
             for i,sublist in enumerate(simulation_map.tolist()) :
                 print(f"Map{i}",sublist,"\n")
