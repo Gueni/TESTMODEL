@@ -1,3 +1,44 @@
+
+ in WCA case   
+# # Shape: (total_iterations, num_variables, 3)
+# Map = [
+#     # Iteration 0
+#     [
+#         [x1_value, x1_min, x1_max],  # X1
+#         [x2_value, x2_min, x2_max],  # X2
+#         [x3_value, x3_min, x3_max],  # X3
+#         ...  # up to X10
+#     ],
+    
+#     # Iteration 1
+#     [
+#         [x1_value, x1_min, x1_max],  # X1 (different value based on binary pattern)
+#         [x2_value, x2_min, x2_max],  # X2
+#         [x3_value, x3_min, x3_max],  # X3
+#         ...
+#     ],
+    
+#     # ... more iterations
+    
+#     # Last iteration (nominal)
+#     [
+#         [x1_nominal, x1_min, x1_max],  # X1 (nominal value)
+#         [x2_nominal, x2_min, x2_max],  # X2
+#         [x3_nominal, x3_min, x3_max],  # X3
+#         ...
+#     ]
+# ]
+
+
+in normal case 
+# # Shape: (total_iterations, num_variables)
+# Map = [
+#     [x1_value, x2_value, x3_value, ..., x10_value],  # Iteration 0
+#     [x1_value, x2_value, x3_value, ..., x10_value],  # Iteration 1
+#     ...  # more iterations
+# ]
+
+
 how it is :
 {
 

@@ -383,139 +383,127 @@ class WCAAnalyzer:
             raise ValueError(f"Unsupported mode: {mode}. Use 'Normal' or 'WCA'.")
 
     def init_sim(self, maxThreads=1, startPoint=None, X1=[0], X2=[0], X3=[0], X4=[0], X5=[0], X6=[0], X7=[0], X8=[0], X9=[0], X10=[0], model='DCDC', mode="Normal", iteration=0, original_Xs=None):
-       
-        self.sweepMatrix = [X1, X2, X3, X4, X5, X6, X7, X8, X9, X10]
- 
-        # Set startPoint directly 
-        self.startPoint = startPoint
+        """
+        Initialize simulation setup - now includes WCA iteration generation internally.
+        
+        For WCA mode: Generates all WCA iterations internally
+        For Normal mode: Standard parameter sweep
+        """
+        if mode == "WCA":
+                # Calculate all WCA iterations
+                active_vars = sum(1 for var_data in original_Xs if var_data != [[0]])
+                total_iterations_needed = 2 ** active_vars
                 
-        # Find indices and create parameter map
-        self.idx, itrr = self.findIndex(self.startPoint, self.sweepMatrix, mode)
-        self.matrix = self.findStart(self.sweepMatrix, self.idx, mode)
-        self.Map, self.Iterations = self.findPoint(self.matrix, self.idx, mode, original_Xs)
-        self.iterNumber = 0
+                # Generate all iteration results
+                all_iteration_maps = []
                 
-        return self.Map, self.Iterations
+                for wca_iteration in range(total_iterations_needed):
+                    # Perform WCA for this iteration
+                    results = self.WCA(wca_iteration, original_Xs)
+                    
+                    # Process startPoint for this WCA iteration
+                    data_for_iteration = self.load_and_process_variables(
+                        'Input_vars.json', 
+                        iteration=wca_iteration
+                    )
+                    wca_startpoint = data_for_iteration['startPoint']
+                    
+                    # Use the full [value, min, max] results
+                    wca_matrix = results
+                    
+                    # Set sweep matrix for this WCA iteration
+                    self.sweepMatrix = [
+                        wca_matrix[0]    if len(wca_matrix) > 0 else [0],
+                        wca_matrix[1]    if len(wca_matrix) > 1 else [0],
+                        wca_matrix[2]    if len(wca_matrix) > 2 else [0],
+                        wca_matrix[3]    if len(wca_matrix) > 3 else [0],
+                        wca_matrix[4]    if len(wca_matrix) > 4 else [0],
+                        wca_matrix[5]    if len(wca_matrix) > 5 else [0],
+                        wca_matrix[6]    if len(wca_matrix) > 6 else [0],
+                        wca_matrix[7]    if len(wca_matrix) > 7 else [0],
+                        wca_matrix[8]    if len(wca_matrix) > 8 else [0],
+                        wca_matrix[9]    if len(wca_matrix) > 9 else [0]
+                    ]
+                    
+                    # Set startPoint
+                    self.startPoint = wca_startpoint
+                    
+                    # Find indices and create parameter map
+                    self.idx, itrr = self.findIndex(self.startPoint, self.sweepMatrix, mode)
+                    self.matrix = self.findStart(self.sweepMatrix, self.idx, mode)
+                    self.Map, self.Iterations = self.findPoint(self.matrix, self.idx, mode, original_Xs)
+                    self.iterNumber = 0
+                    
+                    # Store this iteration's map
+                    all_iteration_maps.append({
+                        'iteration': wca_iteration,
+                        'map': self.Map,
+                        'iterations': self.Iterations,
+                        'shape': self.Map.shape
+                    })
+                
+                # Store all iteration maps and return the last one for compatibility
+                self.all_wca_maps = all_iteration_maps
+                
+                if all_iteration_maps:
+                    # Return the last iteration map (or you could return all)
+                    last_map = all_iteration_maps[-1]['map']
+                    last_iterations = all_iteration_maps[-1]['iterations']
+                    
+                    # Store the last iteration as current state
+                    self.sweepMatrix = [X1, X2, X3, X4, X5, X6, X7, X8, X9, X10]
+                    self.startPoint = startPoint
+                    self.idx, itrr = self.findIndex(self.startPoint, self.sweepMatrix, mode)
+                    self.matrix = self.findStart(self.sweepMatrix, self.idx, mode)
+                    self.Map, self.Iterations = self.findPoint(self.matrix, self.idx, mode, original_Xs)
+                    self.iterNumber = 0
+                    
+                    return last_map, last_iterations
+                else:
+                    return None, 0
+            
+        
+        
+        else:  # Normal mode
+            # Original Normal mode behavior
+            self.sweepMatrix = [X1, X2, X3, X4, X5, X6, X7, X8, X9, X10]
+            self.startPoint = startPoint
+            self.idx, itrr = self.findIndex(self.startPoint, self.sweepMatrix, mode)
+            self.matrix = self.findStart(self.sweepMatrix, self.idx, mode)
+            self.Map, self.Iterations = self.findPoint(self.matrix, self.idx, mode, original_Xs)
+            self.iterNumber = 0
+            return self.Map, self.Iterations
 
-# Main function to loop through all iterations
+# Main function - simplified to one call
 def main():
-        analyzer = WCAAnalyzer()
+    analyzer = WCAAnalyzer()
     
-        # Use the unified function to load and process variables
-        data = analyzer.load_and_process_variables('Input_vars.json')
-        Xs = data['Xs']
-        mode = data['mode']
-        active_vars = data['active_vars']
+    # Use the unified function to load and process variables
+    data = analyzer.load_and_process_variables('Input_vars.json')
+    Xs = data['Xs']
+    mode = data['mode']
+    
+    # Get the already processed startPoint from our unified function
+    processed_startpoint = data['startPoint']
+    
+    # Single call to init_sim - now handles both modes internally
+    simulation_map, iterations = analyzer.init_sim(
+        maxThreads=1,
+        startPoint=processed_startpoint,
+        X1=[0], X2=[0], X3=[0], X4=[0], X5=[0], X6=[0], X7=[0], X8=[0], X9=[0], X10=[0],  # Placeholders
+        model='DCDC',
+        mode=mode,
+        original_Xs=Xs  # Pass original Xs for WCA mode
+    )
+    
+    if simulation_map is not None:
+        print(f"{mode} mode simulations shape: {simulation_map.shape}")
+        print(f"{mode} mode total iterations: {iterations}")
         
         if mode == "WCA":
-            # Calculate number of iterations needed
-            total_iterations_needed = 2 ** active_vars
-            
-            # Store all iteration results
-            all_iteration_maps = []
-            
-            # Loop through all iterations
-            for iteration in range(total_iterations_needed):
-                
-                # Perform WCA for this iteration
-                results = analyzer.WCA(iteration, Xs)
-                
-                # Process example startPoint for this WCA iteration
-                data_for_iteration = analyzer.load_and_process_variables(
-                    'Input_vars.json', 
-                    iteration=iteration
-                )
-                wca_startpoint = data_for_iteration['startPoint']
-                
-                # For WCA mode, use the full [value, min, max] results
-                wca_matrix = results
-                
-                # Initialize simulation with WCA values, custom startPoint, and add nominal iteration
-                simulation_map, iterations = analyzer.init_sim(
-                    maxThreads=1,
-                    startPoint=wca_startpoint,  # Use processed startPoint
-                    X1=wca_matrix[0]    ,
-                    X2=wca_matrix[1]    ,
-                    X3=wca_matrix[2]    ,
-                    X4=wca_matrix[3]    ,
-                    X5=wca_matrix[4]    ,
-                    X6=wca_matrix[5]    ,
-                    X7=wca_matrix[6]    ,
-                    X8=wca_matrix[7]    ,
-                    X9=wca_matrix[8]    ,
-                    X10=wca_matrix[9]   ,
-                    model='DCDC',
-                    mode="WCA",
-                    iteration=iteration,
-                    original_Xs=Xs
-                )
-                
-                # Store this iteration's map
-                all_iteration_maps.append({
-                    'iteration': iteration,
-                    'map': simulation_map,
-                    'iterations': iterations,
-                    'shape': simulation_map.shape
-                })
-                
-                if len(simulation_map) > 0:
-                    for var_idx in range(min(3, simulation_map.shape[1])):
-                        value, min_val, max_val = simulation_map[0, var_idx]
-                    
-                    nominal_iteration = len(simulation_map) - 1
-                    for var_idx in range(min(3, simulation_map.shape[1])):
-                        value, min_val, max_val = simulation_map[nominal_iteration, var_idx]
-            
-            
-            total_simulations = 0
-            for iteration_data in all_iteration_maps:
-                total_simulations += iteration_data['iterations']
-            
-            # Show first iteration's first few parameter combinations
-            if all_iteration_maps:
-                sample_map = all_iteration_maps[0]['map']
-                if len(sample_map) > 0:
-                    for i in range(min(3, len(sample_map))):
-                        row_str = []
-                        for var_idx in range(min(3, sample_map.shape[1])):
-                            value, min_val, max_val = sample_map[i, var_idx]
-                            row_str.append(f"[{value:.2f}, {min_val:.2f}, {max_val:.2f}]")
-            print(f"Total simulations across all iterations: {simulation_map.tolist()}")
-            
-         
-        else:  # Normal mode
-            # For normal mode, extract nominal values
-            normal_matrix = []
-            for var_data in Xs:
-                if var_data == [[0]]:
-                    normal_matrix.append([0])
-                else:
-                    normal_values = [item[0] for item in var_data]
-                    normal_matrix.append(normal_values)
-            
-            
-            # Get the already processed startPoint from our unified function
-            normal_startpoint = data['startPoint']
-            
-            # Initialize simulation with normal values
-            simulation_map, iterations = analyzer.init_sim(
-                maxThreads=1,
-                startPoint=normal_startpoint,
-                    X1=wca_matrix[0]    ,
-                    X2=wca_matrix[1]    ,
-                    X3=wca_matrix[2]    ,
-                    X4=wca_matrix[3]    ,
-                    X5=wca_matrix[4]    ,
-                    X6=wca_matrix[5]    ,
-                    X7=wca_matrix[6]    ,
-                    X8=wca_matrix[7]    ,
-                    X9=wca_matrix[8]    ,
-                    X10=wca_matrix[9]   ,
-                model='DCDC',
-                mode="Normal",
-                original_Xs=Xs
-            )
-            
+            print(f"Total WCA simulations across all iterations: {simulation_map.tolist()}")
+        else:
+            print(f"Normal mode simulations: {simulation_map.tolist()}")
                     
 if __name__ == "__main__":
     main()
