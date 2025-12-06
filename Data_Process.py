@@ -1,34 +1,88 @@
 
  in WCA case   
-# # Shape: (total_iterations, num_variables, 3)
-# Map = [
-#     # Iteration 0
-#     [
-#         [x1_value, x1_min, x1_max],  # X1
-#         [x2_value, x2_min, x2_max],  # X2
-#         [x3_value, x3_min, x3_max],  # X3
-#         ...  # up to X10
-#     ],
-    
-#     # Iteration 1
-#     [
-#         [x1_value, x1_min, x1_max],  # X1 (different value based on binary pattern)
-#         [x2_value, x2_min, x2_max],  # X2
-#         [x3_value, x3_min, x3_max],  # X3
-#         ...
-#     ],
-    
-#     # ... more iterations
-    
-#     # Last iteration (nominal)
-#     [
-#         [x1_nominal, x1_min, x1_max],  # X1 (nominal value)
-#         [x2_nominal, x2_min, x2_max],  # X2
-#         [x3_nominal, x3_min, x3_max],  # X3
-#         ...
-#     ]
-# ]
+ {
+  "X1": "[[10, 0.1, 5, 15], [20, 0.2, 15, 25]]",
+  "X2": "[[100, 0.5, 50, 150]]",
+  "X3": "[[5, 0.2, 3, 7], [15, 0.3, 10, 20], [25, 0.4, 20, 30]]",
+  "X4": "[[50, 0.1, 40, 60]]",
+  "X5": "[[1, 0.5, 0.5, 2], [2, 0.5, 1, 3]]",
+  "X6": "[[8, 0.25, 6, 10]]",
+  "X7": "[[0]]",
+  "X8": "[[0]]",
+  "X9": "[[0]]",
+  "X10": "[[0]]",
 
+  "startPoint": "[[10, 0.1, 5, 15], [100, 0.5, 50, 150], [5, 0.2, 3, 7], [50, 0.1, 40, 60], [1, 0.5, 0.5, 2], [8, 0.25, 6, 10], [0], [0], [0], [0]]"
+}
+
+
+
+# Shape: (total_iterations, num_variables, 3)
+Map = [
+    # Iteration 0
+    [
+        [x1calculatedwcavalue ,x12calculatedwcavalue...],  # X1
+        [x2calculatedwcavalue ,x22calculatedwcavalue...],  # X2
+        [x3calculatedwcavalue ,x32calculatedwcavalue...],  # X3
+
+        ...  # up to X10
+    ],
+    
+ 
+    
+    # ... more iterations
+    
+    # Last iteration (nominal)
+    [
+        [x1_nominal, x1_min, x1_max],  # X1 (nominal value)
+        [x2_nominal, x2_min, x2_max],  # X2
+        [x3_nominal, x3_min, x3_max],  # X3
+        ...
+    ]
+]
+    def binary_index(self, iteration, index):
+      
+        bin_idx = math.floor(iteration / (2 ** index)) - 2 * math.floor(iteration / (2 ** (index + 1)))
+        return bin_idx
+    
+    def WCA(self, iteration, Xs):
+      
+        results = []
+        for i, var_data in enumerate(Xs):
+            if var_data == [[0]]:
+                results.append([0])  # WCA unused variables become [0, 0, 0]
+                continue
+                
+            wca_values = []
+            for j, (nom, tol, min_val, max_val) in enumerate(var_data):
+                if tol <= 1:
+                    # Absolute tolerance
+                    x = self.funtol(Abs_rel=True, iteration=iteration, index=i, nom=nom, tol=tol)
+                else:
+                    # Relative tolerance
+                    x = self.funtol(Abs_rel=False, iteration=iteration, index=i, nom=nom, tol=tol)
+                
+                wca_value = min(max(x,min_val),max_val)
+                
+                wca_values.append(wca_value)
+            
+            results.append(wca_values)
+            
+        return results
+    
+    def funtol(self, Abs_rel, iteration, index, nom, tol):
+      
+        if Abs_rel:
+            if self.binary_index(iteration, index):
+                return nom * tol
+            else:
+                return nom / tol
+        else:
+            if self.binary_index(iteration, index):
+                return nom * (1 + tol)
+            else:
+                return nom * (1 - tol)
+ 
 
 in normal case 
 # # Shape: (total_iterations, num_variables)
@@ -104,6 +158,35 @@ in case normal [permute true]
 
 }  
 
+
+
+{
+
+  "X1"            :  "[0]",
+  "X2"            :  "[35,75]",
+  "X3"            :  "[200,300]",
+  "X4"            :  "[10.5,11.5]",
+  "X5"            :  "[500]",
+  "X6"            :  "[0]",
+  "X7"            :  "[0]",
+  "X8"            :  "[0]",
+  "X9"            :  "[0]",
+  "X10"           :  "[0]",
+  "sweepNames"    :   ["X1","X2","X3","X4","X5","X6","X7","X8","X9","X10"],
+  "startPoint"    :   "[0,35,200,10.5,500,0,0,0,0,0]",
+  "maxThreads"    :   4,
+  "parallel"      :   true,
+  "permute"       :   true,
+
+}
+
+in normal case 
+# # Shape: (total_iterations, num_variables)
+# Map = [
+#     [x1_value, x2_value, x3_value, ..., x10_value],  # Iteration 0
+#     [x1_value, x2_value, x3_value, ..., x10_value],  # Iteration 1
+#     ...  # more iterations
+# ]
 
 #?-------------------------------------------------------------------------------------------------------------------------------------------------------------
 class Processing:
@@ -230,176 +313,3 @@ class Processing:
         self.Map,self.Iterations =   self.postProcessing.findPoint(self.matrix,self.idx,pattern)
         self.iterNumber          =   0
   
-#--------------------------------------------------------------------------------------------------------------------------------------------------------------
-import os,sys
-sys.path.insert(1,os.getcwd() + '/Script/assets')
-import Dependencies as dp
-
-#?-------------------------------------------------------------------------------------------------------------------------------------------------------------
-class SimulationUtils:
-
-    def __init__(self):
-
-        self.sweepMatrix,self.startPoint                = [],[]                         # Define starting point of sweep
-        self.idx, self.matrix                           = '', ''                        # Define order of sweep
-        self.postProcessing                             = dp.PP.Processing()            # Call the Post-Processing class and point to log data
-        self.Map, self.Iterations                       = '', 1                         #
-        self.iterNumber, self.Threads, self.Simulations = 1, 1, 1                       #
-        self.threads_vector                             = []                            #
-        self.iter_continuous                            = 0                             #
-        self.iter_10s                                   = 0                             #
-        self.MAT_list                                   = ''                            #
-        self.__dict__.update({f"MAT{i}": " " for i in range(1, 13)})                    #
-
-    def simThreads(self, desired_threads=1):
-        """
-        Calculates the number of threads that should be used for a simulation.
-
-        Args:
-            desired_threads (int): The number of threads requested.
-
-        Returns:
-            int: The number of threads that will be used, limited by available CPU cores.
-        """
-        return min(dp.multiprocessing.cpu_count(), desired_threads)
-
-    def paralellThreads(self, Threads, Iterations):
-        """
-        Determines the optimal number of parallel threads for a given number of iterations.
-
-        Args:
-        Threads (int): The maximum number of threads that can be used simultaneously.
-        Iterations (int): The total number of iterations that need to be completed.
-
-        Returns:
-        int: The optimal number of parallel threads to use.
-
-        Raises:
-        ValueError: If Threads or Iterations are not positive integers.
-
-        Example:
-        If Threads=4 and Iterations=16, the function will return 4 because it is the maximum number of threads that can be used to complete all iterations simultaneously.
-        """
-        if not isinstance(Threads, int) or not isinstance(Iterations, int) or Threads <= 0 or Iterations <= 0:
-            raise ValueError("Threads and Iterations must be positive integers.")
-
-        for i in range(Threads, 0, -1):
-            remainder = Iterations % i
-            if remainder == 0:
-                return i
-
-        return 1
-
-    def init_sim(self,maxThreads=1,startPoint=[0,0,0,0,0,0,0,0,0,0],X1=[0],X2=[0],X3=[0],X4=[0],X5=[0],X6=[0],X7=[0],X8=[0],X9=[0],X10=[0],pattern=True,model='DCDC'):
-        """
-        Initialize a simulation.
-
-        Parameters
-        ----------
-        maxThreads : int, optional
-            Maximum number of threads to use for parallel simulations, default is 1.
-        startPoint : list of 10 floats, optional
-            Starting point of the parameter sweep, default is [0,0,0,0,0,0,0,0,0,0].
-        X1, X2, X3, X4, X5, X6, X7, X8, X9, X10 : list of floats, optional
-            Lists of parameter values to sweep over. Each list must have at least one value.
-        pattern : bool, optional
-            If True, perform a patterned sweep, otherwise perform a full sweep, default is True.
-        model : str, optional
-            The type of model to use, either 'DCDC' or 'OBC', default is 'DCDC'.
-
-        Returns
-        -------
-        None
-        """
-        # define starting point of sweep
-        self.sweepMatrix         =   [X1,X2,X3,X4,X5,X6,X7,X8,X9,X10]
-        self.startPoint          =   startPoint
-
-        # define order of sweep
-        self.idx ,itrr           =   self.postProcessing.findIndex(self.startPoint,self.sweepMatrix,pattern)
-        self.matrix              =   self.postProcessing.findStart(self.sweepMatrix,self.idx,pattern)
-        self.Map,self.Iterations =   self.postProcessing.findPoint(self.matrix,self.idx,pattern)
-        self.iterNumber          =   0
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-def binary_index(iteration, index):
-    """
-    Calculate the binary index for a given iteration and index.
-    """
-    import math
-    bin_idx = math.floor(iteration / (2 ** index)) - 2 * math.floor(iteration / (2 ** (index + 1)))
-    return bin_idx
-
-def WCA(iteration, variables_dict):
-    """
-    Perform Worst Case Analysis on all variables.
-    
-    Args:
-        iteration (int): The current iteration number
-        variables_dict (dict): Dictionary containing variable data in format:
-                            {"X1": [[value, tol], [value, tol], ...], 
-                             "X2": [[value, tol], ...],
-                             "X10": [[0]]}
-    
-    Returns:
-        dict: Dictionary with WCA values for each variable
-    """
-    def funtol(Abs_rel, iteration, index, nom, tol):
-        if Abs_rel:
-            if binary_index(iteration, index):
-                return nom * tol
-            else:
-                return nom / tol
-        else:
-            if binary_index(iteration, index):
-                return nom * (1 + tol)
-            else:
-                return nom * (1 - tol)
-    
-    results = {}
-    
-    for i, (var_name, var_data) in enumerate(variables_dict.items()):
-        # Skip variables that are not used (have [[0]])
-        if var_data == [[0]]:
-            results[var_name] = 0
-            continue
-            
-        # Calculate WCA for each value-tolerance pair in the variable
-        wca_values = []
-        for j, (nom, tol) in enumerate(var_data):
-            wca_value = funtol(Abs_rel=True, iteration=iteration, index=i, nom=nom, tol=tol)
-            wca_values.append(wca_value)
-        
-        results[var_name] = wca_values
-    
-    return results
-
-# Example usage:
-variables = {
-    "X1": [[2.5, 0.6], [2.5, 0.6], [2.5, 0.6], [2.5, 0.6]],
-    "X2": [[2.5, 0.6], [2.5, 0.6], [2.5, 0.6], [2.5, 0.6]],
-    "X3": [[2.5, 0.6], [2.5, 0.6], [2.5, 0.6], [2.5, 0.6]],
-    "X4": [[2.5, 0.6], [2.5, 0.6], [2.5, 0.6], [2.5, 0.6]],
-    "X5": [[2.5, 0.6], [2.5, 0.6], [2.5, 0.6], [2.5, 0.6]],
-    "X6": [[2.5, 0.6], [2.5, 0.6], [2.5, 0.6], [2.5, 0.6]],
-    "X7": [[2.5, 0.6], [2.5, 0.6], [2.5, 0.6], [2.5, 0.6]],
-    "X8": [[2.5, 0.6], [2.5, 0.6], [2.5, 0.6], [2.5, 0.6]],
-    "X9": [[2.5, 0.6], [2.5, 0.6], [2.5, 0.6], [2.5, 0.6]],
-    "X10": [[0]]  # Not used
-}
-
-# Test with different iterations
-for iteration in range(4):
-    results = WCA(iteration, variables)
-    print(f"Iteration {iteration}: {results}")
