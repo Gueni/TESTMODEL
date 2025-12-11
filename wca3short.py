@@ -10,54 +10,36 @@ class Processing:
         pass
     
     def detect_mode(self, Xs):
-        """
-        Detect if input is WCA mode or normal mode based on parameter format.
-        
-        Args:
-            Xs (list): List of parameter lists for X1-X10
-            
-        Returns:
-            str: "WCA" if parameters contain tolerance data (4 elements per sublist),
-                 "NORMAL" if parameters contain single values only (1 element per sublist)
-        """
-        # Check each parameter list
         for var in Xs:
-            # Skip unused parameters (marked as [[0]] or [0])
             if var == [[0]] or var == [0]:
                 continue
-            # Check each sublist within the parameter
             for sub in var:
-                # 4 elements means [nominal, tolerance, min, max] -> WCA mode
-                if len(sub) == 4: 
-                    return "WCA"
-                # 1 element means single value -> NORMAL mode  
-                elif len(sub) == 1: 
+                # Protect against flattened matrix (sub can be an int)
+                if not isinstance(sub, list):
                     return "NORMAL"
-        # Default to NORMAL if no parameters specified
+                # WCA format
+                if len(sub) == 4:
+                    return "WCA"
+                # Normal format
+                elif len(sub) == 1:
+                    return "NORMAL"
+
         return "NORMAL"
-    
-    def binary_index(self, iteration, index):
+
+    def binary_index(self, iteration, index, active):
         """
-        Extract a specific bit from the iteration number for WCA binary encoding.
-        
-        Args:
-            iteration (int): Current iteration number (0 to 2^n-1)
-            index (int): Which bit to extract (0 = least significant bit)
-            
-        Returns:
-            int: 0 or 1 representing the bit value at the specified position
-            
-        Note:
-            - For WCA analysis with n active parameters, we generate 2^n iterations
-            - Each iteration's binary representation determines tolerance application:
-              bit=0 -> apply lower tolerance (nom/tol or nom*(1-tol))
-              bit=1 -> apply higher tolerance (nom*tol or nom*(1+tol))
+        Extract correct bit so that X1 changes slowest and Xn fastest.
         """
-        # Use bitwise operations for efficiency:
-        # 1. Right shift moves the target bit to LSB position
-        # 2. AND with 1 extracts only the LSB (masking all other bits)
-        bit_value = (iteration >> index) & 1
-        print(f"Binary index for iteration {iteration}, index {index}: {bit_value}")
+        # index is global parameter index 0..9
+        # active is list of active WCA parameter indices (e.g. [0,1,2])
+
+        active_index = active.index(index)        # position inside active list
+        n_active = len(active)
+
+        # Reverse bit significance
+        bit_position = n_active - 1 - active_index
+
+        bit_value = (iteration >> bit_position) & 1
         return bit_value
     
     def funtol(self, Abs_rel, iteration, index, nom, tol):
@@ -82,8 +64,10 @@ class Processing:
             - For relative tolerance (tol > 1, interpreted as percentage):
                 Upper: nom * (1 + tol/100), Lower: nom * (1 - tol/100)
         """
+        active = self.get_active_wca_params(self.sweepMatrix)
+
         # Check the bit for this parameter in current iteration
-        if self.binary_index(iteration, index):
+        if self.binary_index(iteration, index, active):
             # Bit is 1: apply upper tolerance (increase value)
             return nom * tol if Abs_rel else nom * (1 + tol)
         # Bit is 0: apply lower tolerance (decrease value)
@@ -303,16 +287,18 @@ class Processing:
         matrix_vals = self.extract_values(matrix)
         
         if not pattern:
-            # ============ NON-PATTERN MODE ============
-            # Transpose the matrix: each row becomes one parameter's values
-            max_len = max(len(v) for v in matrix_vals)
-            # Pad shorter lists with zeros for equal length
-            padded = [v + [0] * (max_len - len(v)) if v != [0] else [0] * max_len 
-                     for v in matrix_vals]
-            # Transpose: convert columns to rows
-            transposed = np.array(padded).T
-            
-            return transposed, len(padded[0]) if padded else 0
+                # ================= Sequential sweep =================
+                # Pad each parameter list to max length by repeating last value
+                max_len = max(len(v) if v != [0] else 1 for v in matrix_vals)
+                padded = []
+                for v in matrix_vals:
+                    if v == [0]:
+                        padded.append([0]*max_len)
+                    else:
+                        padded.append(v + [v[-1]]*(max_len - len(v)))
+                # Transpose to iteration-wise rows
+                Map2D = np.array(padded).T.tolist()
+                return Map2D, len(Map2D)
         
         # ============ PATTERN MODE ============
         # Generate full Cartesian product of all parameter combinations
@@ -402,39 +388,66 @@ class Processing:
         """
         # Store all parameters in a single list
         self.sweepMatrix = [X1, X2, X3, X4, X5, X6, X7, X8, X9, X10]
-        # Set starting point or use default
-        self.startPoint = startPoint or self._default_startpoint()
+       
         self.maxThreads, self.model = maxThreads, model
         
         # Detect operation mode from parameter format
         self.mode = self.detect_mode(self.sweepMatrix)
         
         if self.mode == "WCA":
-            # ============ WCA INITIALIZATION ============
-            # Get active WCA parameters
+
+            # Build reduced matrix containing only FIRST WCA sublist for each Xi
+            reduced_matrix = [var if var in ([[[0]], [0]]) else [var[0]] for var in self.sweepMatrix]
+
+            # If user provided startPoint → determine its WCA iteration
+            if startPoint is not None:
+                self.idx, self.itrr = self.findIndex(startPoint, self.sweepMatrix, pattern=True)
+                print(f"WCA mode detected. Using user startPoint at WCA iteration {self.itrr}.")
+            else:
+                # Default: WCA iteration 0 using reduced matrix
+                default_sp = self.calculate_wca_values(0, reduced_matrix)
+                self.idx, self.itrr = self.findIndex(default_sp, self.sweepMatrix, pattern=True)
+                print(f"WCA mode detected. Default startPoint = iteration 0 values.")
+
+            # Set startPoint to the resolved iteration
+            self.startPoint = self.calculate_wca_values(self.itrr, self.sweepMatrix)
+
+            # Build full WCA map
             active = self.get_active_wca_params(self.sweepMatrix)
-            # Calculate iterations: 2^n WCA combinations + 1 nominal
             self.wca_iterations = 2 ** len(active)
             self.Iterations = self.wca_iterations + 1
-            
-            # Generate WCA map (3D structure)
+
             self.Map = []
             for iter_num in range(self.Iterations):
                 if iter_num == self.Iterations - 1:
-                    # Last iteration: nominal values only
-                    self.Map.append([[sub[0] for sub in var] if var not in [[[0]], [0]] else [0] 
-                                   for var in self.sweepMatrix])
+                    # Nominal values
+                    self.Map.append(
+                        [[sub[0] for sub in var] if var not in [[[0]], [0]] else [0]
+                        for var in self.sweepMatrix]
+                    )
                 else:
-                    # WCA iteration: apply tolerance based on binary encoding
                     self.Map.append(self.calculate_wca_values(iter_num, self.sweepMatrix))
-            
-            # Create 2D map for compatibility (flatten 3D structure)
-            self.Map2D = [sum((list(p) if isinstance(p, list) else [p] for p in row), []) 
-                         for row in self.Map]
+
+            # Slice WCA sequence from startPoint iteration
+            self.Map = self.Map[self.itrr:]
+
+            # Flatten for 2D representation
+            self.Map2D = [
+                sum((list(p) if isinstance(p, list) else [p] for p in row), [])
+                for row in self.Map
+            ]
+
+
         else:
             # ============ NORMAL INITIALIZATION ============
             self.pattern = pattern
-            
+             # Set starting point or use default
+            self.startPoint = [
+                (var[0][0] if isinstance(var, list) and isinstance(var[0], list) else 0)
+                if var not in ([[[0]], [0]]) else 0
+                for var in self.sweepMatrix
+            ]
+
             # Find starting index in parameter space
             self.idx, self.itrr = self.findIndex(self.startPoint, self.sweepMatrix, pattern)
             # Get starting matrix structure
@@ -446,23 +459,10 @@ class Processing:
         
         # Initialize iteration counter
         self.iterNumber = 0
+        print("self.startPoint =", self.startPoint)
         
         return self  # Return self for method chaining
     
-    def _default_startpoint(self):
-        """
-        Generate default starting point from parameter lists.
-        
-        Returns:
-            list: Default starting point using first value of each parameter
-            
-        Note:
-            For parameters with multiple values, uses the first value.
-            For unused parameters ([0] or [[0]]), uses [0].
-        """
-        return [[sub[0] if isinstance(sub, list) and sub else sub for sub in var] 
-                if var not in [[[0]], [0]] else [0] for var in self.sweepMatrix]
-
 
 # ================== TESTING EXAMPLES ==================
 
@@ -472,13 +472,14 @@ if __name__ == "__main__":
     # ============ NORMAL MODE EXAMPLE ============
     print("=== NORMAL MODE TEST ===")
     # Normal input: single values in sublists
-    X1 = [[10], [20]]
-    X2 = [[100]]
-    X3 = [[5], [15], [25]]
+    # For NORMAL mode (single values)
+    X1 = [[v] for v in range(10, 41, 5)]  # [[10], [15], [20], ..., [40]]
+    X2 = [[v] for v in range(100, 201, 50)]  # [[100], [150], [200]]
+    X3 = [[v] for v in range(5, 26, 10)]    # [[5], [15], [25]]
+
     
     sim = processing.init_sim(
         maxThreads=2,
-        startPoint=[[10], [100], [5], [0], [0], [0], [0], [0], [0], [0]],
         X1=X1, X2=X2, X3=X3,
         X4=[[0]], X5=[[0]], X6=[[0]], X7=[[0]], X8=[[0]], X9=[[0]], X10=[[0]],
         pattern=True
@@ -493,19 +494,18 @@ if __name__ == "__main__":
     # WCA input: [nominal, tolerance, min, max] format
     X1 = [[10, 0.1, 5, 15], [20, 0.2, 15, 25]]
     X2 = [[100, 0.5, 50, 150]]
+    X3 = [[6.5, 0.1, 5, 10], [15.5, 0.2, 10, 20], [25.5, 0.3, 20, 30]]  
     
     sim = processing.init_sim(
         maxThreads=2,
-        startPoint=[[10, 20], [100], [0], [0], [0], [0], [0], [0], [0], [0]],
+        # startPoint=  [[5, 15], [150], [10, 20, 30], [0], [0], [0], [0], [0], [0], [0]],
         X1=X1, X2=X2,
-        X3=[[0]], X4=[[0]], X5=[[0]], X6=[[0]], X7=[[0]], X8=[[0]], X9=[[0]], X10=[[0]]
+        X3=X3, X4=[[0]], X5=[[0]], X6=[[0]], X7=[[0]], X8=[[0]], X9=[[0]], X10=[[0]]
     )
     
     print("WCA mode - All combinations:")
     for i, combo in enumerate(sim.Map):
         print(f"  Iteration {i}: {combo}")
     
-    print("\nWCA mode - Binary index pattern demonstration:")
-    print("  Each parameter's bit determines tolerance application:")
-    print("  bit=0 -> lower tolerance, bit=1 -> higher tolerance")
-    print("  With 2 active parameters: 2² = 4 WCA iterations + 1 nominal")
+    x1,x2,x3,x4,x5,x6,x7,x8,x9,x10 = range(10)
+    print(sim.Map[0][x1][0])  # First iteration values
