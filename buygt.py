@@ -1,76 +1,58 @@
+#!========================================================
+import os, natsort
+csv_maps_dir        = dp.os.path.join(fileLog.resultfolder, "CSV_MAPS")
+standalone_files    = [f for f in natsort.natsorted(os.listdir(csv_maps_dir)) if f.startswith('Standalone') and f.endswith('_MAP.csv')]
+standalone_exist    = len(standalone_files) == 5  # RMS, AVG, MAX, MIN, FFT
 
-    def detect_mode(self, Xs):
+if standalone_exist:
+    # Load headers from time series standalone files
+    csv_time_series_dir     = dp.os.path.join(fileLog.resultfolder, "CSV_TIME_SERIES")
+    time_series_files       = natsort.natsorted(glob.glob(csv_time_series_dir + "/*Standalone*.csv"))
+    
+    if time_series_files:
+        df              = dp.pd.read_csv(time_series_files[0])
+        headers_list    = df.columns[1:].tolist()  # Skip first column (Time)
+    
+    mat_names           = ["Standalone_RMS","Standalone_AVG","Standalone_MAX","Standalone_MIN","Standalone_FFT"]
+    FFT_headers         = headers_list  # Assuming same headers for FFT
+    headers_array       = headers_list 
+    
+    # Load matrices from standalone MAP files
+    standalone_matrices = {}
+    for file_type, file_name in zip(['RMS', 'AVG', 'MAX', 'MIN', 'FFT'], mat_names):
+        file_path = dp.os.path.join(csv_maps_dir, file_name + '_MAP.csv')
+        if dp.os.path.exists(file_path):
+            df = dp.pd.read_csv(file_path, header=None)
+            # Skip header row if present
+            if df.shape[0] > 0 and any(isinstance(val, str) for val in df.iloc[0]):
+                df = df.iloc[1:]
+            standalone_matrices[file_type] = df.values.astype(float)
+    
+    # Combine non-FFT matrices
+    combined_matrix = None
+    for file_type in ['RMS', 'AVG', 'MAX', 'MIN']:
+        if file_type in standalone_matrices:
+            if combined_matrix is None:
+                combined_matrix = standalone_matrices[file_type]
+            else:
+                combined_matrix = dp.np.hstack((combined_matrix, standalone_matrices[file_type]))
+    
+    # FFT matrix
+    combined_fft_matrix = standalone_matrices.get('FFT')
+    
+else:
+    #!========================================================
+    # Define matrix and header name same order as in Y_length and get the headers lists accordingly.
+    mat_names           = ["Peak_Currents","RMS_Currents","AVG_Currents","Peak_Voltages","RMS_Voltages","AVG_Voltages","FFT_Current","FFT_Voltage","Dissipations","Elec_Stats","Temps","Thermal_Stats"]
+    headers_lists       = [data if isinstance((data := dp.json.load(open(dp.os.path.join(header_path, f"{name}.json")))), list) else [data] for name in mat_names]
 
-        for var in Xs:
-            if var == [[0]] or var == [0]   :    continue
-            for sub in var:
-                # WCA if [nom, tol] or [nom, tol, min, max]
-                if len(sub) in (2, 4)       :   return "WCA"
-                elif len(sub) == 1          :   return "NORMAL"
+    # Define sum cumulative increment and slice to get signals and fft headers lists.
+    cumsum              = dp.np.cumsum(dp.Y_Length[1:]).tolist()
+    all_headers         = sum(headers_lists, [])
+    fft_start, fft_end  = cumsum[5], cumsum[7]
+    FFT_headers         = all_headers[fft_start:fft_end]
+    headers_array       = all_headers[:fft_start] + all_headers[fft_end:]
 
-        return "NORMAL"
-
-    def calculate_wca_values(self, iteration, Xs):
-        """
-        Calculate WCA values for all parameters in a given iteration.
-        
-        Parameters:
-            iteration   (int)   : Current WCA iteration number
-            Xs          (list)  : List of parameter lists for X1-X10
-            
-        Returns   :     (list)  : 3D list of calculated WCA values for all parameters
-            
-        """
-        results = []
-
-        for i, var in enumerate(Xs):
-            # Unused parameter
-            if var == [[0]] or var == [0]:
-                results.append([0])
-                continue
-
-            wca_vals = []
-
-            for sub in var:
-                # No tolerance
-                if len(sub) == 1:
-                    wca_vals.append(sub[0])
-                    continue
-
-                # ---- WCA formats ----
-                if len(sub) in (2, 4):
-                    nom, tol = sub[0], sub[1]
-
-                    # Default bounds if not provided
-                    if len(sub) == 4:
-                        mn, mx = sub[2], sub[3]
-                    else:
-                        mn, mx = -dp.np.inf, dp.np.inf
-
-                    # tol <= 1  → absolute
-                    # tol > 1   → relative
-                    tol_type = tol <= 1
-
-                    x = self.funtol(tol_type, iteration, i, nom, tol)
-
-                    # Clamp
-                    wca_vals.append(min(max(x, mn), mx))
-                    continue
-
-                # Fallback (should never happen, but safe)
-                wca_vals.append(sub[0])
-
-            results.append(wca_vals)
-
-        return results
-
-    def get_active_wca_params(self, Xs):
-        """
-        Identify which parameters X lists are used.
-        
-        Parameters  :   Xs (list): List of parameter lists for X1-X10
-            
-        Returns     :      (list): Indices of parameters that have WCA format
-            
-        """
-        return [i for i, var in enumerate(Xs) if var not in [[[0]], [0]] and len(var) > 0 and isinstance(var[0], list) and len(var[0]) in (2, 4)]
+    # Combined matrix for signals and ffts
+    combined_matrix     = dp.np.hstack((simutil.MAT_list[:6] + simutil.MAT_list[8:12]))
+    combined_fft_matrix = dp.np.hstack((simutil.MAT_list[6:8]))
