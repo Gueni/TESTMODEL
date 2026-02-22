@@ -1,3 +1,6 @@
+
+
+
 # WCA (Worst Case Analysis) Feature Documentation
 
 ## Overview
@@ -6,12 +9,11 @@ The Worst Case Analysis (WCA) feature allows you to analyze how component tolera
 
 ## How it Works
 
-
 The WCA algorithm is based on binary encoding of parameter states:
 
 1. **Binary Representation**: Each parameter's state is represented by a single bit
-   - Bit = 0 → Parameter at lower tolerance limit (minimum value)
-   - Bit = 1 → Parameter at upper tolerance limit (maximum value)
+   - **Bit = 1 → Parameter at lower tolerance limit (minimum value)**
+   - **Bit = 0 → Parameter at upper tolerance limit (maximum value)**
 
 2. **Combination Generation**: For n parameters with tolerances, we generate:
    - **2ⁿ worst-case combinations**: All possible permutations of min/max values
@@ -21,15 +23,15 @@ The WCA algorithm is based on binary encoding of parameter states:
 3. **Example with 3 parameters**:
 ```
 Binary    Parameter States
-000  →  [min, min, min]
-001  →  [min, min, max]
-010  →  [min, max, min]
-011  →  [min, max, max]
-100  →  [max, min, min]
-101  →  [max, min, max]
-110  →  [max, max, min]
-111  →  [max, max, max]
----  →  [nom, nom, nom]  (nominal case)
+000  →  [max, max, max]   (all bits 0 = all at upper limit)
+001  →  [max, max, min]   (bit 0=1 → X1 at min, others at max)
+010  →  [max, min, max]   (bit 1=1 → X2 at min, others at max)
+011  →  [max, min, min]   (bits 0,1=1 → X1,X2 at min, X3 at max)
+100  →  [min, max, max]   (bit 2=1 → X3 at min, others at max)
+101  →  [min, max, min]   (bits 0,2=1 → X1,X3 at min, X2 at max)
+110  →  [min, min, max]   (bits 1,2=1 → X2,X3 at min, X1 at max)
+111  →  [min, min, min]   (all bits 1 = all at lower limit)
+---  →  [nom, nom, nom]   (nominal case)
 ```
 
 ### Tolerance Types
@@ -101,8 +103,9 @@ The JSON input file is where you define all your WCA parameters. Here's an extre
 }
 ```
 
+### Understanding WCA Iterations (Original - Needs Correction)
 
-### Understanding WCA Iterations
+**Note**: The section below shows the original calculation which needs to be updated. Please see the corrected sections that follow.
 
 For our example with 8 active parameters (X1, X2, X3, X4, X6, X7, X8, X9):
 
@@ -122,10 +125,81 @@ Iteration 255: [max, max, max, max, max, max, max, max]  (binary 11111111)
 Iteration 256: [nom, nom, nom, nom, nom, nom, nom, nom]  (nominal case)
 ```
 
+### Active Parameters Analysis
 
+In your JSON, the active parameters (those with actual WCA data, not `[[0]]`) are:
 
+| Parameter | Status | Reason |
+|-----------|--------|--------|
+| **X1** | ✅ ACTIVE | Contains 4 sublists with [nom, tol, min, max] |
+| **X2** | ✅ ACTIVE | Contains 4 sublists with [nom, tol, min, max] |
+| **X3** | ✅ ACTIVE | Contains 4 sublists with [nom, tol, min, max] |
+| **X4** | ✅ ACTIVE | Contains 4 sublists with [nom, tol, min, max] |
+| **X5** | ✅ ACTIVE | Contains 4 sublists with [nom, tol, min, max] |
+| **X6** | ✅ ACTIVE | Contains 4 sublists with [nom, tol, min, max] |
+| **X7** | ✅ ACTIVE | Contains 4 sublists with [nom, tol, min, max] |
+| **X8** | ✅ ACTIVE | Contains 4 sublists with [nom, tol, min, max] |
+| **X9** | ✅ ACTIVE | Contains 4 sublists with [nom, tol, min, max] |
+| **X10** | ❌ INACTIVE | `[[0]]` (unused) |
 
+**Number of active parameters (n) = 9** (X1 through X9)
 
+### Corrected Iteration Count
+
+```
+Total WCA iterations = 2ⁿ + 1
+                     = 2⁹ + 1
+                     = 512 + 1
+                     = 513 simulations
+```
+
+### Updated Iteration Organization (With Bit=1 for Min, Bit=0 for Max)
+
+With 9 active parameters and the new bit encoding (1=min, 0=max), the binary representation uses 9 bits:
+
+```
+Iteration 0:   [max, max, max, max, max, max, max, max, max]  (binary 000000000)  all bits 0 = all at upper limit
+Iteration 1:   [max, max, max, max, max, max, max, max, min]  (binary 000000001)  bit 0=1 → X1 at min
+Iteration 2:   [max, max, max, max, max, max, max, min, max]  (binary 000000010)  bit 1=1 → X2 at min
+Iteration 3:   [max, max, max, max, max, max, max, min, min]  (binary 000000011)  bits 0,1=1 → X1,X2 at min
+Iteration 4:   [max, max, max, max, max, max, min, max, max]  (binary 000000100)  bit 2=1 → X3 at min
+Iteration 5:   [max, max, max, max, max, max, min, max, min]  (binary 000000101)  bits 0,2=1 → X1,X3 at min
+Iteration 6:   [max, max, max, max, max, max, min, min, max]  (binary 000000110)  bits 1,2=1 → X2,X3 at min
+Iteration 7:   [max, max, max, max, max, max, min, min, min]  (binary 000000111)  bits 0,1,2=1 → X1,X2,X3 at min
+...
+Iteration 511: [min, min, min, min, min, min, min, min, min]  (binary 111111111)  all bits 1 = all at lower limit
+Iteration 512: [nom, nom, nom, nom, nom, nom, nom, nom, nom]  (nominal case)
+```
+
+### Parameter to Bit Mapping (Updated)
+
+For 9 parameters with the new encoding (1=min, 0=max), the bit significance (from LSB to MSB) is:
+
+```
+Parameter:  X9   X8   X7   X6   X5   X4   X3   X2   X1
+Bit:        MSB                              LSB
+Position:   8    7    6    5    4    3    2    1    0
+
+Example - Iteration 01 (binary 000000001):
+Bits:       0    0    0    0    0    0    0    0    1
+            │    │    │    │    │    │    │    │    │
+            X9   X8   X7   X6   X5   X4   X3   X2   X1
+            max  max  max  max  max  max  max  max  min  (only X1 at min)
+
+Example - Iteration 256 (binary 100000000):
+Bits:       1    0    0    0    0    0    0    0    0
+            │    │    │    │    │    │    │    │    │
+            X9   X8   X7   X6   X5   X4   X3   X2   X1
+            min  max  max  max  max  max  max  max  max  (only X9 at min)
+
+Example - Iteration 511 (binary 111111111):
+Bits:       1    1    1    1    1    1    1    1    1
+            │    │    │    │    │    │    │    │    │
+            X9   X8   X7   X6   X5   X4   X3   X2   X1
+            min  min  min  min  min  min  min  min  min  (all at min)
+```
+
+*********************************************************************************************************************************
 
 
 
