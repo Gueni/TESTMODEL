@@ -1,36 +1,51 @@
-import pyautogui
+import os
 import time
-import subprocess
+import pyautogui
+import pygetwindow as gw
+import win32gui
+import win32con
 
-# Config - adjust these if needed
-plecs_path = r"C:\Program Files\Plexim\PLECS 4.7\plecs.exe"  # Change this to your PLECS path
-model_path = r"C:\path\to\your\model.plecs"  # Change this to your model path
+model_path = r"C:\path\to\your\model.plecs"
+model_name = os.path.basename(model_path).replace('.plecs', '')
 
-# Open PLECS
-subprocess.Popen([plecs_path])
-time.sleep(5)  # Wait for PLECS to open
+os.startfile(model_path)
+time.sleep(3)
 
-# Open the model
-pyautogui.hotkey('ctrl', 'o')
-time.sleep(1)
-pyautogui.write(model_path)
-pyautogui.press('enter')
-time.sleep(3)  # Wait for model to load
+# Print all windows to debug
+print("All windows with 'PLECS' in title:")
+plecs_windows = gw.getWindowsWithTitle('PLECS')
+for i, window in enumerate(plecs_windows):
+    print(f"Window {i}: {window}")
 
-# Click Edit menu
-pyautogui.click(100, 20)
-time.sleep(1)
-
-# Go down to 15th item (Break all external links)
-for i in range(15):
-    pyautogui.press('down')
-    time.sleep(0.1)
-pyautogui.press('enter')
-time.sleep(1)  # Wait for dialog to appear
-
-# Move to OK and click (tab twice to get to OK, assuming Cancel is default)
-pyautogui.press('tab')  # Move from Cancel to OK
-pyautogui.press('tab')  # Sometimes need two tabs
-pyautogui.press('enter')
-
-print("Done! Links broken.")
+if plecs_windows:
+    # Just use the first PLECS window (most reliable)
+    target_window = plecs_windows[0]
+    print(f"Using window: {target_window}")
+    
+    # Get handle using win32gui
+    def enum_windows_callback(hwnd, windows):
+        if win32gui.IsWindowVisible(hwnd):
+            window_text = win32gui.GetWindowText(hwnd)
+            if 'PLECS' in window_text:
+                windows.append((hwnd, window_text))
+        return True
+    
+    windows = []
+    win32gui.EnumWindows(enum_windows_callback, windows)
+    
+    # Find matching window
+    for hwnd, title in windows:
+        if model_name.lower() in title.lower():
+            print(f"Found matching window: {title}")
+            win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+            win32gui.SetForegroundWindow(hwnd)
+            time.sleep(1)
+            break
+    else:
+        # If no match, use first PLECS window
+        hwnd = windows[0][0]
+        win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+        win32gui.SetForegroundWindow(hwnd)
+        time.sleep(1)
+else:
+    print("No PLECS windows found")
