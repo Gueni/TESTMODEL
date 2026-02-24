@@ -277,59 +277,37 @@ if __name__ == "__main__":
 
 
 
-def iter_report_standalone(self, csv_files, html_path, auto_open):
-        """
-        Generates an iteration report in HTML format for a set of standalone CSV files located in a given directory.
+def wait_for_model(model_path, timeout=30):
+    """Block until model is confirmed open, then return"""
+    
+    # Open model
+    pyautogui.hotkey('ctrl', 'o')
+    time.sleep(0.5)
+    pyautogui.write(model_path)
+    pyautogui.press('enter')
+    
+    # BLOCK here - nothing past this line executes until model opens
+    model_name = os.path.basename(model_path)
+    start = time.time()
+    
+    while True:
+        windows = gw.getWindowsWithTitle('PLECS')
+        if windows and model_name in windows[0].title:
+            print(f"✓ Model '{model_name}' confirmed open")
+            time.sleep(1)  # Extra stability
+            return  # Exit function, continue main code
+        
+        if time.time() - start > timeout:
+            raise TimeoutError(f"Model '{model_name}' didn't open in {timeout}s")
+        
+        time.sleep(0.5)
 
-        Parameters:     csv_files (list)    list of the CSV standalone files.
-                        html_path (string)  The path where the HTML file should be saved.
-                        auto_open (bool)    If True, opens the generated HTML report in a new browser window automatically.
-        """
-        plot_items        =   ''
-        html_content      =   self.prep_html_template(Time_series = False)
-        fig_list = []
-        include_plotlyjs = 'cdn'
+# Usage - code after this line ONLY runs when model is confirmed open
+wait_for_model(model_path)
 
-        if len(csv_files) >= 1:
-            dfs = [dp.pd.read_csv(f) for f in csv_files]              # Read each csv into a Pandas dataframe
-
-            # Get all column names from the first CSV (assuming all CSVs have same structure)
-            if dfs:
-                all_columns = dfs[0].columns.tolist()
-                # Skip the first column (assuming it's time/x-axis)
-                plot_columns = all_columns[1:] if len(all_columns) > 1 else all_columns
-                plot_columns = [dp.re.sub(r'[^a-zA-Z0-9]', '_', each) for each in plot_columns] # for names
-
-                for each in plot_columns:
-                    fig = dp.make_subplots()
-                    C = 1
-                    for df in dfs:
-                        df.columns   = [dp.re.sub(r'[^a-zA-Z0-9]', '_', col) for col in df.columns] # for signal names
-                        signal_units = [dp.unit_map[dp.pattern.search(" ".join(s.split()[-2:])).group().lower()] if dp.pattern.search(" ".join(s.split()[-2:])) else "[-]" for s in df.columns.values]
-                        fig.add_trace(dp.go.Scatter(x = df.iloc[:, 0],y = df[each],name = str("Iter :" + str(C) + " | ") + each,mode = "lines",line = dict(shape='linear')))
-                        # Find which column index 'each' corresponds to in the current dataframe
-                        col_idx = df.columns.get_loc(each) if each in df.columns else 1
-                        fig.update_layout(showlegend = True,title = each, xaxis = dict(title='Time [S]'),yaxis = dict(side = "left",title = signal_units[col_idx], titlefont = dict(color="#1f77b4"),tickfont = dict(color="#1f77b4")),plot_bgcolor = '#f8fafd')
-                        C += 1
-                    fig_list.append(fig)
-                        # If 'iterSplit' is enabled in the JSON settings, a separate HTML report is generated for each key.
-                    if dp.JSON['iterSplit']:
-
-                        plot_items      +=  fig.to_html(full_html=False, include_plotlyjs=include_plotlyjs)
-                        html_content = html_content.replace("{{PLOT_ITEMS}}", plot_items)
-                        with open(html_path + "_Standalone_" + each + ".html", 'w', encoding='utf-8') as file: file.write(html_content)
-                        file.close()
-
-                # If 'iterSplit' is disabled in the JSON settings, a single consolidated HTML report is generated.
-                if not dp.JSON['iterSplit']:
-                    for fig_i in fig_list:
-                        plot_items      +=  fig_i.to_html(full_html=False, include_plotlyjs=include_plotlyjs)
-
-                    # Replace plot items
-                    html_content = html_content.replace("{{PLOT_ITEMS}}", plot_items)
-                    # Write the populated HTML
-                    with open(html_path + "_Standalone_Iterations.html", 'w', encoding='utf-8') as file: file.write(html_content)
-                    file.close()
-
-                # If auto_open is enabled, the generated HTML report is automatically opened in the default web browser.
-                if auto_open: dp.webbrowser.open(dp.pathlib.Path(html_path).absolute().as_uri())
+# ✅ REST OF CODE EXECUTES HERE - guaranteed model is open
+pyautogui.hotkey('alt', 'e')
+pyautogui.press('end')
+pyautogui.press('up')
+pyautogui.press('enter')
+print("Done!")
