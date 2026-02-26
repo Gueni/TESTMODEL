@@ -4,14 +4,12 @@ import glob
 def Open_Model(self, modelname):
     """
     Searches recursively for a .plecs model file and opens it.
-
-    Args:
-        modelname (str): Name of the PLECS model file (with or without .plecs)
+    Skips excluded top-level folders for speed.
     """
 
     root_dir = os.getcwd()
 
-    # 🔹 Folders to exclude (populate as needed)
+    # 🔹 Top-level folders to exclude
     excluded_folders = [
         "build",
         "archive",
@@ -19,19 +17,27 @@ def Open_Model(self, modelname):
         "__pycache__"
     ]
 
-    # Normalize model name (case-insensitive)
+    # Normalize model name
     if not modelname.lower().endswith(".plecs"):
         modelname += ".plecs"
-
     modelname = modelname.lower()
 
-    # 🔹 Single-pass search + filter + match
+    # 🔹 Build allowed top-level paths (root included)
+    allowed_dirs = [
+        os.path.join(root_dir, d)
+        for d in os.listdir(root_dir)
+        if os.path.isdir(os.path.join(root_dir, d)) and d not in excluded_folders
+    ] + [root_dir]  # include root itself
+
+    # 🔹 Build glob patterns for all allowed folders
+    patterns = [os.path.join(d, "**", "*.plecs") for d in allowed_dirs]
+
+    # 🔹 Flatten all matches into one list without loops
+    all_matches = sum((glob.glob(p, recursive=True) for p in patterns), [])
+
+    # 🔹 Case-insensitive filter
     model_path = next(
-        (
-            path for path in glob.iglob(os.path.join(root_dir, "**", "*.plecs"), recursive=True)
-            if os.path.basename(path).lower() == modelname
-            and not any(f"{os.sep}{excluded}{os.sep}" in path for excluded in excluded_folders)
-        ),
+        (p for p in all_matches if os.path.basename(p).lower() == modelname),
         None
     )
 
