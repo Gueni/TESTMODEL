@@ -1,52 +1,18 @@
-from jinja2 import Template
 import re
-
+from jinja2 import Environment, FileSystemLoader, Template
+import os
 
 def octave_sweep_script(mapvars, sweepnames, mappings):
-    """
-    Generate an Octave script for running simulations based on the provided sweep parameters and mappings.
-    
-    Args:
-        mapvars     (list): A list of lists containing the sweep parameters for each simulation.
-        sweepnames  (list): A list of names corresponding to each sweep parameter.
-        mappings    (dict): A dictionary mapping X variables to their corresponding mdlVars paths in Octave.
-    
-    Returns:
-                    str: The generated Octave script as a string.
-    """    
-    template = Template("""
-    % Simulation Sweep Script 
-    clear; clc;
 
-    %% Sweep data
-    data = [
-            {% for row in mapvars %}    [{{ row | join(', ') }}];
-            {% endfor %}
-        ];
 
-    fprintf('Running %d simulations...\\n\\n', size(data, 1));
-
-    for sim = 1:size(data, 1)
+    template_file='octave_sweep_template.m.j2'
+    # Create Jinja2 environment
+    env = Environment(loader=FileSystemLoader(os.getcwd()),trim_blocks=True,lstrip_blocks=True)
     
-        fprintf('Simulation %d of %d:\\n', sim, size(data, 1));
-        
-        % mdlVars = struct();
-        
-        {% for i in range(num_params) %}
+    # Load template
+    template = env.get_template(template_file)
     
-        {{ mappings[i+1] }} = data(sim, {{ i+1 }});
-    
-        fprintf('  {{ sweepnames[i] }}: %g\\n', data(sim, {{ i+1 }}));
-    
-        {% endfor %}
-        
-        fprintf('\\n');
-    end
-
-    fprintf('Complete! Ran %d simulations\\n', size(data, 1));
-                        
-    """)
-    
+    # Render template
     return template.render(mapvars=mapvars,sweepnames=sweepnames,mappings=mappings,num_params=len(sweepnames))
 
 def octave_sweep_mapping(file_path):
