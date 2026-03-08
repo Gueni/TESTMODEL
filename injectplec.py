@@ -1,84 +1,65 @@
-from jinja2 import Template
 import re
+from jinja2 import Environment, FileSystemLoader
+import os
 
-
-
-# Even simpler - just write the code directly without escaping newlines
 def inject_octave_simple(plecs_file_path, output_file_path, octave_code):
-    """
-    Simplest version - write code directly without newline escaping.
-    """
-    Script_name = "Script"
-    with open(plecs_file_path, 'r') as f:
-        content = f.read()
+
+    Script_name         = "Script"
     
-    # Only escape quotes, keep newlines as is
-    escaped_code = octave_code.replace('"', '\\"')
+    with open(plecs_file_path, 'r') as f: content = f.read()
     
+    escaped_code        = octave_code.replace('"', '\\"')
+    
+    # Create the new script section
     new_script_section = f'''  Script {{
     Name          "{Script_name}"
     Script        "{escaped_code}"
-  }}'''
+    }}'''
     
-    # Simple string replacement
-    script_pattern = 'Script {\n    Name          "Script"\n    Script        ""\n  }'
-    if script_pattern in content:
-        new_content = content.replace(script_pattern, new_script_section)
+    # CASE 1: Check for empty script section
+    empty_script_pattern = r'Script\s*{\s*Name\s+"Script"\s*Script\s+""\s*}'
+    if re.search(empty_script_pattern, content, re.DOTALL):
+        # Replace empty script section
+        new_content = re.sub(empty_script_pattern, new_script_section, content, flags=re.DOTALL)
+    
+    # CASE 2: Check for any script section (empty or not)
+    elif re.search(r'Script\s*{.*?}', content, re.DOTALL):
+        # Find all script sections and get the last one
+        script_sections = list(re.finditer(r'Script\s*{.*?}', content, re.DOTALL))
+        last_script = script_sections[-1]
+        
+        # Insert after the last script section
+        insert_pos = last_script.end()
+        new_content = content[:insert_pos] + '\n' + new_script_section + content[insert_pos:]
+    
+    # CASE 3: No script section at all
     else:
-        # Insert before end
-        end_pattern = '}\nDemoSignature'
-        if end_pattern in content:
-            new_content = content.replace(end_pattern, new_script_section + '\n}' + '\nDemoSignature')
+        # Find the last closing brace before DemoSignature
+        # The file typically ends with "}\nDemoSignature"
+        last_brace_pos = content.rfind('}')
+        
+        if last_brace_pos != -1:
+            # Insert before the last closing brace
+            new_content = content[:last_brace_pos] + '\n' + new_script_section + content[last_brace_pos:]
         else:
+            # Fallback: if no brace found, just append
             new_content = content + '\n' + new_script_section
     
-    with open(output_file_path, 'w') as f:
-        f.write(new_content)
-    
-    print(f"✅ Octave code injected into {output_file_path}")
-
-# Your existing code for generating Octave script
-from jinja2 import Template
+    # Write the modified content
+    with open(output_file_path, 'w') as f: f.write(new_content)
 
 def octave_sweep_script(mapvars, sweepnames, mappings):
-    """
-    Generate an Octave script for running simulations based on the provided sweep parameters and mappings.
-    """
-    template = Template("""
-    % Simulation Sweep Script 
-    clear; clc;
 
-    %% Sweep data
-    data = [
-            {% for row in mapvars %}    [{{ row | join(', ') }}];
-            {% endfor %}
-        ];
 
-    fprintf('Running %d simulations...\\n\\n', size(data, 1));
-
-    for sim = 1:size(data, 1)
+    template_file='octave_sweep_template.m.j2'
+    # Create Jinja2 environment
+    env = Environment(loader=FileSystemLoader(os.getcwd()),trim_blocks=True,lstrip_blocks=True)
     
-        fprintf('Simulation %d of %d:\\n', sim, size(data, 1));
-        
-        % mdlVars = struct();
-        
-        {% for i in range(num_params) %}
+    # Load template
+    template = env.get_template(template_file)
     
-        {{ mappings[i+1] }} = data(sim, {{ i+1 }});
-    
-        fprintf('  {{ sweepnames[i] }}: %g\\n', data(sim, {{ i+1 }}));
-    
-        {% endfor %}
-        
-        fprintf('\\n');
-    end
-
-    fprintf('Complete! Ran %d simulations\\n', size(data, 1));
-                        
-    """)
-    
-    return template.render(mapvars=mapvars, sweepnames=sweepnames, 
-                          mappings=mappings, num_params=len(sweepnames))
+    # Render template
+    return template.render(mapvars=mapvars,sweepnames=sweepnames,mappings=mappings,num_params=len(sweepnames))
 
 def octave_sweep_mapping(file_path):
     """
@@ -145,8 +126,6 @@ if __name__ == "__main__":
     
     # Generate Octave code
     octave_code = octave_sweep_script(mapvars, sweepnames, mappings)
-    print("\nGenerated Octave code:")
-    print("-" * 50)
     print(octave_code)
     
     # Inject into PLECS file

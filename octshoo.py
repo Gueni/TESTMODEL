@@ -84,6 +84,6 @@ mapvars = [
 
 sweepnames = ["Water Temperature", "Input Voltage", "Output Current"]
 mappings = octave_sweep_mapping(r'D:\WORKSPACE\TESTMODEL\ScriptBody.py')
-
+print("Extracted mappings:", mappings)
 code = octave_sweep_script(mapvars, sweepnames, mappings)
 print(code)
