@@ -1,0 +1,45 @@
+% Simulation Sweep Script 
+plecs('clc');                                   % Clear Console.
+plecs('warning', 'warning message');            % Display Warnings.
+
+%% Sweep data
+data = [
+    {% for row in mapvars %}    [{{ row | join(', ') }}];
+    {% endfor %}
+];
+
+% define mdlVars as empty struct in initialization
+% mdlVars    = struct();
+
+solverOpts = struct('StopTime', tSim);
+simStruct  = struct('mdlVars', mdlVars, 'SolverOpts', solverOpts);
+
+t = localtime(time());
+fprintf('Date               : %s\n', strftime("%r (%Z) %A %e %B %Y", t));
+fprintf('Time               : %s\n', strftime("%H:%M:%S", t));
+fprintf('Iterations         : %d\n', size(data, 1));
+
+for sim = 1:size(data, 1)
+
+    fprintf('\n');
+    %% ------------------------------------------------------------------------
+    fprintf('%s\n', '-' * ones(1, 90));
+    fprintf('Iteration Number   : %d\n\n', sim);
+    fprintf('\n');
+
+    {% for i, expr in mappings.items() %}
+    % Assign value
+    {{ expr }};
+    
+    % Print evaluated value
+    fprintf('%-50s = %12g\n','{{ expr.split("=")[0].strip() }}', eval('{{ expr.split("=")[0].strip() }}'));
+    {% endfor %}
+
+    fprintf('\n');
+    %% ------------------------------------------------------------------------
+    plecs('simulate', simStruct);
+    %% ------------------------------------------------------------------------
+end
+
+fprintf('\nComplete! Ran %d Iterations\n', size(data, 1));
+fprintf('%s\n', '-' * ones(1, 90));
