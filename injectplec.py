@@ -57,9 +57,9 @@ def octave_sweep_script(mapvars, sweepnames, mappings):
     
     # Load template
     template = env.get_template(template_file)
-    
+    filtered = [x for x in sweepnames if not (x.startswith("X") and x[1:].isdigit())]
     # Render template
-    return template.render(mapvars=mapvars,sweepnames=sweepnames,mappings=mappings,num_params=len(sweepnames))
+    return template.render(mapvars=mapvars,sweepnames=filtered,mappings=mappings,num_params=len(filtered))
 
 def octave_sweep_mapping(file_path):
     import re
