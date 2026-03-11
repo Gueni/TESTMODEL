@@ -1,53 +1,79 @@
-def format_octave_struct(model_vars_dict, solver_opts_var='SolverOpts'):
+def format_octave_struct_from_mappings(mappings, solver_opts_var='SolverOpts'):
     """
-    Formats first-order dictionary names for Octave struct syntax.
-    Creates nested struct structure with placeholder values.
+    Creates nested Octave struct based only on the paths found in ScriptBody mappings.
+    
+    Args:
+        mappings: Dictionary of mappings from octave_sweep_mapping
+                  Format: {1: 'simStruct.ModelVars.Common.Thermal.Twater = data{sim}{1}(1)', ...}
+        solver_opts_var: The name of the SolverOpts variable
+        
+    Returns:
+        A string with Octave struct syntax
     """
-    model_vars_names = []
+    # Extract all unique paths from mappings
+    paths = set()
+    for expr in mappings.values():
+        # Extract the left side of the assignment (the path)
+        path = expr.split('=')[0].strip()
+        # Remove 'simStruct.ModelVars.' prefix
+        if path.startswith('simStruct.ModelVars.'):
+            path = path[len('simStruct.ModelVars.'):]
+        paths.add(path)
     
-    # For each top-level dictionary (Common, DCDC_Rail1, etc.)
-    for key, value in model_vars_dict.items():
-        if isinstance(value, dict):
-            model_vars_names.append(key)
+    # Build nested structure from paths
+    nested_struct = build_nested_struct_from_paths(paths)
     
-    if model_vars_names:
-        # Build the nested struct structure
-        # This will create something like:
-        # struct('Common', struct('Thermal', struct('Twater', 0), 'Control', struct('Targets', struct('Vout', 0, 'Pout', 0))), 
-        #        'DCDC_Rail1', struct('Control', struct('Inputs', struct('Vin', 0, 'Iin', 0, 'Vout', 0, 'Pout', 0))))
-        
-        struct_parts = []
-        for name in model_vars_names:
-            # Get the actual dictionary for this name
-            top_dict = model_vars_dict.get(name, {})
-            
-            # Build the nested struct for this top-level dictionary
-            nested_struct = build_nested_struct(top_dict)
-            struct_parts.append(f"'{name}', {nested_struct}")
-        
-        model_vars_str = ', '.join(struct_parts)
-        model_vars_part = f"struct({model_vars_str})"
-    else:
-        model_vars_part = 'struct()'
-    
-    return f"simStruct = struct('ModelVars', {model_vars_part}, 'SolverOpts', {solver_opts_var});"
+    return f"simStruct = struct('ModelVars', {nested_struct}, 'SolverOpts', {solver_opts_var});"
 
-def build_nested_struct(d, indent=0):
+def build_nested_struct_from_paths(paths):
     """
-    Recursively builds a nested struct string from a dictionary.
-    """
-    if not isinstance(d, dict):
-        # This shouldn't happen as we only call on dicts
-        return '0'
+    Recursively builds a nested struct string from a set of dot-separated paths.
     
+    Example paths:
+        'Common.Thermal.Twater'
+        'Common.Control.Targets.Vout'
+        'Common.Control.Targets.Pout'
+        'DCDC_Rail1.Control.Inputs.Vin'
+        'DCDC_Rail1.Control.Inputs.Iin'
+        'DCDC_Rail1.Control.Inputs.Vout'
+        'DCDC_Rail1.Control.Inputs.Pout'
+        'Common.Load.Front.R_L'
+    
+    Returns:
+        "struct('Common', struct('Thermal', struct('Twater', 0), 'Control', struct('Targets', struct('Vout', 0, 'Pout', 0)), 'Load', struct('Front', struct('R_L', 0))), 'DCDC_Rail1', struct('Control', struct('Inputs', struct('Vin', 0, 'Iin', 0, 'Vout', 0, 'Pout', 0))))"
+    """
+    # Build a nested dictionary structure from paths
+    root = {}
+    
+    for path in paths:
+        parts = path.split('.')
+        current = root
+        for i, part in enumerate(parts):
+            if i == len(parts) - 1:
+                # Last part - leaf node
+                if part not in current:
+                    current[part] = 0  # Placeholder value
+            else:
+                # Intermediate node
+                if part not in current:
+                    current[part] = {}
+                current = current[part]
+    
+    # Convert the nested dictionary to struct syntax
+    return dict_to_struct(root)
+
+def dict_to_struct(d):
+    """
+    Recursively converts a nested dictionary to Octave struct syntax.
+    """
     items = []
     for key, value in d.items():
         if isinstance(value, dict):
-            # If value is a dict, recursively build its struct
-            nested = build_nested_struct(value, indent + 1)
+            # If value is a dict, recursively convert it
+            nested = dict_to_struct(value)
             items.append(f"'{key}', {nested}")
         else:
-            # If value is not a dict, use a placeholder (0)
+            # Leaf node - use placeholder value
             items.append(f"'{key}', 0")
     
     if not items:
