@@ -36,13 +36,18 @@ def simScript(OptStruct,Thread,Map,iterNumber,ResultsPath,misc,crash=False):
 
 
         
-        mdlVars['Common']['Thermal']['Twater']                    = mapVars[X1]
-        mdlVars['DCDC_Rail1']['Control']['Inputs']['Vin']         = mapVars[X2]
-        mdlVars['Common']['Control']['Targets']['Vout']           = mapVars[X3]
-        mdlVars['Common']['Control']['Targets']['Pout']           = mapVars[X4]
+        mdlVars['Common']['Thermal']['Twater']                    = mapVars[X1][0]
+        mdlVars['DCDC_Rail1']['Control']['Inputs']['Vin']         = mapVars[X2][2]
+        mdlVars['Common']['Control']['Targets']['Vout']           = mapVars[X3][0]
+        mdlVars['Common']['Control']['Targets']['Pout']           = mapVars[X4][1]
+
+        mdlVars['DCDC_Rail1']['Control']['Inputs']['Vin']         = mapVars[X2][2]
+        mdlVars['DCDC_Rail1']['Control']['Inputs']['Iin']         = mapVars[X2][3]
+        mdlVars['DCDC_Rail1']['Control']['Inputs']['Vout']        = mapVars[X3][0]
+        mdlVars['DCDC_Rail1']['Control']['Inputs']['Pout']        = mapVars[X4][1]
 
 
-        mdlVars['Common']['Load']['Front']['R_L']                 = mapVars[X3]**2/mapVars[X4]
+        mdlVars['Common']['Load']['Front']['R_L']                 = mapVars[X3][0]**2/mapVars[X4][1]*1e-9
 
 
 

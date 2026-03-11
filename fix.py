@@ -1,4 +1,52 @@
+def InitializationCommands(self, input_file, output_file, flat_dict, m_file, misc, model_vars_names=None):
+    """
+    Replaces lines containing `search_expr` in the input file with content from `flat_dict`.
+    The modified content is written to `output_file`. Specifically, if `InitializationCommands ""`
+    is found, it inserts the `flat_dict` content inside the quotes.
 
+    Args:
+        input_file (str)        : Path to the input file.
+        output_file (str)       : Path to the output file.
+        flat_dict (list): List of strings to replace the matching line.
+        model_vars_names (list): List of first-order dictionary names to create as empty structs.
+    """
+
+    # Open the input file for reading and the output file for writing
+    # Read each line from the input file, check for the specific line
+    # If the line contains 'InitializationCommands ""', replace it with the flattened dictionary string
+    # Write the modified line to the output file, otherwise write the line as is
+    # Flatten the dictionary to a string using the specified separator
+    with open(input_file, 'r', encoding='utf-8') as infile, open(output_file, 'w', encoding='utf-8') as outfile:
+        flattened_str_dot = misc.dict_to_string(flat_dict, sep='.')
+        
+        # Create struct definitions if model_vars_names is provided
+        struct_definitions = ""
+        if model_vars_names:
+            for name in model_vars_names:
+                struct_definitions += f"{name} = struct();\n"
+
+            struct_definitions += "SolverOpts = struct();\n"
+            struct_definitions += "\n"
+        
+        for line in infile:
+            if 'InitializationCommands ""' in line:
+                updated_line = line.split('""')[0] + ' "' + struct_definitions + flattened_str_dot + "\n" + '"'
+                outfile.write(updated_line)
+            else:
+                outfile.write(line)
+
+    # Create the directory for the .m file if it does not exist
+    # and write the flattened dictionary string to the .m file
+    # Ensure the directory exists before writing the file
+    os.makedirs(os.path.dirname(m_file), exist_ok=True)
+    with open(m_file, 'w', encoding='utf-8') as m_out:
+        # Write struct definitions at the beginning of the .m file as well
+        if model_vars_names:
+            for name in model_vars_names:
+                m_out.write(f"{name} = struct();\n")
+            m_out.write("\n")
+        m_out.write(flattened_str_dot)
+    m_out.close()
 
 def init_sim(self, maxThreads=1, X1=[[0]], X2=[[0]], X3=[[0]], X4=[[0]], X5=[[0]], X6=[[0]], X7=[[0]], X8=[[0]], X9=[[0]], X10=[[0]], model='DCDC', pattern=True):
     """

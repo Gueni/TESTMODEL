@@ -3,16 +3,23 @@ plecs('clc');                                   % Clear Console.
 plecs('warning', 'warning message');            % Display Warnings.
 
 %% Sweep data
+{% if mapvars_dim == 3 %}
+% 3D data structure
+data = {
+    {% for row in mapvars %}
+    { {% for inner in row %}[{{ inner | join(', ') }}]{% if not loop.last %}, {% endif %}{% endfor %} }{% if not loop.last %};
+    {% endif %}
+    {% endfor %}
+};
+{% else %}
+% 2D data structure (regular matrix)
 data = [
     {% for row in mapvars %}    [{{ row | join(', ') }}];
     {% endfor %}
 ];
+{% endif %}
 
-% define mdlVars as empty struct in initialization
-% mdlVars    = struct();
-
-solverOpts = struct('StopTime', tSim);
-simStruct  = struct('mdlVars', mdlVars, 'SolverOpts', solverOpts);
+{{ simstruct_line }}
 
 t = localtime(time());
 fprintf('Date               : %s\n', strftime("%r (%Z) %A %e %B %Y", t));
@@ -32,7 +39,7 @@ for sim = 1:size(data, 1)
     {{ expr }};
     
     % Print evaluated value
-    fprintf('%-50s = %12g\n','{{ expr.split("=")[0].strip() }}', eval('{{ expr.split("=")[0].strip() }}'));
+    fprintf('%-50s = %12g\n','{{ expr.split("=")[0].strip() }}', {{ expr.split("=")[0].strip() }});
     {% endfor %}
 
     fprintf('\n');
