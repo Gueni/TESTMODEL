@@ -72,7 +72,7 @@ def detect_mapvars_dimensions(mapvars):
             return 2  # 2D: list of lists
 
 def octave_sweep_script(mapvars, sweepnames, mappings, model_vars_dict):
-    template_file = 'octave_sweep_template.m.j2'
+    template_file = 'D:\WORKSPACE\TESTMODEL\octave_sweep_template.m.j2'
     
     env = Environment(loader=FileSystemLoader(os.getcwd()), trim_blocks=True, lstrip_blocks=True)
     template = env.get_template(template_file)
