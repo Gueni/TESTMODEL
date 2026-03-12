@@ -4,24 +4,26 @@ from jinja2 import Environment, FileSystemLoader
 import os
 import numpy as np  # You may need to install numpy or implement without it
 
+from jinja2 import Template
+import re
+
 def inject_octave_simple(plecs_file_path, output_file_path, octave_code):
     Script_name = "Script"
     
     with open(plecs_file_path, 'r') as f: 
         content = f.read()
     
-    # First escape quotes
-    escaped_code = octave_code.replace('"', '\\"')
+    # Create a Jinja2 template for the script section
+    script_template = Template('''  Script {
+    Name          "{{ script_name }}"
+    Script        "{{ code }}"
+  }''')
     
-    # Then escape newlines - replace actual newlines with \n
-    # This keeps the code as a single line in the PLECS file
-    escaped_code = escaped_code.replace('\n', '\\n')
-    
-    # Create the new script section
-    new_script_section = f'''  Script {{
-    Name          "{Script_name}"
-    Script        "{escaped_code}"
-    }}'''
+    # Let Jinja2 handle the escaping
+    new_script_section = script_template.render(
+        script_name=Script_name,
+        code=octave_code
+    )
     
     # CASE 1: Check for empty script section
     empty_script_pattern = r'Script\s*{\s*Name\s+"Script"\s*Script\s+""\s*}'
