@@ -1,0 +1,124 @@
+% Simulation Sweep Script 
+plecs('clc');                                           % Clear Console.
+plecs('warning', 'warning message');                    % Display Warnings.
+
+%% Configuration
+RESULTS_DIR     = '{{ results_folder }}';               % Directory for results
+HOLD_TRACES     = true;                                 % Set to true to hold traces after each simulation
+CLEAR_TRACES    = true;                                 % Set to true to clear traces before starting
+SAVE_TRACES     = true;                                 % Set to true to save traces to files
+
+%% Sweep data
+{% if mapvars_dim == 3 %}
+% 3D data structure
+data = {
+    {% for row in mapvars %}
+    { {% for inner in row %}[{{ inner | join(', ') }}]{% if not loop.last %}, {% endif %}{% endfor %} }{% if not loop.last %};
+    {% endif %}
+    {% endfor %}
+};
+{% else %}
+% 2D data structure (regular matrix)
+data = [
+    {% for row in mapvars %}    [{{ row | join(', ') }}];
+    {% endfor %}
+];
+{% endif %}
+
+{{ simstruct_line }}
+
+% Get model name and scope list
+mdl = plecs('get', '', 'CurrentCircuit');
+mdl_name = (strsplit(mdl, filesep)){end};               % Extract just the model name
+mdl_name = (strsplit(mdl_name, '.')){1};                % Remove extension
+
+% List of scopes in the model
+scopes = { {{ scopes | map('tojson') | join(', ') }} };
+
+% Clear all traces before starting if enabled
+if CLEAR_TRACES
+    for i = 1:length(scopes)
+        try
+            plecs('scope', [mdl '/' scopes{i}], 'ClearTraces');
+        catch
+            % Silently ignore errors
+        end
+    end
+end
+
+% Create results directory if saving is enabled
+if SAVE_TRACES
+    if ~exist(RESULTS_DIR, 'dir')
+        mkdir(RESULTS_DIR);
+    end
+    
+    % Create traces directory
+    traces_dir = fullfile(RESULTS_DIR, 'Scopes_Traces');
+    if ~exist(traces_dir, 'dir')
+        mkdir(traces_dir);
+    end
+end
+
+t = localtime(time());
+fprintf('Date               : %s\n', strftime("%r(%Z) %A %e %B %Y", t));
+fprintf('Time               : %s\n', strftime("%H:%M:%S", t));
+fprintf('Model              : %s\n', mdl_name);
+fprintf('Iterations         : %d\n', size(data, 1));
+
+for sim = 1:size(data, 1)
+
+    fprintf('\n');
+    %% ------------------------------------------------------------------------
+    fprintf('%s\n', '-' * ones(1, 90));
+    fprintf('Iteration Number   : %d\n\n', sim);
+    fprintf('\n');
+
+    {% for i, expr in mappings.items() %}
+    % Assign value
+    {{ expr }};
+    
+    % Print evaluated value
+    fprintf('%-50s = %12g\n','{{ expr.split("=")[0].strip() }}', {{ expr.split("=")[0].strip() }});
+    {% endfor %}
+
+    fprintf('\n');
+    %% ------------------------------------------------------------------------
+    plecs('simulate', simStruct);
+    
+    %% Hold traces for all scopes if enabled
+    if HOLD_TRACES
+        trace_name = sprintf('Iteration_%d_Standalone', sim);
+        for i = 1:length(scopes)
+            try
+                plecs('scope', [mdl '/' scopes{i}], 'HoldTrace', trace_name);
+            catch
+                % Silently ignore errors
+            end
+        end
+    end
+    
+    %% Save traces from all scopes if enabled
+    if SAVE_TRACES
+        trace_name = sprintf('Iteration_%d_Standalone', sim);
+        for i = 1:length(scopes)
+            try
+                % Save trace to file
+                scope_path = [mdl '/' scopes{i}];
+                % Replace any slashes in scope name for filename
+                safe_scope_name = strrep(scopes{i}, '/', '_');
+                trace_file = fullfile(traces_dir, sprintf('%s_%s', safe_scope_name, trace_name));
+                plecs('scope', scope_path, 'SaveTraces', trace_file);
+            catch
+                % Silently ignore errors
+            end
+        end
+    end
+    
+    %% ------------------------------------------------------------------------
+end
+
+fprintf('\nComplete! Ran %d Iterations\n', size(data, 1));
+if SAVE_TRACES
+    fprintf('Traces saved in    : %s\n', traces_dir);
+end
+fprintf('%s\n', '-' * ones(1, 90));
