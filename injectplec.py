@@ -10,7 +10,12 @@ def inject_octave_simple(plecs_file_path, output_file_path, octave_code):
     with open(plecs_file_path, 'r') as f: 
         content = f.read()
     
+    # First escape quotes
     escaped_code = octave_code.replace('"', '\\"')
+    
+    # Then escape newlines - replace actual newlines with \n
+    # This keeps the code as a single line in the PLECS file
+    escaped_code = escaped_code.replace('\n', '\\n')
     
     # Create the new script section
     new_script_section = f'''  Script {{
