@@ -7,28 +7,39 @@ import numpy as np  # You may need to install numpy or implement without it
 from jinja2 import Template
 import re
 
-def inject_octave_simple(plecs_file_path, output_file_path, octave_code):
+def inject_octave_simple(plecs_file_path, output_file_path, m_file_path):
+    """
+    Reads Octave code from an .m file and injects it into the PLECS file.
+    
+    Args:
+        plecs_file_path: Path to the source .plecs file
+        output_file_path: Path to the output .plecs file
+        m_file_path: Path to the .m file containing the Octave script
+    """
     Script_name = "Script"
     
+    # Read the PLECS file
     with open(plecs_file_path, 'r') as f: 
         content = f.read()
     
-    # Create a Jinja2 template for the script section
-    script_template = Template('''  Script {
-    Name          "{{ script_name }}"
-    Script        "{{ code }}"
-  }''')
+    # Read the Octave code from .m file
+    with open(m_file_path, 'r') as f:
+        octave_code = f.read()
     
-    # Let Jinja2 handle the escaping
-    new_script_section = script_template.render(
-        script_name=Script_name,
-        code=octave_code
-    )
+    # Escape for PLECS script section
+    escaped_code = octave_code.replace('\\', '\\\\').replace('"', '\\"')
+    
+    # Create the new script section
+    new_script_section = f'''  Script {{
+    Name          "{Script_name}"
+    Script        "{escaped_code}"
+  }}'''
     
     # CASE 1: Check for empty script section
     empty_script_pattern = r'Script\s*{\s*Name\s+"Script"\s*Script\s+""\s*}'
     if re.search(empty_script_pattern, content, re.DOTALL):
         new_content = re.sub(empty_script_pattern, new_script_section, content, flags=re.DOTALL)
+        print("Case 1: Replaced empty script section")
     
     # CASE 2: Check for any script section (empty or not)
     elif re.search(r'Script\s*{.*?}', content, re.DOTALL):
@@ -36,17 +47,23 @@ def inject_octave_simple(plecs_file_path, output_file_path, octave_code):
         last_script = script_sections[-1]
         insert_pos = last_script.end()
         new_content = content[:insert_pos] + '\n' + new_script_section + content[insert_pos:]
+        print("Case 2: Appended after existing script section")
     
     # CASE 3: No script section at all
     else:
         last_brace_pos = content.rfind('}')
         if last_brace_pos != -1:
             new_content = content[:last_brace_pos] + '\n' + new_script_section + content[last_brace_pos:]
+            print("Case 3: Inserted before final brace")
         else:
             new_content = content + '\n' + new_script_section
+            print("Case 3: Appended at end")
     
+    # Write the modified PLECS file
     with open(output_file_path, 'w') as f: 
         f.write(new_content)
+    
+    print(f"✅ Injected {m_file_path} into {output_file_path}")
 
 
 
@@ -378,7 +395,12 @@ if __name__ == "__main__":
 
 
 
-
+    # Example usage
+    inject_octave_simple(
+        plecs_file_path=r'D:\WORKSPACE\TESTMODEL\ACfilterOBC.plecs',
+        output_file_path=r'D:\WORKSPACE\TESTMODEL\ACfilterOBC.plecs',
+        m_file_path=r'D:\WORKSPACE\TESTMODEL\ScriptBody_20260312_213544.m'  # Your .m file
+    )
 
 
 
