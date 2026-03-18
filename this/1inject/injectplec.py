@@ -304,97 +304,124 @@ def octave_sweep_mapping(file_path, mapvars):
     Returns:
         Dictionary of mappings with sequential keys preserving original order
     """
-    import re
+    import re  # Import regular expressions for pattern matching
+
+    # Determine if mapvars is 2D or 3D
     mapvars_dim = detect_mapvars_dimensions(mapvars)
     print('Detected mapvars dimension:', mapvars_dim)
-    mappings = {}
-    pattern = r"(mdlVars.*?=\s*.+)"
-    
-    with open(file_path, 'r') as f:
-        content = f.read()
 
+    mappings = {}  # Initialize empty dictionary to store mapping results
+    pattern = r"(mdlVars.*?=\s*.+"  # Pattern to match assignment lines (not used below, left from old code)
+
+    # Open the script file containing variable mappings
+    with open(file_path, 'r') as f:
+        content = f.read()  # Read the entire file content as a single string
+
+    # Define the section markers that delimit the area with user-editable code
     start_marker = "#! -------------------------------------------------------------------------------------Don't change above this line---------------------------------------------------------------------------"
-    end_marker = "#! -------------------------------------------------------------------------------------Don't change under this line---------------------------------------------------------------------------"
+    end_marker   = "#! -------------------------------------------------------------------------------------Don't change under this line---------------------------------------------------------------------------"
+
+    # Create a regex to extract the content between the start and end markers
     section_pattern = start_marker + r"\s*(.*?)\s*" + end_marker
-    section_match = re.search(section_pattern, content, re.DOTALL)
+    section_match = re.search(section_pattern, content, re.DOTALL)  # DOTALL allows '.' to match newlines
+
+    # Warn and return empty dictionary if the section was not found
     if not section_match:
         print("Warning: Could not find the section between comment markers")
         return {}
 
+    # Extract the content of the section
     section_content = section_match.group(1)
+    # Split the section content into individual lines
     lines = section_content.split('\n')
+    # Counter to create sequential dictionary keys
     mapping_counter = 1
 
+    # Process each line in the extracted section
     for line in lines:
-        line = line.strip()
+        line = line.strip()  # Remove leading/trailing whitespace
         if not line or line.startswith('#') or '=' not in line:
-            continue
+            continue  # Skip empty lines, comments, or lines without assignment
 
+        # Split the line into left-hand side (variable) and right-hand side (value/expression)
         left, right = line.split('=', 1)
-        left = left.strip()
-        right = right.strip()
+        left = left.strip()   # Trim whitespace from LHS
+        right = right.strip() # Trim whitespace from RHS
 
+        # Match the left-hand side variable path starting with 'mdlVars'
         path_match = re.search(r"mdlVars(.*?)$", left)
         if not path_match:
-            continue
+            continue  # Skip if LHS does not contain mdlVars
 
+        # Extract the variable path after 'mdlVars'
         path = path_match.group(1)
-        full_path = 'mdlVars'
+        full_path = 'mdlVars'  # Initialize full path starting with 'mdlVars'
+
+        # Convert indexing like ['Common']['Thermal'] to dot notation
         for part in re.findall(r"\[['\"](.*?)['\"]\]", path):
             full_path += f'.{part}'
 
+        # Convert Python-style 'mdlVars' path to Octave simStruct.ModelVars path
         if full_path.startswith('mdlVars.'):
-            octave_path = 'simStruct.ModelVars.' + full_path[8:]
+            octave_path = 'simStruct.ModelVars.' + full_path[8:]  # Remove 'mdlVars.' prefix
         else:
-            octave_path = 'simStruct.ModelVars.' + full_path
+            octave_path = 'simStruct.ModelVars.' + full_path  # Otherwise, prepend full prefix
 
-        # ---------- Handle derived parameters ----------
+        # ---------- Handle derived parameters containing other mdlVars references ----------
         if re.search(r"mdlVars(\[['\"].*?['\"]\])+", right):
-            expr = right
-            expr = expr.replace('**', '^')
+            expr = right  # Store the right-hand side expression
+            expr = expr.replace('**', '^')  # Convert Python exponent '**' to Octave '^'
 
-            # ---------- Handle dp.mdlVars ----------
+            # ---------- Handle dp.mdlVars (external module reference) ----------
             if 'dp.mdlVars' in expr:
                 def repl_dp(match):
+                    # Extract the keys inside brackets, e.g., ['Common']['Thermal']
                     parts = re.findall(r"\[['\"](.*?)['\"]\]", match.group(0))
-                    val = dp.mdlVars  # ✅ module attribute access
+                    val = dp.mdlVars  # Start from the dp.mdlVars module
                     for p in parts:
-                        val = val[p]
-                    return str(val)
+                        val = val[p]  # Traverse nested dictionaries
+                    return str(val)  # Return the actual value as string
+                # Replace all dp.mdlVars[...] occurrences in the expression with actual values
                 expr = re.sub(r"dp\.mdlVars(\[['\"].*?['\"]\])+", repl_dp, expr)
 
-            # ---------- Handle mapVars inside derived expression ----------
+            # ---------- Handle mapVars references inside derived expression ----------
             mapvar_pattern = r"mapVars\[X(\d+)\](?:\[(\d+)\])?"
             all_matches = list(re.finditer(mapvar_pattern, expr))
             for match in all_matches:
-                x_num = match.group(1)
-                idx1 = match.group(2)
+                x_num = match.group(1)  # Which X variable
+                idx1 = match.group(2)   # Optional index inside X
+                # Replace with appropriate Octave data reference depending on mapvars dimension
                 if mapvars_dim == 3:
                     replacement = f"data{{sim}}{{{x_num}}}({int(idx1)+1 if idx1 else 1})"
                 else:
                     replacement = f"data(sim,{x_num})"
+                # Build original string to replace
                 original = f"mapVars[X{x_num}]" + (f"[{idx1}]" if idx1 else "")
-                expr = expr.replace(original, replacement)
+                expr = expr.replace(original, replacement)  # Replace in expression
 
-            dep_pattern = r"mdlVars(\[['\"].*?['\"]\])+"  # replace other mdlVars references
+            # ---------- Handle other mdlVars references in derived expression ----------
+            dep_pattern = r"mdlVars(\[['\"].*?['\"]\])+"  # Regex for remaining mdlVars
             def replace_dep(match):
                 dep_path = match.group(0)
                 dep_parts = re.findall(r"\[['\"](.*?)['\"]\]", dep_path)
                 return 'simStruct.ModelVars.' + '.'.join(dep_parts)
-
             expr = re.sub(dep_pattern, replace_dep, expr)
+
+            # Save the final mapping in the dictionary with sequential key
             mappings[mapping_counter] = f"{octave_path} = {expr}"
             mapping_counter += 1
 
+        # ---------- Handle simple mapVars assignments ----------
         else:
             mapvar_pattern = r"mapVars\[X(\d+)\](?:\[(\d+)\])?"
             all_matches = list(re.finditer(mapvar_pattern, right))
             if not all_matches:
-                continue
+                continue  # Skip if no mapVars found
 
-            expr = right
-            expr = expr.replace('**', '^')
+            expr = right  # Start with RHS
+            expr = expr.replace('**', '^')  # Convert Python exponent '**' to Octave '^'
 
+            # Replace all mapVars references with Octave data access
             for match in all_matches:
                 x_num = match.group(1)
                 idx1 = match.group(2)
@@ -405,10 +432,11 @@ def octave_sweep_mapping(file_path, mapvars):
                 original = f"mapVars[X{x_num}]" + (f"[{idx1}]" if idx1 else "")
                 expr = expr.replace(original, replacement)
 
+            # Save mapping to dictionary
             mappings[mapping_counter] = f"{octave_path} = {expr}"
             mapping_counter += 1
 
-    return mappings
+    return mappings  # Return the dictionary of mappings
 
 
 # Main execution block - runs only if this script is executed directly
