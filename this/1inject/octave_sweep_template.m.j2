@@ -122,3 +122,542 @@ if SAVE_TRACES
     fprintf('Traces saved in    : %s\n', traces_dir);
 end
 fprintf('%s\n', '-' * ones(1, 90));
+
+
+
+
+
+
+
+
+Here’s a clean, professional **Confluence-ready documentation** for your PLECS sweep script template. I structured it so you can paste it directly into Confluence (it reads like an engineering spec + user guide).
+
+---
+
+# 📊 PLECS Simulation Sweep Script Template Documentation
+
+## 1. Overview
+
+This script automates **parametric simulation sweeps** in **PLECS**, enabling:
+
+* Multi-iteration simulations
+* Parameter mapping and assignment
+* Automatic trace handling (clear / hold / save)
+* Structured results storage
+
+It is designed to integrate with templating engines (e.g., Jinja2) to dynamically generate simulation cases.
+
+---
+
+## 2. Features
+
+* ✅ Supports **2D and 3D parameter sweeps**
+* ✅ Automatic **scope trace management**
+* ✅ Configurable **results storage**
+* ✅ Robust error handling (`try/catch`)
+* ✅ Clean console logging for traceability
+
+---
+
+## 3. Script Structure
+
+The script is divided into the following sections:
+
+1. Initialization
+2. Configuration
+3. Sweep Data Definition
+4. Model & Scope Extraction
+5. Trace Management
+6. Simulation Loop
+7. Trace Saving
+8. Summary Output
+
+---
+
+## 4. Initialization
+
+```matlab
+plecs('clc');
+plecs('warning', 'warning message');
+```
+
+### Description
+
+* Clears the PLECS console
+* Enables warning messages
+
+### Purpose
+
+Ensures a clean and informative simulation environment before execution.
+
+---
+
+## 5. Configuration
+
+```matlab
+RESULTS_DIR  = '{{ results_folder }}';
+HOLD_TRACES  = true;
+CLEAR_TRACES = true;
+SAVE_TRACES  = true;
+```
+
+### Parameters
+
+| Variable       | Description                             |
+| -------------- | --------------------------------------- |
+| `RESULTS_DIR`  | Output directory for simulation results |
+| `HOLD_TRACES`  | Keeps traces from each iteration        |
+| `CLEAR_TRACES` | Clears scopes before simulation         |
+| `SAVE_TRACES`  | Saves traces to files                   |
+
+### Notes
+
+* These flags allow flexible control over simulation behavior.
+* Recommended:
+
+  * Enable `CLEAR_TRACES` for clean runs
+  * Enable `SAVE_TRACES` for post-processing
+
+---
+
+## 6. Sweep Data Definition
+
+### 6.1 3D Sweep Structure
+
+```matlab
+data = {
+    { [x1, x2], [x3, x4] };
+};
+```
+
+### 6.2 2D Sweep Structure
+
+```matlab
+data = [
+    [x1, x2];
+    [x3, x4];
+];
+```
+
+### Description
+
+* `data` contains all simulation parameter sets
+* Each row corresponds to **one simulation iteration**
+
+### Generated via Template
+
+* `mapvars` dynamically fills this structure
+* `mapvars_dim` determines dimensionality
+
+---
+
+## 7. Simulation Structure
+
+```matlab
+{{ simstruct_line }}
+```
+
+### Description
+
+Defines the PLECS simulation structure (`simStruct`), including:
+
+* Stop time
+* Solver configuration
+* Simulation options
+
+---
+
+## 8. Model Identification
+
+```matlab
+mdl = plecs('get', '', 'CurrentCircuit');
+mdl_name = (strsplit(mdl, filesep)){end};
+mdl_name = (strsplit(mdl_name, '.')){1};
+```
+
+### Purpose
+
+* Retrieves the active model path
+* Extracts the model name (without extension)
+
+---
+
+## 9. Scope Management
+
+```matlab
+scopes = { ... };
+```
+
+### Description
+
+* List of scope paths in the model
+* Used for:
+
+  * Clearing traces
+  * Holding traces
+  * Saving traces
+
+---
+
+## 10. Pre-Simulation Trace Clearing
+
+```matlab
+if CLEAR_TRACES
+    plecs('scope', ..., 'ClearTraces');
+end
+```
+
+### Behavior
+
+* Clears all existing traces before starting simulations
+
+### Why Important
+
+Prevents mixing old and new simulation data.
+
+---
+
+## 11. Results Directory Setup
+
+```matlab
+mkdir(RESULTS_DIR);
+mkdir(traces_dir);
+```
+
+### Output Structure
+
+```
+RESULTS_DIR/
+└── Scopes_Traces/
+```
+
+### Purpose
+
+Organizes simulation outputs for easy access and post-processing.
+
+---
+
+## 12. Timestamp Logging
+
+```matlab
+localtime(time());
+strftime(...);
+```
+
+### Output Example
+
+```
+Date : Monday ...
+Time : 14:32:10
+Model: my_model
+Iterations: 10
+```
+
+### Purpose
+
+Provides traceability and reproducibility.
+
+---
+
+## 13. Main Simulation Loop
+
+```matlab
+for sim = 1:size(data, 1)
+```
+
+### Workflow per Iteration
+
+#### 13.1 Iteration Header
+
+```matlab
+fprintf('Iteration Number: %d\n', sim);
+```
+
+---
+
+#### 13.2 Parameter Assignment
+
+```matlab
+{{ expr }};
+```
+
+Example:
+
+```matlab
+R = data(sim,1);
+L = data(sim,2);
+```
+
+### Logging
+
+```matlab
+fprintf('%-50s = %12g\n', 'R', R);
+```
+
+### Purpose
+
+* Assigns simulation parameters
+* Logs values for debugging and traceability
+
+---
+
+#### 13.3 Run Simulation
+
+```matlab
+plecs('simulate', simStruct);
+```
+
+### Description
+
+Executes one simulation iteration with current parameters.
+
+---
+
+#### 13.4 Hold Traces
+
+```matlab
+plecs('scope', ..., 'HoldTrace', trace_name);
+```
+
+### Behavior
+
+* Saves each iteration as a separate trace in scope
+* Naming format:
+
+  ```
+  Iteration_1_Standalone
+  Iteration_2_Standalone
+  ```
+
+---
+
+## 14. Post-Simulation Trace Saving
+
+```matlab
+plecs('scope', scope_path, 'SaveTraces', trace_file);
+```
+
+### Output
+
+Each scope produces:
+
+```
+Scopes_Traces/
+├── Scope1
+├── Scope2
+```
+
+### Notes
+
+* One file per scope (all iterations inside)
+* File names are sanitized (`/` → `_`)
+
+---
+
+## 15. Final Summary
+
+```matlab
+fprintf('Complete! Ran %d Iterations\n', ...);
+```
+
+### Example Output
+
+```
+Complete! Ran 20 Iterations
+Traces saved in: ./results/Scopes_Traces
+```
+
+---
+
+## 16. Error Handling Strategy
+
+```matlab
+try
+    ...
+catch
+    % Silently ignore errors
+end
+```
+
+### Purpose
+
+* Prevents script failure due to:
+
+  * Missing scopes
+  * Invalid paths
+* Ensures robustness in automated pipelines
+
+---
+
+## 17. Integration with Template Engine
+
+### Dynamic Sections
+
+| Template Variable | Purpose                  |
+| ----------------- | ------------------------ |
+| `mapvars`         | Sweep data               |
+| `mapvars_dim`     | Determines 2D vs 3D      |
+| `mappings`        | Parameter assignments    |
+| `scopes`          | Scope list               |
+| `simstruct_line`  | Simulation configuration |
+| `results_folder`  | Output directory         |
+
+---
+
+## 18. Best Practices
+
+* ✅ Always enable `CLEAR_TRACES` for batch runs
+* ✅ Use descriptive parameter names in `mappings`
+* ✅ Keep scope list updated with model changes
+* ✅ Validate `data` dimensions before execution
+* ✅ Use version-controlled templates
+
+---
+
+## 19. Example Use Cases
+
+* Parameter sensitivity analysis
+* Worst-case analysis (WCA)
+* Design optimization
+* Converter efficiency sweeps
+* Control parameter tuning
+
+---
+
+## 20. Possible Enhancements
+
+* Add CSV export of key signals
+* Add automatic plotting (Python/MATLAB)
+* Add parallel simulation support
+* Add error logging instead of silent catch
+* Integrate with optimization frameworks
+
+---
+
+If you want, I can next:
+
+* Convert this into a **Confluence macro format (with panels, code blocks, expand sections)**
+* Or generate a **diagram (flowchart of the script execution)**
+* Or link it directly to your **WCA / sensitivity pipeline**
+
+
+
+
+
+
+
+Here’s a **Mermaid flowchart diagram** representing your PLECS sweep script workflow. You can paste this directly into a Confluence Mermaid macro.
+
+---
+
+```mermaid
+flowchart TD
+
+%% =========================
+%% Initialization
+%% =========================
+A[Start Script] --> B[Initialize PLECS<br/>clc + warnings]
+
+%% =========================
+%% Configuration
+%% =========================
+B --> C[Load Configuration<br/>RESULTS_DIR<br/>HOLD / CLEAR / SAVE flags]
+
+%% =========================
+%% Data Definition
+%% =========================
+C --> D{mapvars_dim == 3?}
+
+D -->|Yes| E[Build 3D Data Structure]
+D -->|No| F[Build 2D Data Matrix]
+
+E --> G[Define simStruct]
+F --> G
+
+%% =========================
+%% Model & Scopes
+%% =========================
+G --> H[Get Current Model]
+H --> I[Extract Model Name]
+I --> J[Load Scope List]
+
+%% =========================
+%% Clear Traces
+%% =========================
+J --> K{CLEAR_TRACES?}
+K -->|Yes| L[Clear All Scope Traces]
+K -->|No| M[Skip Clearing]
+
+L --> N[Prepare Results Directory]
+M --> N
+
+%% =========================
+%% Directory Setup
+%% =========================
+N --> O{SAVE_TRACES?}
+O -->|Yes| P[Create RESULTS_DIR + Scopes_Traces]
+O -->|No| Q[Skip Directory Creation]
+
+P --> R[Print Timestamp + Model Info]
+Q --> R
+
+%% =========================
+%% Main Loop
+%% =========================
+R --> S[Start Simulation Loop<br/>for sim = 1:N]
+
+S --> T[Print Iteration Header]
+
+T --> U[Assign Parameters<br/>from data(sim,:)]
+U --> V[Log Parameter Values]
+
+V --> W[Run Simulation<br/>plecs simulate]
+
+%% =========================
+%% Hold Traces
+%% =========================
+W --> X{HOLD_TRACES?}
+X -->|Yes| Y[Hold Trace in All Scopes<br/>Iteration_i]
+X -->|No| Z[Skip Holding]
+
+Y --> AA[Next Iteration]
+Z --> AA
+
+AA --> AB{More Iterations?}
+AB -->|Yes| S
+AB -->|No| AC[Exit Loop]
+
+%% =========================
+%% Save Traces
+%% =========================
+AC --> AD{SAVE_TRACES?}
+AD -->|Yes| AE[Save Traces per Scope]
+AD -->|No| AF[Skip Saving]
+
+AE --> AG[Print Completion Summary]
+AF --> AG
+
+%% =========================
+%% End
+%% =========================
+AG --> AH[End Script]
+```
+
+---
+
+## 💡 Tips for Confluence
+
+* Use **"Mermaid diagram" macro** (if enabled)
+* If Mermaid is not enabled, I can convert this into:
+
+  * Draw.io XML
+  * PNG/SVG diagram
+  * Confluence-native flowchart (boxes + arrows)
+
+---
+
+If you want next level clarity, I can also:
+
+* Split this into **multiple diagrams (init / loop / post-processing)**
+* Add **data flow (variables like `data`, `simStruct`)**
+* Or create a **sequence diagram for PLECS interactions**
