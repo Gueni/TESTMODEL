@@ -1,14 +1,90 @@
----
-id: fb6973be-d95c-49d1-8950-6044c2e1216e
----
 flowchart TD
 
-A[Read PLECS File] --> B{Script Section Exists?}
+%% =========================
+%% Initialization
+%% =========================
+A[Start Script] --> B[Initialize PLECS<br/>clc + warnings]
 
-B -->|Empty Script      | C[Replace Script Content]
-B -->|Existing Script   | D[Append New Script Section]
-B -->|No Script Section | E[Insert Before Final Brace]
+%% =========================
+%% Configuration
+%% =========================
+B --> C[Load Configuration<br/>RESULTS_DIR<br/>HOLD / CLEAR / SAVE flags]
 
-C --> F[Write Updated File]
-D --> F
-E --> F
+%% =========================
+%% Data Definition
+%% =========================
+C --> D{mapvars_dim == 3?}
+
+D -->|Yes| E[Build 3D Data Structure]
+D -->|No| F[Build 2D Data Matrix]
+
+E --> G[Define simStruct]
+F --> G
+
+%% =========================
+%% Model & Scopes
+%% =========================
+G --> H[Get Current Model]
+H --> I[Extract Model Name]
+I --> J[Load Scope List]
+
+%% =========================
+%% Clear Traces
+%% =========================
+J --> K{CLEAR_TRACES?}
+K -->|Yes| L[Clear All Scope Traces]
+K -->|No| M[Skip Clearing]
+
+L --> N[Prepare Results Directory]
+M --> N
+
+%% =========================
+%% Directory Setup
+%% =========================
+N --> O{SAVE_TRACES?}
+O -->|Yes| P[Create RESULTS_DIR + Scopes_Traces]
+O -->|No| Q[Skip Directory Creation]
+
+P --> R[Print Timestamp + Model Info]
+Q --> R
+
+%% =========================
+%% Main Loop
+%% =========================
+R --> S[Start Simulation Loop<br/>for sim = 1:N]
+
+S --> T[Print Iteration Header]
+
+T --> U[Assign Parameters<br/>from data(sim,:)]
+U --> V[Log Parameter Values]
+
+V --> W[Run Simulation<br/>plecs simulate]
+
+%% =========================
+%% Hold Traces
+%% =========================
+W --> X{HOLD_TRACES?}
+X -->|Yes| Y[Hold Trace in All Scopes<br/>Iteration_i]
+X -->|No| Z[Skip Holding]
+
+Y --> AA[Next Iteration]
+Z --> AA
+
+AA --> AB{More Iterations?}
+AB -->|Yes| S
+AB -->|No| AC[Exit Loop]
+
+%% =========================
+%% Save Traces
+%% =========================
+AC --> AD{SAVE_TRACES?}
+AD -->|Yes| AE[Save Traces per Scope]
+AD -->|No| AF[Skip Saving]
+
+AE --> AG[Print Completion Summary]
+AF --> AG
+
+%% =========================
+%% End
+%% =========================
+AG --> AH[End Script]
