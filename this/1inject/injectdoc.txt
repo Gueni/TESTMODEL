@@ -1,7 +1,23 @@
 Great — below is a **fully enhanced Confluence documentation version** with **architecture diagrams, workflow diagrams, and parser logic diagrams**.
 Everything is formatted so you can **paste directly into Confluence** (using Markdown / code blocks / Mermaid diagrams which Confluence usually renders through plugins or can be converted easily).
 
----
+graph TD;
+
+A[Parameter Dataset mapvars] --> B[Dimension Detection];
+
+B --> C[Mapping Extraction from ScriptBody];
+C --> D[Mapping Parser Logic];
+
+D --> E[Struct Generation];
+E --> F[ModelVars Hierarchical Struct];
+
+F --> G[Template Engine Jinja2];
+G --> H[Generated Octave Script];
+
+H --> I[Script Injection into PLECS];
+I --> J[PLECS Model];
+
+
 
 # PLECS–Octave Automated Parameter Sweep Framework
 
