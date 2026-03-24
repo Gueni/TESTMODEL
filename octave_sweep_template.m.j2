@@ -27,6 +27,16 @@ fprintf('Time               : %s\n', strftime("%H:%M:%S", t));
 fprintf('Iterations         : %d\n', size(data, 1));
 
 for sim = 1:size(data, 1)
+    
+    % Construct filename using strcat with simulation number
+    filename = strcat('{{ output_folder }}', sprintf('_%03d.csv', sim));
+
+    % Assign filename to ToFile block
+    simStruct.ModelVars.Common.ToFile.FileNameStandalone = filename;
+    
+    % Print filename for verification
+    fprintf('Output File: %s\n', filename);
+
 
     fprintf('\n');
     %% ------------------------------------------------------------------------

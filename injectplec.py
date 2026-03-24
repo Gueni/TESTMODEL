@@ -159,8 +159,15 @@ def build_nested_struct_from_paths(paths):
     # Initialize an empty dictionary to build the nested structure
     root = {}
     
-    # Process each path in the set
-    for path in paths:
+    # Add the required path that should always be present
+    required_path = 'Common.ToFile.FileNameStandalone'
+    
+    # Create a set that includes both the existing paths and the required path
+    all_paths = set(paths)  # Create a copy of the original paths set
+    all_paths.add(required_path)  # Add the required path
+    
+    # Process each path in the combined set
+    for path in all_paths:
         # Split the path by dots to get individual parts
         parts = path.split('.')
         # Start at the root of our nested dictionary
@@ -171,8 +178,12 @@ def build_nested_struct_from_paths(paths):
             if i == len(parts) - 1:
                 # Check if the leaf node doesn't already exist
                 if part not in current:
-                    # Create leaf node with placeholder value 0
-                    current[part] = 0
+                    # Check if this is the specific FileNameStandalone field
+                    if path == required_path:
+                        current[part] = ""  # Empty string for FileNameStandalone
+                    else:
+                        # Create leaf node with placeholder value 0
+                        current[part] = 0
             else:
                 # Check if intermediate node doesn't exist
                 if part not in current:
@@ -208,9 +219,12 @@ def dict_to_struct(d):
             nested = dict_to_struct(value)
             # Add the nested struct to items list
             items.append(f"'{key}', {nested}")
+        elif isinstance(value, str):
+            # Handle string values (wrap in quotes)
+            items.append(f"'{key}', '{value}'")
         else:
-            # Leaf node - use placeholder value 0
-            items.append(f"'{key}', 0")
+            # Leaf node with numeric value (or other type)
+            items.append(f"'{key}', {value}")
     
     # Check if there are no items in the dictionary
     if not items:
@@ -259,9 +273,11 @@ def octave_sweep_script(mapvars, sweepnames, mappings, model_vars_dict, scopes_l
 
     # Create the directory if it doesn't exist (exist_ok=True prevents error if it exists)
     os.makedirs(results_folder, exist_ok=True)
+    output_folder = os.path.join(os.getcwd(), 'simulation_results', 'standalonefiletest')
 
     # Render the template with all the parameters and return the result
     return template.render(
+        output_folder=output_folder,  # Pass the base filename for standalone results
         mapvars=mapvars,  # Pass the parameter values
         sweepnames=filtered,  # Pass filtered sweep names
         mappings=mappings,  # Pass variable mappings
