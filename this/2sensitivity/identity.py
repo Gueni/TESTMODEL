@@ -141,7 +141,7 @@ your_config = {
 
 
 
-result_xlists_abs = apply_sensitivity(your_config, 0.1, 'absolute')
+result_xlists_abs = apply_sensitivity(your_config, 0.1, 'relative')
 
 for i, xlist in enumerate(result_xlists_abs, start=1):
     print(f"X{i}: {xlist}")
