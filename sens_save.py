@@ -35,48 +35,31 @@ def compute_sensitivity(Y, X):
         - Each column = one signal
     """
 
-    # --- Extract nominal values (last row) ---
-    Y0 = Y[-1]   # Nominal outputs → shape (n_signals,)
-    X0 = X[-1]   # Nominal inputs  → shape (n_vars,)
+    # --- Nominal ---
+    Y0 = Y[-1]   # (n_signals,)
+    X0 = X[-1]   # (n_vars,)
 
-    # --- Remove nominal row → keep only perturbation runs ---
-    Y_iter = Y[:-1]   # Shape: (n_iter, n_signals)
-    X_iter = X[:-1]   # Shape: (n_iter, n_vars)
+    # --- Iterations ---
+    Y_iter = Y[:-1]
+    X_iter = X[:-1]
 
-    # --- Compute differences relative to nominal ---
-    dY = Y_iter - Y0   # Change in outputs → (n_iter, n_signals)
-    dX = X_iter - X0   # Change in inputs  → (n_iter, n_vars)
+    # --- Output variation ---
+    dY = Y_iter - Y0   # (n_iter, n_signals)
 
-    # --- Each row has only ONE perturbed variable ---
-    # Sum across variables → gives the scalar perturbation per iteration
-    dX_scalar = np.sum(dX, axis=1)   # Shape: (n_iter,)
+    # --- Compute perturbation per iteration ---
+    # perturb = (X_iter - X0) / X0
+    dX = X_iter - X0
+    perturb = np.sum(dX / X0, axis=1)   # (n_iter,)
 
-    # --- Identify which variable was perturbed using a mask ---
-    # (dX != 0) → True only for the perturbed variable
-    # Multiply by X0 to extract the nominal value of that variable
-    X0_scalar = np.sum((dX != 0) * X0, axis=1)   # Shape: (n_iter,)
+    # --- Sensitivity (% form) ---
+    S = (dY / Y0[None, :]) / perturb[:, None] * 100
 
-    # --- Compute normalized sensitivity ---
-    # dY / dX → slope (finite difference)
-    # X0 / Y0 → normalization factor
-    #
-    # Broadcasting:
-    # dX_scalar[:, None] → (n_iter, 1)
-    # Y0[None, :]        → (1, n_signals)
-    S = (dY / dX_scalar[:, None]) * (X0_scalar[:, None] / Y0[None, :])
-
-    # --- Save result using pandas ---
+    # --- Save (pandas) ---
     import pandas as pd
     import os
 
-    # Define output file path
     save_path = os.path.join(r'D:\WORKSPACE\TESTMODEL\CSVMAPS', 'curr_S_MAP.csv')
-
-    # Convert to DataFrame (optional but cleaner for CSV handling)
-    df = pd.DataFrame(S)
-
-    # Save without index and header (pure numeric matrix)
-    df.to_csv(save_path, index=False, header=False)
+    pd.DataFrame(S).to_csv(save_path, index=False, header=False)
 
     return S
 
