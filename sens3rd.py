@@ -1,172 +1,90 @@
-
-
-
 import json
 import numpy as np
 
-
-def apply_sensitivity(config_data,perturbation_value,perturbation_type='relative',include_nominals=True,nvars=None,zero_handling='absolute'):
+def apply_sensitivity(config_data, perturbation_value, nvars=None):
     """
-    Generate a sensitivity matrix by perturbing each parameter independently.
+    Generate OAT sensitivity matrix with nominal column ALWAYS first.
 
-    This function constructs a matrix where each column represents a simulation case
-    in which only one parameter is perturbed while all others remain at their nominal values.
-    The matrices for all operating points are horizontally concatenated.
+    Cases:
+    -------
+    Case 1: All Xlists = [0]
+        - Requires nvars
+        - Nominal = 0
+        - Output = [0 | diagonal perturbation]
+
+    Case 2: Xlists contain nominal values
+        - Auto-detect active variables
+        - Output = [nominal | OAT matrix]
 
     Parameters
     ----------
     config_data : dict
-        Dictionary containing parameters X1..X10 stored as JSON strings.
-
-    perturbation_value : float perturbation magnitude.
-
-    perturbation_type : str, optional
-        Type of perturbation:
-            - 'absolute'        : nominal + perturbation_value
-            - 'relative'        : nominal * (1 + perturbation_value / 100)
-            - 'multiplicative'  : nominal * perturbation_value
-        Default is 'relative'.
-
-    include_nominals : bool, optional
-        If True, append nominal values as additional columns at the end.
-        Default is True.
-
-    nvars : int, optional
-        Number of active variables (X1..Xnvars).
-        If provided, overrides automatic detection.
-
-    zero_handling : str, optional
-        Behavior when nominal value is zero in 'relative' mode:
-            - 'absolute' → use perturbation_value
-            - 'skip'     → keep zero
-        Default is 'absolute'.
+    perturbation_value : float (percentage for Case 2, absolute for Case 1)
+    nvars : int (required only for Case 1)
 
     Returns
     -------
-    list
-        Updated list of X1..X10 where active variables contain the sensitivity matrix.
+    Xs : list of lists
     """
 
-    # --------------------------------------------------
-    # Load parameter lists X1..X10 from config (JSON → Python)
-    # --------------------------------------------------
+    # Load X1..X10
     Xs = [json.loads(config_data.get(f"X{i}", "[0]")) for i in range(1, 11)]
 
     # --------------------------------------------------
-    # Determine which variables are active
-    # - If nvars is provided → use X1..Xnvars
-    # - Otherwise → auto-detect non-zero placeholders
+    # CASE 1: All zeros → diagonal perturbation
     # --------------------------------------------------
-    if nvars is not None:
+    if all(var == [0] for var in Xs[:10]):
+        if nvars is None:
+            raise ValueError("nvars must be provided when all Xlists are zero")
+
         active_indices = list(range(nvars))
-    else:
-        active_indices = [
-            i for i, var in enumerate(Xs)
-            if var not in [[[0]], [0]] and len(var) > 0
-        ]
+        n_vars = nvars
 
-    # Number of active variables
-    n_vars = len(active_indices)
-
-    # First active variable index (used to infer operating points)
-    first_active = active_indices[0]
-
-    # --------------------------------------------------
-    # Determine number of operating points (m)
-    # - If all zeros → force single operating point
-    # - Else → use length of parameter vector
-    # --------------------------------------------------
-    if Xs[first_active] == [0]:
-        m = 1
-        # Ensure all active variables have consistent length
-        for i in active_indices:
-            Xs[i] = [0] * m
-    else:
-        m = len(Xs[first_active])
-
-    # List to store sensitivity blocks for each operating point
-    stitched_blocks = []
-
-    # --------------------------------------------------
-    # Loop over each operating point
-    # --------------------------------------------------
-    for k in range(m):
-
-        # Extract nominal values at operating point k
-        nominal_values = [Xs[i][k] for i in active_indices]
-
-        # Initialize sensitivity matrix (n_vars × n_vars)
+        # Diagonal perturbation matrix
         result_matrix = np.zeros((n_vars, n_vars))
+        np.fill_diagonal(result_matrix, perturbation_value)
 
-        # --------------------------------------------------
-        # Fill each row with nominal values
-        # (baseline: all parameters at nominal)
-        # --------------------------------------------------
-        for i in range(n_vars):
-            result_matrix[i, :] = nominal_values[i]
+        # Nominal column (all zeros)
+        nominal_matrix = np.zeros((n_vars, 1))
 
-        # --------------------------------------------------
-        # Apply perturbation on diagonal (one variable at a time)
-        # --------------------------------------------------
-        for i in range(n_vars):
+        # Final matrix: nominal first
+        final_matrix = np.hstack((nominal_matrix, result_matrix))
 
-            # Current nominal value
-            nominal = nominal_values[i]
+        # Write back
+        for idx, row in zip(active_indices, final_matrix):
+            Xs[idx] = row.tolist()
 
-            # --- Compute perturbed value based on type ---
-            if perturbation_type == 'absolute':
-                perturbed = nominal + perturbation_value
-
-            elif perturbation_type == 'relative':
-                # Special handling for zero nominal
-                if nominal == 0:
-                    if zero_handling == 'absolute':
-                        perturbed = perturbation_value
-                    elif zero_handling == 'skip':
-                        perturbed = 0
-                    else:
-                        raise ValueError("Unknown zero_handling mode")
-                else:
-                    perturbed = nominal * (1 + perturbation_value / 100)
-
-            elif perturbation_type == 'multiplicative':
-                perturbed = nominal * perturbation_value
-
-            else:
-                raise ValueError("Unknown perturbation type")
-
-            # --------------------------------------------------
-            # Update ONLY the diagonal element (critical fix)
-            # --------------------------------------------------
-            result_matrix[i, i] = perturbed
-
-        # Store this operating point block
-        stitched_blocks.append(result_matrix)
+        return Xs
 
     # --------------------------------------------------
-    # Concatenate all operating point blocks horizontally
+    # CASE 2: Nominal values provided
     # --------------------------------------------------
-    stitched = np.hstack(stitched_blocks)
+    active_indices = [
+        i for i, var in enumerate(Xs)
+        if var not in [[[0]], [0]] and len(var) > 0
+    ]
 
-    # --------------------------------------------------
-    # Optionally append nominal values as final columns
-    # --------------------------------------------------
-    if include_nominals:
-        nominal_matrix = np.array([
-            [Xs[i][k] for k in range(m)]
-            for i in active_indices
-        ])
-        final_matrix = np.hstack((stitched, nominal_matrix))
-    else:
-        final_matrix = stitched
+    n_vars = len(active_indices)
+    nominal_values = np.array([Xs[i][0] for i in active_indices])
 
-    # --------------------------------------------------
-    # Write computed rows back into X1..X10 structure
-    # --------------------------------------------------
+    # OAT matrix
+    result_matrix = np.zeros((n_vars, n_vars))
+
+    # Fill rows with nominal vector
+    result_matrix[:] = nominal_values
+
+    # Apply relative perturbation on diagonal
+    diag_values = nominal_values * (1 + perturbation_value / 100)
+    np.fill_diagonal(result_matrix, diag_values)
+
+    # Nominal column first
+    nominal_matrix = nominal_values[:, None]
+    final_matrix = np.hstack((nominal_matrix, result_matrix))
+
+    # Write back
     for idx, row in zip(active_indices, final_matrix):
         Xs[idx] = row.tolist()
 
-    # Return updated parameter lists
     return Xs
 
 
