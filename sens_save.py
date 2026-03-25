@@ -1,63 +1,54 @@
 import numpy as np
 
-def compute_sensitivity(Y, X):
+import numpy as np
+import pandas as pd
+import os
+
+def compute_sensitivity(Y, X, perturb=0.1):
     """
     Compute normalized OAT (One-At-a-Time) sensitivity matrix.
 
-    This function assumes:
-    - Each iteration perturbs ONLY one variable
-    - The LAST row in Y and X is the nominal (reference) case
+    Assumes:
+    - The FIRST row in Y and X is the nominal (reference) case
+    - Each subsequent row perturbs ONE variable
 
-    Sensitivity formula used:
-        S = (dY / dX) * (X0 / Y0)
-
-    Where:
-        dY = Y_iter - Y_nominal
-        dX = X_iter - X_nominal
-        X0 = nominal value of perturbed variable
-        Y0 = nominal output
+    Sensitivity formula (percentage form):
+        S = ((Y_iter - Y_nom) / Y_nom) / perturb * 100
 
     Parameters:
     -----------
-    Y : ndarray of shape (n_iter+1, n_signals)
-        Output matrix (e.g., RMS values)
-        Last row = nominal values
+    Y : ndarray (n_iter+1, n_signals)
+        Output matrix (RMS, etc.)
+        First row = nominal
 
-    X : ndarray of shape (n_iter+1, n_vars)
+    X : ndarray (n_iter+1, n_vars)
         Input variables matrix
-        Last row = nominal values
+        First row = nominal
+
+    perturb : float
+        Relative perturbation applied to each variable (fraction, e.g. 0.1 = 10%)
 
     Returns:
     --------
-    S : ndarray of shape (n_iter, n_signals)
-        Sensitivity matrix:
-        - Each row = one perturbation (one variable)
-        - Each column = one signal
+    S : ndarray (n_iter, n_signals)
+        Sensitivity matrix
+        Each row = one perturbed iteration
+        Each column = one signal
     """
 
-    # --- Nominal ---
-    Y0 = Y[-1]   # (n_signals,)
-    X0 = X[-1]   # (n_vars,)
+    # --- Nominal values (first row) ---
+    Y0 = Y[0]   # (n_signals,)
 
-    # --- Iterations ---
-    Y_iter = Y[:-1]
-    X_iter = X[:-1]
+    # --- Iterations (exclude nominal) ---
+    Y_iter = Y[1:]   # (n_iter, n_signals)
 
-    # --- Output variation ---
-    dY = Y_iter - Y0   # (n_iter, n_signals)
-
-    # --- Compute perturbation per iteration ---
-    # perturb = (X_iter - X0) / X0
-    dX = X_iter - X0
-    perturb = np.sum(dX / X0, axis=1)   # (n_iter,)
+    # --- Output difference ---
+    dY = Y_iter - Y0  # (n_iter, n_signals)
 
     # --- Sensitivity (% form) ---
-    S = (dY / Y0[None, :]) / perturb[:, None] * 100
+    S = (dY / Y0[None, :]) / perturb * 100
 
-    # --- Save (pandas) ---
-    import pandas as pd
-    import os
-
+    # --- Save CSV ---
     save_path = os.path.join(r'D:\WORKSPACE\TESTMODEL\CSVMAPS', 'curr_S_MAP.csv')
     pd.DataFrame(S).to_csv(save_path, index=False, header=False)
 
@@ -84,7 +75,6 @@ Xlists = [
     [10.0,    100e-6, 220e-6, 100e3, 360.0, 0.05, 25.0],   # Vin ↓
     [10.0,    100e-6, 220e-6, 100e3, 400.0, 0.045,25.0],   # Rds_on ↓
 
-    [10.0,    100e-6, 220e-6, 100e3, 400.0, 0.05, 25.0]    # Nominal
 ]
 
 # Convert to NumPy array
