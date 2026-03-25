@@ -192,7 +192,7 @@ your_config = {
 
 
 result_xlists_abs = apply_sensitivity(your_config, 0.1, nvars=6)
-
+print("Sensitivity Matrix (Absolute Perturbation):",result_xlists_abs)
 for i, xlist in enumerate(result_xlists_abs, start=1):
     print(f"X{i}: {xlist}")
 
