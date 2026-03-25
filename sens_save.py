@@ -86,3 +86,74 @@ S = compute_sensitivity(Y, X)
 # --- Display results ---
 print("Sensitivity matrix shape:", S.shape)
 print(S)
+
+
+import numpy as np
+import pandas as pd
+import os
+
+def compute_sensitivity(Y, X, perturb=0.1, nharmonics=None):
+    """
+    Compute normalized OAT (One-At-a-Time) sensitivity matrix.
+
+    Parameters
+    ----------
+    Y : ndarray (n_rows, n_signals)
+        Output matrix (RMS or FFT data).
+        RMS: first row = nominal.
+        FFT: first nharmonics rows = nominal; next blocks = perturbed iterations.
+
+    X : ndarray (n_iter+1, n_vars)
+        Input variables matrix.
+        First row = nominal; subsequent rows = one variable perturbed.
+
+    perturb : float
+        Relative perturbation applied to each variable (fraction).
+
+    nharmonics : int or None
+        If None: standard RMS logic.
+        If int: number of harmonics per iteration for FFT data.
+
+    Returns
+    -------
+    S : ndarray
+        Sensitivity matrix.
+        Each row = one perturbed iteration.
+        Each column = one signal.
+    """
+
+    if nharmonics is None:
+        # --- Standard RMS case ---
+        Y0 = Y[0]          # nominal first row
+        Y_iter = Y[1:]     # remaining rows = perturbed
+        dY = Y_iter - Y0
+        S = (dY / Y0[None, :]) / perturb * 100
+    else:
+        # --- FFT case ---
+        n_total_rows, n_signals = Y.shape
+        n_iter = (n_total_rows - nharmonics) // nharmonics
+
+        if n_total_rows != nharmonics * (n_iter + 1):
+            raise ValueError("Y shape inconsistent with nharmonics and iterations")
+
+        # Nominal block: first nharmonics rows
+        Y0 = Y[:nharmonics, :]
+        Y0_mean = np.mean(Y0, axis=0)
+
+        S_list = []
+        for i in range(n_iter):
+            start = nharmonics * (i + 1)
+            end = start + nharmonics
+            Y_block = Y[start:end, :]
+            Y_block_mean = np.mean(Y_block, axis=0)
+            dY = Y_block_mean - Y0_mean
+            S_row = (dY / Y0_mean) / perturb * 100
+            S_list.append(S_row)
+
+        S = np.array(S_list)
+
+    # --- Save CSV ---
+    save_path = os.path.join(r'D:\WORKSPACE\TESTMODEL\CSVMAPS', 'curr_S_MAP.csv')
+    pd.DataFrame(S).to_csv(save_path, index=False, header=False)
+
+    return S
