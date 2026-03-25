@@ -98,59 +98,41 @@ def compute_sensitivity(Y, X, perturb=0.1, nharmonics=None):
 
     Parameters
     ----------
-    Y : ndarray (n_rows, n_signals)
-        Output matrix (RMS or FFT data).
-        RMS: first row = nominal.
-        FFT: first nharmonics rows = nominal; next blocks = perturbed iterations.
-
-    X : ndarray (n_iter+1, n_vars)
+    Y : ndarray
+        Output matrix (RMS, FFT, etc.).
+        First row(s) = nominal (for RMS) or first nharmonics rows = nominal for FFT.
+    X : ndarray
         Input variables matrix.
-        First row = nominal; subsequent rows = one variable perturbed.
-
+        First row = nominal.
     perturb : float
-        Relative perturbation applied to each variable (fraction).
-
+        Relative perturbation applied to each variable (fraction, e.g., 0.1 = 10%)
     nharmonics : int or None
-        If None: standard RMS logic.
-        If int: number of harmonics per iteration for FFT data.
+        Number of harmonics if Y is FFT. If None, RMS logic is used.
 
     Returns
     -------
     S : ndarray
-        Sensitivity matrix.
-        Each row = one perturbed iteration.
-        Each column = one signal.
+        Sensitivity matrix (% form)
     """
-
     if nharmonics is None:
-        # --- Standard RMS case ---
-        Y0 = Y[0]          # nominal first row
-        Y_iter = Y[1:]     # remaining rows = perturbed
+        # --- RMS case ---
+        Y0 = Y[0]
+        Y_iter = Y[1:]
         dY = Y_iter - Y0
         S = (dY / Y0[None, :]) / perturb * 100
     else:
         # --- FFT case ---
-        n_total_rows, n_signals = Y.shape
-        n_iter = (n_total_rows - nharmonics) // nharmonics
+        n_iter = (Y.shape[0] - nharmonics) // nharmonics
+        n_signals = Y.shape[1]
+        S = np.zeros((n_iter * nharmonics, n_signals))
 
-        if n_total_rows != nharmonics * (n_iter + 1):
-            raise ValueError("Y shape inconsistent with nharmonics and iterations")
-
-        # Nominal block: first nharmonics rows
+        # Nominal rows for each harmonic
         Y0 = Y[:nharmonics, :]
-        Y0_mean = np.mean(Y0, axis=0)
 
-        S_list = []
         for i in range(n_iter):
-            start = nharmonics * (i + 1)
-            end = start + nharmonics
-            Y_block = Y[start:end, :]
-            Y_block_mean = np.mean(Y_block, axis=0)
-            dY = Y_block_mean - Y0_mean
-            S_row = (dY / Y0_mean) / perturb * 100
-            S_list.append(S_row)
-
-        S = np.array(S_list)
+            for h in range(nharmonics):
+                idx = nharmonics + i * nharmonics + h  # current perturbed row
+                S[i * nharmonics + h, :] = ((Y[idx, :] - Y0[h, :]) / Y0[h, :]) / perturb * 100
 
     # --- Save CSV ---
     save_path = os.path.join(r'D:\WORKSPACE\TESTMODEL\CSVMAPS', 'curr_S_MAP.csv')
