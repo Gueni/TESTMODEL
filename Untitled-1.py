@@ -34,3 +34,5 @@ L --> M
 M --> N[Append S to CSV file]
 
 N --> O[End]
+
+S = \left(\frac{Y - Y_0}{Y_0}\right) \cdot \frac{100}{\text{perturbation}}
