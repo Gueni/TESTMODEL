@@ -12,33 +12,11 @@ print(result)
 
 #-----------------------------------------------------------------------------
 import numpy as np
-def pad_all_top_with_nan(matrices, N=1):
-    padded_matrices = []
-    max_rows = max(np.atleast_2d(mat).shape[0] for mat in matrices)
-    
-    for mat in matrices:
-        mat = np.atleast_2d(mat)  # convert 1D to 2D row
-        rows, cols = mat.shape
-        pad_rows = N * (max_rows - rows)
-        if pad_rows > 0:
-            pad = np.full((pad_rows, cols), np.nan)
-            mat_padded = np.vstack([pad, mat])
-        else:
-            mat_padded = mat
-        padded_matrices.append(mat_padded)
-        
-    return padded_matrices
-A = np.array([[1, 2],
-              [3, 4],
-              [5, 6]])
+import numpy as np
 
-B = np.array([[10, 20]])
+pad_top = lambda X, target_rows: np.vstack([np.full((target_rows - X.shape[0], X.shape[1]), np.nan), X])
+A = np.array([[1, 2], [3, 4], [5, 6]])
+B = np.array([[10, 20]])  # fewer rows
 
-C = np.array([[100,200],
-              [300,400]])
-
-matrices = [A, B, C]
-
-padded = pad_all_top_with_nan(matrices, N=1)
-result = np.hstack(padded)
-print(result)
+B_padded = pad_top(B, target_rows=A.shape[0])
+print(B_padded)
