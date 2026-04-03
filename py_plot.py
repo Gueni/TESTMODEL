@@ -400,12 +400,12 @@
                     headers_array, FFT_headers, combined_matrix, combined_fft_matrix,
                     fixed_combos, fixed_keys, rows_dict, fft_rows_dict, sweepNames, var1, var2)
                 
-                # Create dropdown figures
-                list_of_plots = [self._make_dropdown(full_title, component, dropdown_data[component], plot_type="3D") 
+                # Create dropdown figures - remove full_title parameter
+                list_of_plots = [self._make_dropdown(component, dropdown_data[component], plot_type="3D") 
                                 for component in headers_array if dropdown_data.get(component)]
                 
                 if dp.JSON['FFT'] and fft_dropdown_data:
-                    fft_plots = [self._make_dropdown(full_title, component, fft_dropdown_data[component], plot_type="FFT") 
+                    fft_plots = [self._make_dropdown(component, fft_dropdown_data[component], plot_type="FFT") 
                                 for component in FFT_headers if fft_dropdown_data.get(component)]
                 
                 # Group and write reports (handles sensitivity automatically)
@@ -753,97 +753,99 @@
         with open(html_file, 'w', encoding='utf-8') as file:
             file.write(html_content)
 
-    def _make_dropdown(self, full_title, component, fixed_combos_data, plot_type="3D"):
-    """
-    Create a Plotly figure with multiple traces and a dropdown menu.
-    
-    Parameters:
-        full_title: str - The overall title for the figure
-        component: str - Name of the component being plotted
-        fixed_combos_data: dict - Dictionary of fixed combinations data
-        plot_type: str - "3D" for surface plots, "FFT" for bar charts
-    """
-    fig, dropdown_buttons, sweepNames = dp.go.Figure(), [], dp.JSON["sweepNames"]
-    group_trace_indices, current_index = [], 0
-    
-    for i, (_, data) in enumerate(fixed_combos_data.items()):
-        x_vals, y_vals, z_vals, fixed_dict = data
+    def _make_dropdown(self, component, fixed_combos_data, plot_type="3D"):
+        """
+        Create a Plotly figure with multiple traces and a dropdown menu.
         
-        if plot_type == "FFT":
-            temp_fig = self.barchart3D(x_vals, y_vals, z_vals, full_title, 'Magnitude',
-                                       x_title='Harmonics', 
-                                       y_title=sweepNames[int(dp.re.search(r'\d+', dp.JSON["Var2"]).group())-1])
-            for trace in temp_fig.data:
-                trace.visible = False
-                fig.add_trace(trace)
-            n_traces = len(temp_fig.data)
-        else:  # 3D Surface mode
-            X, Y = dp.np.meshgrid(dp.np.unique(x_vals), dp.np.unique(y_vals))
-            Z = dp.np.full_like(X, dp.np.nan, dtype=float)
-            Z[dp.np.searchsorted(dp.np.unique(y_vals), y_vals), 
-              dp.np.searchsorted(dp.np.unique(x_vals), x_vals)] = z_vals
+        Parameters:
+            component: str - Name of the component being plotted
+            fixed_combos_data: dict - Dictionary of fixed combinations data
+            plot_type: str - "3D" for surface plots, "FFT" for bar charts
+        """
+        fig, dropdown_buttons, sweepNames = dp.go.Figure(), [], dp.JSON["sweepNames"]
+        group_trace_indices, current_index = [], 0
+        
+        for i, (_, data) in enumerate(fixed_combos_data.items()):
+            x_vals, y_vals, z_vals, fixed_dict = data
             
-            if dp.JSON["perturbation"] == 0:
-                relative_tol, absolute_tol = 0.001, 1e-12
-                if dp.np.allclose(z_vals, Z[0, 0], rtol=relative_tol, atol=absolute_tol):
-                    X = dp.np.array([X[0, :], X[-1, :]])
-                    Y = dp.np.array([Y[0, :], Y[-1, :]])
-                    Z = dp.np.array([Z[0, :], Z[-1, :]])
+            if plot_type == "FFT":
+                temp_fig = self.barchart3D(x_vals, y_vals, z_vals, 
+                                        f'{component}<br>{self._format_fixed_title(fixed_dict, sweepNames)}', 
+                                        'Magnitude',
+                                        x_title='Harmonics', 
+                                        y_title=sweepNames[int(dp.re.search(r'\d+', dp.JSON["Var2"]).group())-1])
+                for trace in temp_fig.data:
+                    trace.visible = False
+                    fig.add_trace(trace)
+                n_traces = len(temp_fig.data)
+            else:  # 3D Surface mode
+                X, Y = dp.np.meshgrid(dp.np.unique(x_vals), dp.np.unique(y_vals))
+                Z = dp.np.full_like(X, dp.np.nan, dtype=float)
+                Z[dp.np.searchsorted(dp.np.unique(y_vals), y_vals), 
+                dp.np.searchsorted(dp.np.unique(x_vals), x_vals)] = z_vals
+                
+                if dp.JSON["perturbation"] == 0:
+                    relative_tol, absolute_tol = 0.001, 1e-12
+                    if dp.np.allclose(z_vals, Z[0, 0], rtol=relative_tol, atol=absolute_tol):
+                        X = dp.np.array([X[0, :], X[-1, :]])
+                        Y = dp.np.array([Y[0, :], Y[-1, :]])
+                        Z = dp.np.array([Z[0, :], Z[-1, :]])
+                
+                fig.add_trace(dp.go.Surface(x=X, y=Y, z=Z, colorscale='Viridis', visible=False))
+                n_traces = 1
             
-            fig.add_trace(dp.go.Surface(x=X, y=Y, z=Z, colorscale='Viridis', visible=False))
-            n_traces = 1
+            group_trace_indices.append((current_index, current_index + n_traces))
+            current_index += n_traces
         
-        group_trace_indices.append((current_index, current_index + n_traces))
-        current_index += n_traces
-    
-    # Make the first group visible
-    first_start, first_end = group_trace_indices[0]
-    for j in range(first_start, first_end):
-        fig.data[j].visible = True
-    
-    # Create dropdown buttons
-    for i, (_, data) in enumerate(fixed_combos_data.items()):
-        fixed_dict = data[3]
-        start_idx, end_idx = group_trace_indices[i]
-        fixed_title = self._format_fixed_title(fixed_dict, sweepNames)
+        # Make the first group visible
+        if group_trace_indices:
+            first_start, first_end = group_trace_indices[0]
+            for j in range(first_start, first_end):
+                fig.data[j].visible = True
         
-        visibility = [False] * len(fig.data)
-        for j in range(start_idx, end_idx):
-            visibility[j] = True
-        dropdown_buttons.append({'label': fixed_title, 'method': 'update', 
-                                 'args': [{'visible': visibility}, {'title.text': f'{component}<br>{fixed_title}'}]})
-    
-    # Initial title
-    first_dict = next(iter(fixed_combos_data.values()))[3]
-    first_title = self._format_fixed_title(first_dict, sweepNames)
-    
-    layout_base = dict(
-        title=dict(text=f'{component}<br>{first_title}', x=0.5, xanchor='center', yanchor='top'),
-        updatemenus=[dict(type='dropdown', x=1.15, y=0.5, xanchor='left', yanchor='middle',
-                         buttons=dropdown_buttons, direction='down', showactive=True,
-                         bgcolor='lightgray', bordercolor='black', font={'size': 12}, pad={'r': 20})],
-        margin=dict(r=200)
-    )
-    
-    # Configure scene
-    if plot_type == "3D":
-        layout_base['scene'] = dict(
-            xaxis=dict(autorange='reversed'), yaxis=dict(autorange='reversed'),
-            xaxis_title=sweepNames[int(dp.re.search(r'\d+', dp.JSON["Var1"]).group())-1],
-            yaxis_title=sweepNames[int(dp.re.search(r'\d+', dp.JSON["Var2"]).group())-1],
-            zaxis_title=component,
-            xaxis_title_font=dict(size=10), yaxis_title_font=dict(size=10), zaxis_title_font=dict(size=10),
-            xaxis_tickfont=dict(size=10), yaxis_tickfont=dict(size=10), zaxis_tickfont=dict(size=10)
+        # Create dropdown buttons
+        for i, (_, data) in enumerate(fixed_combos_data.items()):
+            fixed_dict = data[3]
+            start_idx, end_idx = group_trace_indices[i]
+            fixed_title = self._format_fixed_title(fixed_dict, sweepNames)
+            
+            visibility = [False] * len(fig.data)
+            for j in range(start_idx, end_idx):
+                visibility[j] = True
+            dropdown_buttons.append({'label': fixed_title, 'method': 'update', 
+                                    'args': [{'visible': visibility}, {'title.text': f'{component}<br>{fixed_title}'}]})
+        
+        # Initial title
+        first_dict = next(iter(fixed_combos_data.values()))[3]
+        first_title = self._format_fixed_title(first_dict, sweepNames)
+        
+        layout_base = dict(
+            title=dict(text=f'{component}<br>{first_title}', x=0.5, xanchor='center', yanchor='top'),
+            updatemenus=[dict(type='dropdown', x=1.15, y=0.5, xanchor='left', yanchor='middle',
+                            buttons=dropdown_buttons, direction='down', showactive=True,
+                            bgcolor='lightgray', bordercolor='black', font={'size': 12}, pad={'r': 20})],
+            margin=dict(r=200)
         )
-    elif plot_type == "FFT":
-        layout_base['scene'] = dict(
-            xaxis=dict(autorange='reversed'), yaxis=dict(autorange='reversed'),
-            xaxis_title='Harmonics',
-            yaxis_title=sweepNames[int(dp.re.search(r'\d+', dp.JSON["Var2"]).group())-1],
-            zaxis_title='Magnitude',
-            xaxis_title_font=dict(size=10), yaxis_title_font=dict(size=10), zaxis_title_font=dict(size=10),
-            xaxis_tickfont=dict(size=10), yaxis_tickfont=dict(size=10), zaxis_tickfont=dict(size=10)
-        )
-    
-    fig.update_layout(**layout_base)
-    return fig
+        
+        # Configure scene
+        if plot_type == "3D":
+            layout_base['scene'] = dict(
+                xaxis=dict(autorange='reversed'), yaxis=dict(autorange='reversed'),
+                xaxis_title=sweepNames[int(dp.re.search(r'\d+', dp.JSON["Var1"]).group())-1],
+                yaxis_title=sweepNames[int(dp.re.search(r'\d+', dp.JSON["Var2"]).group())-1],
+                zaxis_title=component,
+                xaxis_title_font=dict(size=10), yaxis_title_font=dict(size=10), zaxis_title_font=dict(size=10),
+                xaxis_tickfont=dict(size=10), yaxis_tickfont=dict(size=10), zaxis_tickfont=dict(size=10)
+            )
+        elif plot_type == "FFT":
+            layout_base['scene'] = dict(
+                xaxis=dict(autorange='reversed'), yaxis=dict(autorange='reversed'),
+                xaxis_title='Harmonics',
+                yaxis_title=sweepNames[int(dp.re.search(r'\d+', dp.JSON["Var2"]).group())-1],
+                zaxis_title='Magnitude',
+                xaxis_title_font=dict(size=10), yaxis_title_font=dict(size=10), zaxis_title_font=dict(size=10),
+                xaxis_tickfont=dict(size=10), yaxis_tickfont=dict(size=10), zaxis_tickfont=dict(size=10)
+            )
+        
+        fig.update_layout(**layout_base)
+        return fig
