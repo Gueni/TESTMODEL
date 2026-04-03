@@ -577,119 +577,6 @@
                                     for k, v in list(fixed_dict.items())[j:j+2]) 
                         for j in range(0, len(fixed_dict), 2))
 
-    def _get_fixed_combinations(self, simutil, sweep_vars, sweep_keys, var1, var2):
-        """Get fixed combinations for 3D plotting."""
-        other_vars = {k: v for k, v in self.Xs_to_dict(simutil.sweepMatrix).items() 
-                    if dp.re.fullmatch(r"X\d+", k) and k not in [var1, var2] and v != [0] 
-                    and not dp.JSON["sweepNames"][int(dp.re.search(r'\d+', k).group())-1].startswith("X")}
-        
-        fixed_keys = list(other_vars.keys())
-        
-        # Generate fixed combinations
-        if dp.JSON["permute"]:
-            if other_vars:
-                fixed_combos = list(dp.product(*other_vars.values()))
-            else:
-                fixed_combos = [()]
-        else:
-            # For non-permuted sweeps with fixed variables
-            if other_vars:
-                values_list = list(other_vars.values())
-                max_len = max(len(v) for v in values_list)
-                fixed_combos = []
-                for i in range(max_len):
-                    combo = []
-                    for v in values_list:
-                        if i < len(v):
-                            combo.append(v[i])
-                        else:
-                            combo.append(v[-1])
-                    fixed_combos.append(tuple(combo))
-            else:
-                fixed_combos = [()]
-        
-        # Generate all sweep combinations (same logic as above)
-        if dp.JSON["permute"]:
-            all_combos = list(dp.product(*sweep_vars.values()))
-        else:
-            values_list = list(sweep_vars.values())
-            max_len = max(len(v) for v in values_list)
-            all_combos = []
-            for i in range(max_len):
-                combo = []
-                for v in values_list:
-                    if i < len(v):
-                        combo.append(v[i])
-                    else:
-                        combo.append(v[-1])
-                all_combos.append(tuple(combo))
-        
-        # Return the Selected Rows of data for each fixed combo
-        rows_dict, fft_rows_dict = {}, {}
-        
-        for fixed_values in fixed_combos:
-            fixed_dict = dict(zip(fixed_keys, fixed_values))
-            rows = dp.np.array([(i, combo[sweep_keys.index(var1)], combo[sweep_keys.index(var2)]) 
-                            for i, combo in enumerate(all_combos) 
-                            if all(combo[sweep_keys.index(k)] == v for k, v in fixed_dict.items())])
-            rows_dict[tuple(fixed_values)] = rows
-            
-            if dp.JSON['FFT'] and all_combos:
-                # Generate FFT combos by repeating each combo for harmonics
-                fft_combos = []
-                for combo in all_combos:
-                    for _ in range(len(dp.harmonics)):
-                        fft_combos.append(combo)
-                
-                fft_rows = dp.np.array([(i, combo[sweep_keys.index(var1)], combo[sweep_keys.index(var2)]) 
-                                    for i, combo in enumerate(fft_combos) 
-                                    if all(combo[sweep_keys.index(k)] == v for k, v in fixed_dict.items())])
-                fft_rows_dict[tuple(fixed_values)] = fft_rows
-        
-        return fixed_keys, fixed_combos, rows_dict, fft_rows_dict
-
-    def _create_3D_plots_per_component(self, headers_array, FFT_headers, combined_matrix, combined_fft_matrix,
-                                        fixed_combos, fixed_keys, rows_dict, fft_rows_dict, sweepNames, var1, var2, standalone_exist):
-        """Create separate 3D plots for each component (iterSplit=True)."""
-        list_of_plots, fft_plots = [], []
-        relative_tol, absolute_tol = 0.001, 1e-12
-        
-        for component, fixed_values in dp.product(headers_array, fixed_combos):
-            fixed_dict = dict(zip(fixed_keys, fixed_values))
-            z_column = headers_array.index(component)
-            rows = rows_dict[tuple(fixed_values)]
-            
-            x_vals, y_vals, z_vals = rows[:,1], rows[:,2], combined_matrix[rows[:,0].astype(int), z_column]
-            X, Y = dp.np.meshgrid(dp.np.unique(x_vals), dp.np.unique(y_vals))
-            Z = dp.np.full_like(X, dp.np.nan, dtype=float)
-            Xi, Yi = dp.np.searchsorted(dp.np.unique(y_vals), y_vals), dp.np.searchsorted(dp.np.unique(x_vals), x_vals)
-            Z[Xi, Yi] = z_vals
-            
-            if dp.JSON["perturbation"] == 0:
-                if dp.np.allclose(z_vals, Z[0, 0], rtol=relative_tol, atol=absolute_tol):
-                    X = dp.np.array([X[0, :], X[-1, :]])
-                    Y = dp.np.array([Y[0, :], Y[-1, :]])
-                    Z = dp.np.array([Z[0, :], Z[-1, :]])
-            
-            fig = self._create_3d_surface_plot(component, fixed_dict, X, Y, Z, sweepNames, var1, var2)
-            list_of_plots.append(fig)
-        
-        if dp.JSON['FFT'] and combined_fft_matrix is not None:
-            for component, fixed_values in dp.product(FFT_headers, fixed_combos):
-                fixed_dict = dict(zip(fixed_keys, fixed_values))
-                z_column = FFT_headers.index(component)
-                fft_rows = fft_rows_dict[tuple(fixed_values)]
-                y_vals = fft_rows[:,2]
-                x_vals = dp.np.tile(dp.np.array(dp.harmonics), int(dp.np.ceil(len(y_vals)/len(dp.harmonics))))[:len(y_vals)]
-                z_vals = combined_fft_matrix[fft_rows[:,0].astype(int), z_column]
-                fig = self.barchart3D(x_vals, y_vals, z_vals, 
-                                    f'{component}<br>{self._format_fixed_title(fixed_dict, sweepNames)}', 
-                                    'Magnitude', x_title='Harmonics', 
-                                    y_title=sweepNames[int(dp.re.search(r'\d+', var2).group())-1])
-                fft_plots.append(fig)
-        
-        return list_of_plots, fft_plots
-
     def _create_3d_surface_plot(self, component, fixed_dict, X, Y, Z, sweepNames, var1, var2):
         """Create a single 3D surface plot."""
         full_title = f'{component}<br>{self._format_fixed_title(fixed_dict, sweepNames)}'
@@ -752,6 +639,156 @@
         
         with open(html_file, 'w', encoding='utf-8') as file:
             file.write(html_content)
+
+    def _create_3D_plots_per_component(self, headers_array, FFT_headers, combined_matrix, combined_fft_matrix,
+                                        fixed_combos, fixed_keys, rows_dict, fft_rows_dict, sweepNames, var1, var2, standalone_exist):
+        """Create separate 3D plots for each component (iterSplit=True)."""
+        list_of_plots, fft_plots = [], []
+        relative_tol, absolute_tol = 0.001, 1e-12
+        
+        print(f"\n=== 3D Plot Creation Debug ===")
+        print(f"combined_matrix shape: {combined_matrix.shape if combined_matrix is not None else 'None'}")
+        print(f"combined_fft_matrix shape: {combined_fft_matrix.shape if combined_fft_matrix is not None else 'None'}")
+        print(f"headers_array length: {len(headers_array)}")
+        print(f"FFT_headers length: {len(FFT_headers)}")
+        print(f"fixed_combos length: {len(fixed_combos)}")
+        print(f"rows_dict keys: {list(rows_dict.keys())}")
+        
+        for component_idx, (component, fixed_values) in enumerate(dp.product(headers_array, fixed_combos)):
+            fixed_dict = dict(zip(fixed_keys, fixed_values))
+            z_column = headers_array.index(component)
+            
+            print(f"\n--- Processing component: {component} (idx={component_idx}) ---")
+            print(f"  fixed_dict: {fixed_dict}")
+            print(f"  z_column: {z_column}")
+            
+            # Get rows for this fixed combination
+            rows = rows_dict.get(tuple(fixed_values))
+            if rows is None:
+                print(f"  ERROR: No rows found for fixed_values {fixed_values}")
+                continue
+            
+            print(f"  rows shape: {rows.shape}")
+            print(f"  rows first 5: {rows[:5] if len(rows) > 0 else 'empty'}")
+            
+            if len(rows) == 0:
+                print(f"  WARNING: Empty rows for component {component}")
+                continue
+            
+            # Extract x, y, z values
+            row_indices = rows[:, 0].astype(int)
+            x_vals = rows[:, 1]
+            y_vals = rows[:, 2]
+            
+            # Check bounds
+            max_row_idx = max(row_indices) if len(row_indices) > 0 else 0
+            if max_row_idx >= combined_matrix.shape[0]:
+                print(f"  ERROR: Row index {max_row_idx} exceeds matrix rows {combined_matrix.shape[0]}")
+                continue
+            
+            if z_column >= combined_matrix.shape[1]:
+                print(f"  ERROR: Column {z_column} exceeds matrix columns {combined_matrix.shape[1]}")
+                continue
+            
+            z_vals = combined_matrix[row_indices, z_column]
+            
+            print(f"  x_vals unique: {dp.np.unique(x_vals)}")
+            print(f"  y_vals unique: {dp.np.unique(y_vals)}")
+            print(f"  z_vals: {z_vals[:5] if len(z_vals) > 0 else 'empty'}")
+            print(f"  z_vals min/max: {z_vals.min() if len(z_vals) > 0 else 'N/A'}/{z_vals.max() if len(z_vals) > 0 else 'N/A'}")
+            
+            # Check if all z_vals are the same (constant)
+            if len(z_vals) > 0 and dp.np.allclose(z_vals, z_vals[0], rtol=relative_tol, atol=absolute_tol):
+                print(f"  NOTE: All z_vals are constant at {z_vals[0]}")
+            
+            # Create meshgrid
+            x_unique = dp.np.unique(x_vals)
+            y_unique = dp.np.unique(y_vals)
+            
+            print(f"  x_unique: {x_unique}")
+            print(f"  y_unique: {y_unique}")
+            
+            X, Y = dp.np.meshgrid(x_unique, y_unique)
+            Z = dp.np.full_like(X, dp.np.nan, dtype=float)
+            
+            # Map values to meshgrid
+            xi = dp.np.searchsorted(x_unique, x_vals)
+            yi = dp.np.searchsorted(y_unique, y_vals)
+            
+            # Check for duplicates
+            for idx in range(len(z_vals)):
+                if not dp.np.isnan(Z[yi[idx], xi[idx]]):
+                    print(f"  WARNING: Duplicate at ({x_vals[idx]}, {y_vals[idx]}) - old value: {Z[yi[idx], xi[idx]]}, new value: {z_vals[idx]}")
+                Z[yi[idx], xi[idx]] = z_vals[idx]
+            
+            # Handle constant surfaces for perturbation=0
+            if dp.JSON["perturbation"] == 0:
+                if dp.np.allclose(z_vals, z_vals[0], rtol=relative_tol, atol=absolute_tol):
+                    print(f"  Applying constant surface reduction")
+                    X = dp.np.array([X[0, :], X[-1, :]])
+                    Y = dp.np.array([Y[0, :], Y[-1, :]])
+                    Z = dp.np.array([Z[0, :], Z[-1, :]])
+            
+            print(f"  Final X shape: {X.shape}, Y shape: {Y.shape}, Z shape: {Z.shape}")
+            print(f"  Z values (non-nan): {Z[~dp.np.isnan(Z)]}")
+            
+            # Create figure
+            fig = self._create_3d_surface_plot(component, fixed_dict, X, Y, Z, sweepNames, var1, var2)
+            list_of_plots.append(fig)
+        
+        # FFT plots
+        if dp.JSON['FFT'] and combined_fft_matrix is not None:
+            print(f"\n=== FFT 3D Plot Creation Debug ===")
+            
+            for component_idx, (component, fixed_values) in enumerate(dp.product(FFT_headers, fixed_combos)):
+                fixed_dict = dict(zip(fixed_keys, fixed_values))
+                z_column = FFT_headers.index(component)
+                
+                print(f"\n--- Processing FFT component: {component} (idx={component_idx}) ---")
+                print(f"  fixed_dict: {fixed_dict}")
+                print(f"  z_column: {z_column}")
+                
+                fft_rows = fft_rows_dict.get(tuple(fixed_values))
+                if fft_rows is None:
+                    print(f"  ERROR: No FFT rows found for fixed_values {fixed_values}")
+                    continue
+                
+                print(f"  fft_rows shape: {fft_rows.shape}")
+                
+                if len(fft_rows) == 0:
+                    print(f"  WARNING: Empty FFT rows for component {component}")
+                    continue
+                
+                row_indices = fft_rows[:, 0].astype(int)
+                y_vals = fft_rows[:, 2]
+                
+                # Check bounds
+                max_row_idx = max(row_indices) if len(row_indices) > 0 else 0
+                if max_row_idx >= combined_fft_matrix.shape[0]:
+                    print(f"  ERROR: Row index {max_row_idx} exceeds FFT matrix rows {combined_fft_matrix.shape[0]}")
+                    continue
+                
+                if z_column >= combined_fft_matrix.shape[1]:
+                    print(f"  ERROR: Column {z_column} exceeds FFT matrix columns {combined_fft_matrix.shape[1]}")
+                    continue
+                
+                z_vals = combined_fft_matrix[row_indices, z_column]
+                
+                # Create x_vals as repeated harmonics
+                harmonics_len = len(dp.harmonics)
+                x_vals = dp.np.tile(dp.np.array(dp.harmonics), len(z_vals) // harmonics_len + 1)[:len(z_vals)]
+                
+                print(f"  x_vals unique: {dp.np.unique(x_vals)}")
+                print(f"  y_vals unique: {dp.np.unique(y_vals)}")
+                print(f"  z_vals min/max: {z_vals.min()}/{z_vals.max()}")
+                
+                fig = self.barchart3D(x_vals, y_vals, z_vals, 
+                                    f'{component}<br>{self._format_fixed_title(fixed_dict, sweepNames)}', 
+                                    'Magnitude', x_title='Harmonics', 
+                                    y_title=sweepNames[int(dp.re.search(r'\d+', var2).group())-1])
+                fft_plots.append(fig)
+        
+        return list_of_plots, fft_plots
 
     def _make_dropdown(self, component, fixed_combos_data, plot_type="3D"):
         """
@@ -849,3 +886,109 @@
         
         fig.update_layout(**layout_base)
         return fig
+
+    def _get_fixed_combinations(self, simutil, sweep_vars, sweep_keys, var1, var2):
+        """Get fixed combinations for 3D plotting."""
+        other_vars = {k: v for k, v in self.Xs_to_dict(simutil.sweepMatrix).items() 
+                    if dp.re.fullmatch(r"X\d+", k) and k not in [var1, var2] and v != [0] 
+                    and not dp.JSON["sweepNames"][int(dp.re.search(r'\d+', k).group())-1].startswith("X")}
+        
+        fixed_keys = list(other_vars.keys())
+        
+        # Generate fixed combinations based on permute flag
+        if dp.JSON["permute"]:
+            if other_vars:
+                fixed_combos = list(dp.product(*other_vars.values()))
+            else:
+                fixed_combos = [()]
+        else:
+            # Sequential: pair values at same index
+            if other_vars:
+                values_list = list(other_vars.values())
+                max_len = max(len(v) for v in values_list)
+                fixed_combos = []
+                for i in range(max_len):
+                    combo = []
+                    for v in values_list:
+                        if i < len(v):
+                            combo.append(v[i])
+                        else:
+                            combo.append(v[-1])
+                    fixed_combos.append(tuple(combo))
+            else:
+                fixed_combos = [()]
+        
+        # Generate all sweep combinations
+        if dp.JSON["permute"]:
+            all_combos = list(dp.product(*sweep_vars.values()))
+        else:
+            values_list = list(sweep_vars.values())
+            max_len = max(len(v) for v in values_list)
+            all_combos = []
+            for i in range(max_len):
+                combo = []
+                for v in values_list:
+                    if i < len(v):
+                        combo.append(v[i])
+                    else:
+                        combo.append(v[-1])
+                all_combos.append(tuple(combo))
+        
+        print(f"\n=== Fixed Combinations Debug ===")
+        print(f"permute={dp.JSON['permute']}")
+        print(f"all_combos length: {len(all_combos)}")
+        print(f"all_combos first 5: {all_combos[:5]}")
+        print(f"fixed_combos length: {len(fixed_combos)}")
+        print(f"fixed_combos: {fixed_combos}")
+        
+        # Create a mapping from combo to its index in all_combos
+        combo_to_index = {combo: i for i, combo in enumerate(all_combos)}
+        
+        rows_dict, fft_rows_dict = {}, {}
+        
+        for fixed_values in fixed_combos:
+            fixed_dict = dict(zip(fixed_keys, fixed_values))
+            
+            print(f"\n--- Processing fixed combo: {fixed_values} ---")
+            
+            # Find indices where fixed values match
+            rows_list = []
+            for i, combo in enumerate(all_combos):
+                match = True
+                for k, v in fixed_dict.items():
+                    if k in sweep_keys:
+                        idx = sweep_keys.index(k)
+                        if combo[idx] != v:
+                            match = False
+                            break
+                if match:
+                    rows_list.append((i, combo[sweep_keys.index(var1)], combo[sweep_keys.index(var2)]))
+                    print(f"  Matched combo {i}: {combo}")
+            
+            rows = dp.np.array(rows_list)
+            print(f"  rows shape: {rows.shape}")
+            rows_dict[tuple(fixed_values)] = rows
+            
+            if dp.JSON['FFT'] and all_combos:
+                harmonics_len = len(dp.harmonics)
+                fft_rows_list = []
+                
+                for i, combo in enumerate(all_combos):
+                    match = True
+                    for k, v in fixed_dict.items():
+                        if k in sweep_keys:
+                            idx = sweep_keys.index(k)
+                            if combo[idx] != v:
+                                match = False
+                                break
+                    if match:
+                        # Add all harmonics positions for this combo
+                        base_idx = i * harmonics_len
+                        for h in range(harmonics_len):
+                            fft_rows_list.append((base_idx + h, combo[sweep_keys.index(var1)], combo[sweep_keys.index(var2)]))
+                
+                fft_rows = dp.np.array(fft_rows_list)
+                print(f"  fft_rows shape: {fft_rows.shape}")
+                fft_rows_dict[tuple(fixed_values)] = fft_rows
+        
+        return fixed_keys, fixed_combos, rows_dict, fft_rows_dict
