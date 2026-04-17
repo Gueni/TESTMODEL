@@ -101,3 +101,13 @@ else:
 ```
 
 The logic is identical - only the variable names change (`fixed_vars` vs `other_vars`). This ensures consistent sequential pairing throughout your code when `permute = False`.
+
+
+
+
+
+if dp.JSON["permute"]:
+    fig = dp.go.Figure(data=[dp.go.Surface(x=X, y=Y, z=Z, colorscale='Viridis')])
+else:
+    # Use 3D scatter plot for sequential sweeps
+    fig = dp.go.Figure(data=[dp.go.Scatter3d(x=x_vals, y=y_vals, z=z_vals, mode='lines+markers')])
