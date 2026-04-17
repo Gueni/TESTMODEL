@@ -57,3 +57,47 @@ This change ensures that when `permute = False`:
 2. **3D plots**: The surface mesh will be constructed from properly aligned (x,y,z) triplets instead of irregular combinations
 
 The scatter plots (both 2D and 3D) will work correctly because the data points will maintain their sequential relationship rather than creating all possible permutations. This preserves the natural order of your sweep parameters.
+
+
+
+
+
+**Yes, that's correct!** This block can be used for both 2D and 3D cases, just with different variable names.
+
+## For the 2D case (around line ~720), use:
+```python
+if dp.JSON["permute"]:
+    fixed_combos = list(dp.product(*fixed_vars.values())) if fixed_vars else [()]
+else:
+    # For non-permuted fixed combos, create sequential combinations
+    fixed_values_list = list(fixed_vars.values())
+    if fixed_values_list:
+        max_len = max(len(v) for v in fixed_values_list)
+        padded_combos = []
+        for i in range(max_len):
+            combo = tuple(v[i] if i < len(v) else v[-1] for v in fixed_values_list)
+            padded_combos.append(combo)
+        fixed_combos = padded_combos
+    else:
+        fixed_combos = [()]
+```
+
+## For the 3D case (around line ~803), use:
+```python
+if dp.JSON["permute"]:
+    fixed_combos = list(dp.product(*other_vars.values()))
+else:
+    # For non-permuted fixed combos, create sequential combinations
+    other_values_list = list(other_vars.values())
+    if other_values_list:
+        max_len = max(len(v) for v in other_values_list)
+        padded_combos = []
+        for i in range(max_len):
+            combo = tuple(v[i] if i < len(v) else v[-1] for v in other_values_list)
+            padded_combos.append(combo)
+        fixed_combos = padded_combos
+    else:
+        fixed_combos = [()]
+```
+
+The logic is identical - only the variable names change (`fixed_vars` vs `other_vars`). This ensures consistent sequential pairing throughout your code when `permute = False`.
