@@ -1,26 +1,18 @@
-Update install.bat to upgrade them first
-bat@echo off
+@echo off
 echo Creating virtual environment...
 python -m venv venv
 
 echo Activating...
 call venv\Scripts\activate.bat
 
-echo Bootstrapping pip, setuptools, wheel...
-pip install --no-index --find-links=wheelhouse setuptools wheel pip --upgrade
+echo Bootstrapping...
+pip install --no-index --find-links=wheelhouse setuptools==63.2.0 wheel --upgrade
 
 echo Installing project and dependencies...
 pip install --no-index --find-links=wheelhouse -e .
 
 echo.
-echo Done! To run the project:
+echo Done!
 echo   1. call venv\Scripts\activate.bat
 echo   2. python main.py
 pause
-The key is installing setuptools wheel pip before the main install step — a fresh venv has minimal versions of these and needs them upgraded from your wheelhouse first.
-
-Also add them to your pyproject.toml build requirements
-toml[build-system]
-requires = ["setuptools>=65.0", "wheel"]
-build-backend = "setuptools.build_meta"
-This tells pip exactly which version of setuptools is needed to build your project, so it looks for it in the wheelhouse rather than trying to fetch it from the internet.
