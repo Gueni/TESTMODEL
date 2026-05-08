@@ -120,3 +120,33 @@ if __name__ == "__main__":
 
     # Print the found scopes
     print("Scopes found:", scopes)
+
+
+
+
+
+
+
+
+    # ── Choose your RPC backend ────────────────────────────────────────────────────
+USE_JSONRPC = False  # Set to True for dp.jsonrpc_requests, False for xmlrpc.client
+# ──────────────────────────────────────────────────────────────────────────────
+
+if USE_JSONRPC:
+    # Patch collections for Python 3.10+ compatibility
+    import collections
+    import collections.abc
+    for _name in ("Mapping", "MutableMapping", "Callable", "Iterable",
+                  "Iterator", "Sequence", "MutableSequence", "Set"):
+        if not hasattr(collections, _name):
+            setattr(collections, _name, getattr(collections.abc, _name))
+
+    import dp
+    proxy = dp.jsonrpc_requests.Server("http://localhost:1080")
+
+else:
+    import xmlrpc.client
+    proxy = xmlrpc.client.ServerProxy("http://localhost:1080")
+
+import os
+import json
