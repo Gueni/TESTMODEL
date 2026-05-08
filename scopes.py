@@ -150,3 +150,37 @@ else:
 
 import os
 import json
+
+
+
+
+
+
+
+
+
+
+
+
+import base64
+
+tree = proxy.plecs.getModelTree(model_handle)
+
+if isinstance(tree, xmlrpc.client.Binary):
+    raw = tree.data
+    
+    # Decode Base64 first, then parse JSON
+    try:
+        decoded = base64.b64decode(raw).decode('utf-8')
+        tree = json.loads(decoded)
+        print("✓ Base64 + JSON decode succeeded")
+        
+        import pprint
+        pprint.pprint(tree)  # Now print the readable tree
+        
+    except Exception as e:
+        print("✗ Failed:", e)
+
+
+if isinstance(tree, xmlrpc.client.Binary):
+    tree = json.loads(base64.b64decode(tree.data).decode('utf-8'))
