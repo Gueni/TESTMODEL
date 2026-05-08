@@ -184,3 +184,54 @@ if isinstance(tree, xmlrpc.client.Binary):
 
 if isinstance(tree, xmlrpc.client.Binary):
     tree = json.loads(base64.b64decode(tree.data).decode('utf-8'))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+***********
+def get_scopes(proxy, model_path):
+    model_handle = os.path.splitext(model_path)[0]
+    
+    tree = json.loads(base64.b64decode(
+        proxy.plecs.getModelTree(model_handle)
+    ).decode('utf-8'))
+
+    scopes = []
+
+    def scan(node, path=""):
+        if isinstance(node, dict):
+            name = node.get("name", "")
+            kind = node.get("kind", "")
+            current_path = f"{path}/{name}" if path else name
+
+            if kind.lower() == "scope" or node.get("type") == "Scope":
+                scopes.append(current_path)
+
+            for child in node.get("children", []):
+                scan(child, current_path)
+
+        elif isinstance(node, list):
+            for item in node:
+                scan(item, path)
+
+    scan([tree] if isinstance(tree, dict) else tree)
+
+    # ── Strip the full directory prefix, keep only model-relative path ────────
+    prefix = model_handle + "/"
+    scopes = [s[len(prefix):] if s.startswith(prefix) else s for s in scopes]
+    # ─────────────────────────────────────────────────────────────────────────
+
+    return scopes
