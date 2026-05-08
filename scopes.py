@@ -235,3 +235,10 @@ def get_scopes(proxy, model_path):
     # ─────────────────────────────────────────────────────────────────────────
 
     return scopes
+
+
+
+
+
+
+scopes = [s.replace("\\", "/").split("/")[-1] for s in scopes]
