@@ -1,1 +1,1 @@
-suffix = unicodedata.normalize("NFKC", suffix).strip()
+mat_suffix = sorted(existing.intersection(canonical_order), key=canonical_order.index)
