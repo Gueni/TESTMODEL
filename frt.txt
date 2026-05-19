@@ -1,0 +1,14 @@
+ for line in infile:
+        match = re.search(r'InitializationCommands "(.*?)"', line)
+        if match:
+            existing_content = match.group(1)
+            new_content = struct_definitions + flattened_str_dot
+            if existing_content.strip():
+                combined = existing_content + "\n" + new_content
+            else:
+                combined = new_content
+            prefix = line[: match.start(1)]
+            updated_line = prefix + combined + '"'
+            outfile.write(updated_line)
+        else:
+            outfile.write(line)
