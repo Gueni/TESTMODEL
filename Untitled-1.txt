@@ -1,0 +1,47 @@
+import pandas as pd
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+
+def fft_bar_plot(csv_path, headers, harmonics):
+    """
+    Generate a list of FFT bar plot figures from a CSV file.
+
+    Parameters:
+        csv_path  : str   - Path to the CSV file containing FFT values.
+        headers   : list  - List of column names matching the CSV columns.
+        harmonics : list  - List of harmonic orders (e.g. [1, 2, 3, ...]).
+
+    Returns:
+        figure_list : list - List of Plotly figures, one per signal.
+    """
+
+    df = pd.read_csv(csv_path, header=None, index_col=None)
+    df.columns = headers
+
+    n_iterations = len(df) // len(harmonics)
+    figure_list  = []
+
+    for col in headers:
+        fig = go.Figure()
+
+        for it in range(n_iterations):
+            y_vals = df[col].iloc[it * len(harmonics): (it + 1) * len(harmonics)]
+
+            fig.add_trace(go.Bar(
+                x           = harmonics,
+                y           = y_vals.values,
+                name        = f'Iter {it + 1}',
+            ))
+
+        fig.update_layout(
+            title           = f'FFT Magnitudes - {col}',
+            xaxis_title     = 'Harmonic Orders',
+            yaxis_title     = 'Magnitude',
+            xaxis           = dict(tickvals=harmonics, ticktext=harmonics),
+            plot_bgcolor    = '#f8fafd',
+            barmode         = 'group',
+        )
+
+        figure_list.append(fig)
+
+    return figure_list
