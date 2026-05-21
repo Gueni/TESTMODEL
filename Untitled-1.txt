@@ -1,47 +1,693 @@
-import pandas as pd
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 
-def fft_bar_plot(csv_path, headers, harmonics):
-    """
-    Generate a list of FFT bar plot figures from a CSV file.
-
-    Parameters:
-        csv_path  : str   - Path to the CSV file containing FFT values.
-        headers   : list  - List of column names matching the CSV columns.
-        harmonics : list  - List of harmonic orders (e.g. [1, 2, 3, ...]).
-
-    Returns:
-        figure_list : list - List of Plotly figures, one per signal.
-    """
-
-    df = pd.read_csv(csv_path, header=None, index_col=None)
-    df.columns = headers
-
-    n_iterations = len(df) // len(harmonics)
-    figure_list  = []
-
-    for col in headers:
-        fig = go.Figure()
-
-        for it in range(n_iterations):
-            y_vals = df[col].iloc[it * len(harmonics): (it + 1) * len(harmonics)]
-
-            fig.add_trace(go.Bar(
-                x           = harmonics,
-                y           = y_vals.values,
-                name        = f'Iter {it + 1}',
-            ))
-
-        fig.update_layout(
-            title           = f'FFT Magnitudes - {col}',
-            xaxis_title     = 'Harmonic Orders',
-            yaxis_title     = 'Magnitude',
-            xaxis           = dict(tickvals=harmonics, ticktext=harmonics),
-            plot_bgcolor    = '#f8fafd',
-            barmode         = 'group',
+    # ─────────────────────────────────────────────────────────────────────────
+    #  Helper : format_fixed_title
+    # ─────────────────────────────────────────────────────────────────────────
+    def format_fixed_title(self, fixed_dict, sweepNames=[]):
+        """Format the fixed-parameter subtitle used in plot titles and dropdown labels."""
+        return "<br>".join(
+            " | ".join(
+                f"{sweepNames[int(''.join(filter(str.isdigit, k)))-1]} = {v}"
+                for k, v in list(fixed_dict.items())[j:j+2]
+            )
+            for j in range(0, len(fixed_dict), 2)
         )
-
-        figure_list.append(fig)
-
-    return figure_list
+ 
+    # ─────────────────────────────────────────────────────────────────────────
+    #  Helper : write_html_report
+    # ─────────────────────────────────────────────────────────────────────────
+    def write_html_report(self, html_file, plots):
+        """Export interactive Plotly figures to a styled HTML report."""
+        plot_items   = ''
+        html_content = self.prep_html_template(Time_series=False)
+ 
+        plot_items += '<div class="plot-container">\n'
+        for i, fig in enumerate(plots):
+            fig.update_layout(height=720, margin=dict(t=50, b=50, l=50, r=50))
+            fig_html    = dp.to_html(fig, include_plotlyjs='cdn', full_html=False, div_id=f"plot-{i}")
+            plot_items += f'<div class="plot-item">{fig_html}</div>\n'
+        plot_items += '</div>\n'
+ 
+        html_content = html_content.replace("{{PLOT_ITEMS}}", plot_items)
+        with open(html_file, 'w', encoding='utf-8') as file:
+            file.write(html_content)
+ 
+    # ─────────────────────────────────────────────────────────────────────────
+    #  Helper : make_dropdown
+    # ─────────────────────────────────────────────────────────────────────────
+    def make_dropdown(self, component, fixed_combos_data, plot_type="3D"):
+        """
+        Create a Plotly figure with multiple traces and a dropdown menu to switch
+        between fixed-parameter combinations.  Supports '3D' (Surface) and 'FFT'
+        (3-D bar chart) plot types.
+        """
+        var1, var2          = dp.JSON["Var1"], dp.JSON["Var2"]
+        sweepNames          = dp.JSON["sweepNames"]
+        relative_tol        = 0.001
+        absolute_tol        = 1e-12
+ 
+        fig                 = dp.go.Figure()
+        dropdown_buttons    = []
+        group_trace_indices = []
+        current_index       = 0
+ 
+        for _, data in fixed_combos_data.items():
+            x_vals, y_vals, z_vals, fixed_dict = data
+ 
+            if plot_type == "FFT":
+                temp_fig = self.barchart3D(
+                    x_vals, y_vals, z_vals, component, 'Magnitude',
+                    x_title = 'Harmonics',
+                    y_title = sweepNames[int(dp.re.search(r'\d+', var2).group())-1]
+                )
+                for trace in temp_fig.data:
+                    trace.visible = False
+                    fig.add_trace(trace)
+                n_traces = len(temp_fig.data)
+ 
+            else:   # 3D Surface
+                X, Y = dp.np.meshgrid(dp.np.unique(x_vals), dp.np.unique(y_vals))
+                Z    = dp.np.full_like(X, dp.np.nan, dtype=float)
+                Z[dp.np.searchsorted(dp.np.unique(y_vals), y_vals),
+                  dp.np.searchsorted(dp.np.unique(x_vals), x_vals)] = z_vals
+                if dp.JSON["perturbation"] == 0:
+                    if dp.np.allclose(z_vals, Z[0, 0], rtol=relative_tol, atol=absolute_tol):
+                        X = dp.np.array([X[0, :], X[-1, :]])
+                        Y = dp.np.array([Y[0, :], Y[-1, :]])
+                        Z = dp.np.array([Z[0, :], Z[-1, :]])
+                fig.add_trace(dp.go.Surface(x=X, y=Y, z=Z, colorscale='Viridis', visible=False))
+                n_traces = 1
+ 
+            group_trace_indices.append((current_index, current_index + n_traces))
+            current_index += n_traces
+ 
+        # Make the first group visible by default
+        first_start, first_end = group_trace_indices[0]
+        for j in range(first_start, first_end):
+            fig.data[j].visible = True
+ 
+        # Build dropdown buttons
+        for i, (_, data) in enumerate(fixed_combos_data.items()):
+            fixed_dict         = data[3]
+            start_idx, end_idx = group_trace_indices[i]
+            fixed_title        = self.format_fixed_title(fixed_dict, sweepNames)
+            visibility         = [False] * len(fig.data)
+            for j in range(start_idx, end_idx):
+                visibility[j] = True
+            dropdown_buttons.append({
+                'label'  : fixed_title,
+                'method' : 'update',
+                'args'   : [{'visible': visibility},
+                            {'title.text': f'{component}<br>{fixed_title}'}]
+            })
+ 
+        first_title = self.format_fixed_title(next(iter(fixed_combos_data.values()))[3], sweepNames)
+ 
+        layout_base = dict(
+            title       = dict(text=f'{component}<br>{first_title}',
+                               x=0.5, xanchor='center', yanchor='top'),
+            updatemenus = [dict(
+                type='dropdown', x=1.15, y=0.5, xanchor='left', yanchor='middle',
+                buttons=dropdown_buttons, direction='down', showactive=True,
+                bgcolor='lightgray', bordercolor='black',
+                font={'size': 12}, pad={'r': 20}
+            )],
+            margin=dict(r=200)
+        )
+ 
+        if plot_type == "3D":
+            layout_base['scene'] = dict(
+                xaxis           = dict(autorange='reversed'),
+                yaxis           = dict(autorange='reversed'),
+                xaxis_title     = sweepNames[int(dp.re.search(r'\d+', var1).group())-1],
+                yaxis_title     = sweepNames[int(dp.re.search(r'\d+', var2).group())-1],
+                zaxis_title     = component,
+                xaxis_title_font= dict(size=10), yaxis_title_font = dict(size=10),
+                zaxis_title_font= dict(size=10), xaxis_tickfont   = dict(size=10),
+                yaxis_tickfont  = dict(size=10), zaxis_tickfont   = dict(size=10),
+            )
+        if plot_type == "FFT":
+            layout_base['scene'] = dict(
+                xaxis           = dict(autorange='reversed'),
+                yaxis           = dict(autorange='reversed'),
+                xaxis_title     = 'Harmonics',
+                yaxis_title     = sweepNames[int(dp.re.search(r'\d+', var2).group())-1],
+                zaxis_title     = 'Magnitude',
+                xaxis_title_font= dict(size=10), yaxis_title_font = dict(size=10),
+                zaxis_title_font= dict(size=10), xaxis_tickfont   = dict(size=10),
+                yaxis_tickfont  = dict(size=10), zaxis_tickfont   = dict(size=10),
+            )
+ 
+        fig.update_layout(**layout_base)
+        return fig
+ 
+    # ─────────────────────────────────────────────────────────────────────────
+    #  graph_2D
+    # ─────────────────────────────────────────────────────────────────────────
+    def graph_2D(self, sweep_vars, sweepNames,
+                 headers_array, FFT_headers,
+                 combined_matrix, combined_fft_matrix,
+                 mat_names, headers_lists,
+                 html_folder, standalone_exist,
+                 relative_tol=0.001, absolute_tol=1e-12):
+        """
+        Build and export 2-D (line / bar) Plotly charts for the single-active-sweep case.
+        One figure per (component × fixed-combo) pair; output grouped into HTML files.
+        """
+        active_sweep_keys = [k for k, v in sweep_vars.items() if len(v) > 1]
+        single_X_key      = active_sweep_keys[0]
+        sweep_values      = sweep_vars[single_X_key]
+        sweep_label       = sweepNames[int(dp.re.search(r'\d+', single_X_key).group())-1]
+        fixed_vars        = {k: v for k, v in sweep_vars.items()
+                             if k != single_X_key and v != [0]}
+        fixed_combos      = list(dp.product(*fixed_vars.values())) if fixed_vars else [()]
+        list_of_plots     = []
+        fft_plots         = []
+ 
+        # ── Normal signals ────────────────────────────────────────────────
+        for component in headers_array:
+            for fixed_values in fixed_combos:
+                fixed_dict = dict(zip(fixed_vars.keys(), fixed_values))
+                z_column   = headers_array.index(component)
+                z_vals     = combined_matrix[:len(sweep_values), z_column]
+ 
+                # Collapse to two-point line when values are constant
+                if dp.JSON["perturbation"] == 0:
+                    if dp.np.allclose(z_vals, z_vals[0], rtol=relative_tol, atol=absolute_tol):
+                        x_plot = dp.np.array([sweep_values[0], sweep_values[-1]])
+                        z_plot = dp.np.array([z_vals[0], z_vals[-1]])
+                    else:                           # perturbation==0 but not constant — plot all
+                        x_plot = sweep_values
+                        z_plot = z_vals
+                else:
+                    x_plot = sweep_values
+                    z_plot = z_vals
+ 
+                subtitle = self.format_fixed_title(fixed_dict, sweepNames)
+                fig = dp.go.Figure()
+                fig.add_trace(dp.go.Scatter(
+                    x=x_plot, y=z_plot, mode='lines',
+                    name=f"{component} {subtitle}"
+                ))
+                fig.update_layout(
+                    title           = dict(text=f"{component}<br>{subtitle}", x=0.5),
+                    xaxis_title     = sweep_label,
+                    yaxis_title     = component,
+                    xaxis_title_font= dict(size=10), yaxis_title_font = dict(size=10),
+                    xaxis_tickfont  = dict(size=10), yaxis_tickfont   = dict(size=10),
+                    margin          = dict(r=50),
+                )
+                list_of_plots.append(fig)
+ 
+        # ── FFT signals ───────────────────────────────────────────────────
+        for component in FFT_headers:
+            for fixed_values in fixed_combos:
+                fixed_dict = dict(zip(fixed_vars.keys(), fixed_values))
+                z_column   = FFT_headers.index(component)
+                z_vals     = combined_fft_matrix[:len(sweep_values), z_column]
+                x_vals     = dp.np.array(dp.harmonics)
+                x_plot     = dp.np.tile(
+                    x_vals, int(dp.np.ceil(len(sweep_values)/len(x_vals)))
+                )[:len(sweep_values)]
+ 
+                subtitle = self.format_fixed_title(fixed_dict, sweepNames)
+                fig = dp.go.Figure()
+                fig.add_trace(dp.go.Bar(
+                    x=x_plot, y=z_vals,
+                    name=f"{component} {subtitle}"
+                ))
+                fig.update_layout(
+                    title           = dict(text=f"{component}<br>{subtitle}", x=0.5),
+                    xaxis_title     = 'Harmonic Order',
+                    yaxis_title     = component,
+                    xaxis_title_font= dict(size=10), yaxis_title_font = dict(size=10),
+                    xaxis_tickfont  = dict(size=10), yaxis_tickfont   = dict(size=10),
+                    margin          = dict(r=50),
+                )
+                fft_plots.append(fig)
+ 
+        # ── Write HTML files ──────────────────────────────────────────────
+        if dp.iterSplit:
+            # One HTML per component
+            for idx, component in enumerate(headers_array):
+                start           = idx * len(fixed_combos)
+                component_plots = list_of_plots[start : start + len(fixed_combos)]
+                if component_plots:
+                    prefix    = "HTML_GRAPH_Standalone_" if standalone_exist else "HTML_GRAPH_"
+                    html_path = dp.os.path.normpath(dp.os.path.join(
+                        html_folder, f"{prefix}{component}_{self.utc}.html"
+                    )).replace('\\', '/')
+                    self.write_html_report(html_path, component_plots)
+ 
+            for idx, component in enumerate(FFT_headers):
+                start           = idx * len(fixed_combos)
+                component_plots = fft_plots[start : start + len(fixed_combos)]
+                if component_plots:
+                    prefix    = "HTML_GRAPH_Standalone_" if standalone_exist else "HTML_GRAPH_"
+                    html_path = dp.os.path.normpath(dp.os.path.join(
+                        html_folder, f"{prefix}{component}_{self.utc}.html"
+                    )).replace('\\', '/')
+                    self.write_html_report(html_path, component_plots)
+ 
+        else:
+            # One HTML per original matrix category
+            category_groups = dict(zip(mat_names, headers_lists))
+            if standalone_exist:
+                fft_categories = {"Standalone_FFT": FFT_headers}
+            else:
+                fft_categories = {
+                    "FFT_Current": FFT_headers[:len(headers_lists[6])],
+                    "FFT_Voltage": FFT_headers[len(headers_lists[6]):],
+                }
+ 
+            grouped_signal_figs = {cat: [] for cat in category_groups}
+            grouped_fft_figs    = {cat: [] for cat in fft_categories}
+ 
+            for idx, component in enumerate(headers_array):
+                start           = idx * len(fixed_combos)
+                component_plots = list_of_plots[start : start + len(fixed_combos)]
+                for cat, comps in category_groups.items():
+                    if component in comps:
+                        grouped_signal_figs[cat].extend(component_plots)
+                        break
+ 
+            for idx, component in enumerate(FFT_headers):
+                start           = idx * len(fixed_combos)
+                component_plots = fft_plots[start : start + len(fixed_combos)]
+                for cat, comps in fft_categories.items():
+                    if component in comps:
+                        grouped_fft_figs[cat].extend(component_plots)
+                        break
+ 
+            for cat, figs in grouped_signal_figs.items():
+                if figs:
+                    html_path = dp.os.path.normpath(dp.os.path.join(
+                        html_folder, f"HTML_GRAPH_{cat}_{self.utc}.html"
+                    )).replace('\\', '/')
+                    self.write_html_report(html_path, figs)
+ 
+            if dp.JSON["FFT"]:
+                for cat, figs in grouped_fft_figs.items():
+                    if figs:
+                        html_path = dp.os.path.normpath(dp.os.path.join(
+                            html_folder, f"HTML_GRAPH_{cat}_{self.utc}.html"
+                        )).replace('\\', '/')
+                        self.write_html_report(html_path, figs)
+ 
+    # ─────────────────────────────────────────────────────────────────────────
+    #  graph_3D
+    # ─────────────────────────────────────────────────────────────────────────
+    def graph_3D(self, sweep_vars, sweepNames,
+                 headers_array, FFT_headers,
+                 combined_matrix, combined_fft_matrix,
+                 mat_names, headers_lists,
+                 html_folder, standalone_exist,
+                 all_combos, fft_combos,
+                 simutil,
+                 relative_tol=0.001, absolute_tol=1e-12):
+        """
+        Build and export 3-D Surface / FFT bar-chart Plotly figures for the
+        multi-active-sweep case.  Supports per-component HTML (iterSplit=True)
+        and single grouped HTML with dropdowns (iterSplit=False).
+        """
+        var1, var2  = dp.JSON["Var1"], dp.JSON["Var2"]
+        sweep_keys  = list(sweep_vars.keys())
+ 
+        # Variables that are neither var1/var2, not trivial, and not unnamed
+        other_vars = {
+            k: v
+            for k, v in self.Xs_to_dict(simutil.sweepMatrix).items()
+            if  dp.re.fullmatch(r"X\d+", k)
+            and k not in [var1, var2]
+            and v != [0]
+            and not dp.JSON["sweepNames"][int(dp.re.search(r'\d+', k).group())-1].startswith("X")
+        }
+        print("other_vars = ", other_vars)
+ 
+        fixed_keys   = list(other_vars.keys())
+        print("fixed_keys = ", fixed_keys)
+ 
+        fixed_combos = (
+            list(dp.product(*other_vars.values())) if dp.JSON["permute"]
+            else dp.np.where(
+                (arr := dp.np.array(
+                    list(dp.zip_longest(*other_vars.values(), fillvalue=None)),
+                    dtype=object
+                )) == None,
+                [v[-1] for v in other_vars.values()], arr
+            ).tolist()
+        )
+        print("fixed_combos = ", fixed_combos)
+ 
+        # ── Pre-compute row-index slices per fixed combo ───────────────────
+        rows_dict, fft_rows_dict = {}, {}
+        for fixed_values in fixed_combos:
+            fixed_dict = dict(zip(fixed_keys, fixed_values))
+            rows = dp.np.array([
+                (i, combo[sweep_keys.index(var1)], combo[sweep_keys.index(var2)])
+                for i, combo in enumerate(all_combos)
+                if all(combo[sweep_keys.index(k)] == v for k, v in fixed_dict.items())
+            ])
+            rows_dict[tuple(fixed_values)] = rows
+            if dp.JSON['FFT']:
+                fft_rows = dp.np.array([
+                    (i, combo[sweep_keys.index(var1)], combo[sweep_keys.index(var2)])
+                    for i, combo in enumerate(fft_combos)
+                    if all(combo[sweep_keys.index(k)] == v for k, v in fixed_dict.items())
+                ])
+                fft_rows_dict[tuple(fixed_values)] = fft_rows
+ 
+        list_of_plots = []
+        fft_plots     = []
+ 
+        # ═════════════════════════════════════════════════════════════════
+        #  Case A : iterSplit=True  →  one HTML per component, no dropdown
+        # ═════════════════════════════════════════════════════════════════
+        if dp.iterSplit:
+ 
+            for component, fixed_values in dp.product(headers_array, fixed_combos):
+                fixed_dict             = dict(zip(fixed_keys, fixed_values))
+                z_column               = headers_array.index(component)
+                rows                   = rows_dict[tuple(fixed_values)]
+                x_vals, y_vals, z_vals = (rows[:, 1], rows[:, 2],
+                                          combined_matrix[rows[:, 0].astype(int), z_column])
+                X, Y                   = dp.np.meshgrid(dp.np.unique(x_vals), dp.np.unique(y_vals))
+                Z                      = dp.np.full_like(X, dp.np.nan, dtype=float)
+                Xi = dp.np.searchsorted(dp.np.unique(y_vals), y_vals)
+                Yi = dp.np.searchsorted(dp.np.unique(x_vals), x_vals)
+                Z[Xi, Yi] = z_vals
+ 
+                if dp.JSON["perturbation"] == 0:
+                    if dp.np.allclose(z_vals, Z[0, 0], rtol=relative_tol, atol=absolute_tol):
+                        X = dp.np.array([X[0, :], X[-1, :]])
+                        Y = dp.np.array([Y[0, :], Y[-1, :]])
+                        Z = dp.np.array([Z[0, :], Z[-1, :]])
+ 
+                full_title = f'{component}<br>{self.format_fixed_title(fixed_dict, sweepNames)}'
+                fig = dp.go.Figure(data=[dp.go.Surface(
+                    x=X, y=Y, z=Z, colorscale='Viridis', colorbar=dict()
+                )])
+                fig.update_layout(
+                    title = dict(text=full_title, x=0.5, xanchor='center', yanchor='top'),
+                    scene = dict(
+                        xaxis           = dict(autorange='reversed'),
+                        yaxis           = dict(autorange='reversed'),
+                        xaxis_title     = sweepNames[int(dp.re.search(r'\d+', var1).group())-1],
+                        yaxis_title     = sweepNames[int(dp.re.search(r'\d+', var2).group())-1],
+                        zaxis_title     = component,
+                        xaxis_title_font= dict(size=10), yaxis_title_font = dict(size=10),
+                        zaxis_title_font= dict(size=10), xaxis_tickfont   = dict(size=10),
+                        yaxis_tickfont  = dict(size=10), zaxis_tickfont   = dict(size=10),
+                    ),
+                )
+                list_of_plots.append(fig)
+ 
+            if dp.JSON['FFT']:
+                for component, fixed_values in dp.product(FFT_headers, fixed_combos):
+                    fixed_dict  = dict(zip(fixed_keys, fixed_values))
+                    z_column    = FFT_headers.index(component)
+                    fft_rows    = fft_rows_dict[tuple(fixed_values)]
+                    y_vals      = fft_rows[:, 2]
+                    x_vals      = dp.np.tile(
+                        dp.np.array(dp.harmonics),
+                        int(dp.np.ceil(len(y_vals) / len(dp.harmonics)))
+                    )[:len(y_vals)]
+                    z_vals      = combined_fft_matrix[fft_rows[:, 0].astype(int), z_column]
+                    full_title  = f'{component}<br>{self.format_fixed_title(fixed_dict, sweepNames)}'
+                    fig         = self.barchart3D(
+                        x_vals, y_vals, z_vals, full_title, 'Magnitude',
+                        x_title = 'Harmonics',
+                        y_title = sweepNames[int(dp.re.search(r'\d+', var2).group())-1]
+                    )
+                    fft_plots.append(fig)
+ 
+            # Write HTMLs
+            n_per_comp = max(1, len(list_of_plots) // len(headers_array))
+            for idx, component in enumerate(headers_array):
+                start, end  = idx * n_per_comp, (idx + 1) * n_per_comp
+                prefix      = "HTML_GRAPH_Standalone_" if standalone_exist else "HTML_GRAPH_"
+                html_path   = dp.os.path.normpath(dp.os.path.join(
+                    html_folder, f"{prefix}{self.utc}_{component}.html"
+                )).replace('\\', '/')
+                self.write_html_report(html_path, list_of_plots[start:end])
+ 
+            if dp.JSON['FFT']:
+                n_per_comp = max(1, len(fft_plots) // len(FFT_headers))
+                for idx, component in enumerate(FFT_headers):
+                    start, end  = idx * n_per_comp, (idx + 1) * n_per_comp
+                    prefix      = "HTML_GRAPH_Standalone_" if standalone_exist else "HTML_GRAPH_"
+                    html_path   = dp.os.path.normpath(dp.os.path.join(
+                        html_folder, f"{prefix}{self.utc}_{component}.html"
+                    )).replace('\\', '/')
+                    self.write_html_report(html_path, fft_plots[start:end])
+ 
+        # ═════════════════════════════════════════════════════════════════
+        #  Case B : iterSplit=False  →  dropdown per component, grouped HTML
+        # ═════════════════════════════════════════════════════════════════
+        else:
+            dropdown_data, fft_dropdown_data = {}, {}
+ 
+            for component in headers_array:
+                comp_data = {}
+                for fixed_values in fixed_combos:
+                    fixed_dict      = dict(zip(fixed_keys, fixed_values))
+                    rows            = rows_dict[tuple(fixed_values)]
+                    x_vals, y_vals  = rows[:, 1], rows[:, 2]
+                    z_vals          = combined_matrix[rows[:, 0].astype(int),
+                                                     headers_array.index(component)]
+                    comp_data[str(fixed_dict)] = (x_vals, y_vals, z_vals, fixed_dict)
+                dropdown_data[component] = comp_data
+ 
+            if dp.JSON['FFT']:
+                for component in FFT_headers:
+                    comp_data = {}
+                    for fixed_values in fixed_combos:
+                        fixed_dict  = dict(zip(fixed_keys, fixed_values))
+                        fft_rows    = fft_rows_dict[tuple(fixed_values)]
+                        y_vals      = fft_rows[:, 2]
+                        x_vals      = dp.np.tile(
+                            dp.np.array(dp.harmonics),
+                            int(dp.np.ceil(len(y_vals) / len(dp.harmonics)))
+                        )[:len(y_vals)]
+                        z_vals      = combined_fft_matrix[fft_rows[:, 0].astype(int),
+                                                          FFT_headers.index(component)]
+                        comp_data[str(fixed_dict)] = (x_vals, y_vals, z_vals, fixed_dict)
+                    fft_dropdown_data[component] = comp_data
+ 
+            for component in headers_array:
+                if dropdown_data[component]:
+                    list_of_plots.append(
+                        self.make_dropdown(component, dropdown_data[component], plot_type="3D")
+                    )
+ 
+            if dp.JSON['FFT']:
+                for component in FFT_headers:
+                    if fft_dropdown_data[component]:
+                        fft_plots.append(
+                            self.make_dropdown(component, fft_dropdown_data[component], plot_type="FFT")
+                        )
+ 
+            # Group by original matrix category and write
+            category_groups = dict(zip(mat_names, headers_lists))
+            if standalone_exist:
+                fft_categories = {"Standalone_FFT": FFT_headers}
+            else:
+                fft_categories = {
+                    "FFT_Current": FFT_headers[:len(headers_lists[6])],
+                    "FFT_Voltage": FFT_headers[len(headers_lists[6]):],
+                }
+ 
+            grouped_signal_figs = {cat: [] for cat in category_groups}
+            grouped_fft_figs    = {cat: [] for cat in fft_categories}
+ 
+            for component, fig in zip(headers_array, list_of_plots):
+                for cat, comps in category_groups.items():
+                    if component in comps:
+                        grouped_signal_figs[cat].append(fig)
+                        break
+ 
+            for component, fig in zip(FFT_headers, fft_plots):
+                for cat, comps in fft_categories.items():
+                    if component in comps:
+                        grouped_fft_figs[cat].append(fig)
+                        break
+ 
+            for cat, figs in grouped_signal_figs.items():
+                if figs:
+                    html_path = dp.os.path.normpath(dp.os.path.join(
+                        html_folder, f"HTML_GRAPH_{self.utc}_{cat}.html"
+                    )).replace('\\', '/')
+                    self.write_html_report(html_path, figs)
+ 
+            if dp.JSON["FFT"]:
+                for cat, figs in grouped_fft_figs.items():
+                    if figs:
+                        html_path = dp.os.path.normpath(dp.os.path.join(
+                            html_folder, f"HTML_GRAPH_{self.utc}_{cat}.html"
+                        )).replace('\\', '/')
+                        self.write_html_report(html_path, figs)
+ 
+    # ─────────────────────────────────────────────────────────────────────────
+    #  Main entry point : graph_scopes
+    # ─────────────────────────────────────────────────────────────────────────
+    def graph_scopes(self, fileLog, simutil, standalone_exist=False):
+        """
+        Generate 2D or 3D simulation plots (including FFT) from matrix and JSON data
+        and export them as interactive HTML reports.
+ 
+        Parameters :    fileLog     (object) : fileLog class object.
+                        simutil     (object) : simutil class object.
+        """
+        # ── Paths & config ────────────────────────────────────────────────
+        header_path  = dp.os.getcwd().replace("\\", "/") + "/Script/assets/HEADER_FILES/"
+        var1, var2   = dp.JSON["Var1"], dp.JSON["Var2"]
+        sweepNames   = dp.JSON["sweepNames"]
+        html_folder  = fileLog.resultfolder + "/HTML_GRAPHS/"
+        relative_tol = 0.001
+        absolute_tol = 1e-12
+        dp.os.makedirs(dp.os.path.dirname(html_folder), exist_ok=True)
+ 
+        csv_maps_dir        = f"{fileLog.resultfolder}/CSV_MAPS"
+        csv_time_series_dir = f"{fileLog.resultfolder}/CSV_TIME_SERIES"
+ 
+        # ── Load matrices & headers ───────────────────────────────────────
+        if standalone_exist:
+            time_series_files   = fileLog.natsort_files(csv_time_series_dir, standalone=True)
+            standalone_matrices = {}
+            headers_lists       = []
+            headers_array       = []
+ 
+            if time_series_files:
+                df           = dp.pd.read_csv(time_series_files[0])
+                base_headers = [
+                    dp.re.sub(r'[^a-zA-Z0-9]', '_', h)
+                    for h in df.columns[1:].tolist()
+                ]
+            print("base_headers", base_headers)
+ 
+            if (not dp.JSON["perturbation"] == 0) and (dp.JSON["nvars"] is None):
+                mat_names  = ["Standalone_RMS", "Standalone_AVG", "Standalone_MAX", "Standalone_MIN",
+                              "Standalone_RMS_Sens", "Standalone_AVG_Sens",
+                              "Standalone_MAX_Sens", "Standalone_MIN_Sens",
+                              "Standalone_FFT", "Standalone_FFT_Sens"]
+                mat_suffix = ['RMS', 'AVG', 'MAX', 'MIN',
+                              'RMS_Sens', 'AVG_Sens', 'MAX_Sens', 'MIN_Sens',
+                              'FFT', 'FFT_Sens']
+                d, N = 8, 2
+            else:
+                mat_names  = ["Standalone_RMS", "Standalone_AVG", "Standalone_MAX",
+                              "Standalone_MIN", "Standalone_FFT"]
+                mat_suffix = ['RMS', 'AVG', 'MAX', 'MIN', 'FFT']
+                d, N = 4, 1
+ 
+            for file_type, file_name in zip(mat_suffix, mat_names):
+                file_path                      = dp.os.path.join(csv_maps_dir, file_name + '_Map.csv')
+                df                             = dp.pd.read_csv(file_path, header=None)
+                standalone_matrices[file_type] = df.values.astype(float)
+                file_headers                   = (
+                    [f"{h}_{file_type}" for h in base_headers]
+                    if base_headers else
+                    [f"{file_type}_{i}" for i in range(df.shape[1])]
+                )
+                headers_lists.append(file_headers)
+ 
+            print("hearderlist", headers_lists)
+            for i in range(d):
+                headers_array.extend(headers_lists[i])
+            FFT_headers = headers_lists[d] * N
+ 
+            combined_matrix = None
+            for file_type in mat_suffix[:d]:
+                if combined_matrix is None:
+                    combined_matrix = standalone_matrices[file_type]
+                else:
+                    combined_matrix = dp.np.hstack((combined_matrix, standalone_matrices[file_type]))
+ 
+            if (not dp.JSON["perturbation"] == 0) and (dp.JSON["nvars"] is None):
+                combined_fft_matrix = dp.np.hstack((
+                    standalone_matrices.get('FFT'),
+                    standalone_matrices.get('FFT_Sens')
+                ))
+            else:
+                combined_fft_matrix = standalone_matrices.get('FFT')
+ 
+        else:
+            mat_names     = ["Peak_Currents", "RMS_Currents", "AVG_Currents",
+                             "Peak_Voltages", "RMS_Voltages", "AVG_Voltages",
+                             "FFT_Current", "FFT_Voltage",
+                             "Dissipations", "Elec_Stats", "Temps", "Thermal_Stats"]
+            headers_lists = [
+                data if isinstance(
+                    (data := dp.json.load(open(dp.os.path.join(header_path, f"{name}.json")))),
+                    list
+                ) else [data]
+                for name in mat_names
+            ]
+ 
+            cumsum        = dp.np.cumsum(dp.Y_Length[1:]).tolist()
+            all_headers   = sum(headers_lists, [])
+            fft_start     = cumsum[5]
+            fft_end       = cumsum[7]
+            FFT_headers   = all_headers[fft_start:fft_end]
+            headers_array = all_headers[:fft_start] + all_headers[fft_end:]
+ 
+            combined_matrix     = dp.np.hstack(simutil.MAT_list[:6] + simutil.MAT_list[8:12])
+            combined_fft_matrix = dp.np.hstack(simutil.MAT_list[6:8])
+ 
+        # ── Sweep configuration ───────────────────────────────────────────
+        sweep_vars        = {k: v for k, v in self.Xs_to_dict(simutil.sweepMatrix).items()
+                             if v != [0]}
+        print("sweep_vars = ", sweep_vars)
+        sweep_keys        = list(sweep_vars.keys())
+        print("sweep_keys = ", sweep_keys)
+ 
+        active_sweep_keys = [k for k, v in sweep_vars.items() if v != [0] and len(v) > 1]
+        print("active_sweep_keys = ", active_sweep_keys)
+ 
+        plot_2D = len(active_sweep_keys) == 1
+ 
+        all_combos = (
+            list(dp.product(*sweep_vars.values())) if dp.JSON["permute"]
+            else dp.np.where(
+                (arr := dp.np.array(
+                    list(dp.zip_longest(*sweep_vars.values(), fillvalue=None)),
+                    dtype=object
+                )) == None,
+                [v[-1] for v in sweep_vars.values()], arr
+            ).tolist()
+        )
+        print("all_combos = ", all_combos)
+ 
+        fft_combos = []
+        if dp.JSON['FFT']:
+            fft_combos = list(map(
+                tuple,
+                dp.np.repeat(all_combos, len(dp.harmonics), axis=0).astype(object)
+            ))
+        print("fft_combos = ", fft_combos)
+ 
+        # ── Dispatch ──────────────────────────────────────────────────────
+        shared = dict(
+            sweep_vars          = sweep_vars,
+            sweepNames          = sweepNames,
+            headers_array       = headers_array,
+            FFT_headers         = FFT_headers,
+            combined_matrix     = combined_matrix,
+            combined_fft_matrix = combined_fft_matrix,
+            mat_names           = mat_names,
+            headers_lists       = headers_lists,
+            html_folder         = html_folder,
+            standalone_exist    = standalone_exist,
+            relative_tol        = relative_tol,
+            absolute_tol        = absolute_tol,
+        )
+ 
+        if plot_2D:
+            self.graph_2D(**shared)
+        else:
+            self.graph_3D(
+                **shared,
+                all_combos  = all_combos,
+                fft_combos  = fft_combos,
+                simutil     = simutil,
+            )
+ 
